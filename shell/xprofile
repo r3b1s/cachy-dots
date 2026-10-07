@@ -14,6 +14,14 @@
 # before sourcing this, so a `${XDG_CURRENT_DESKTOP:-GNOME}` default would never
 # fire and the portal would still skip its GTK backend. The value is a
 # colon-separated list, and the portal matches any of its tokens.
+#
+# PATH: bin/ is linked into ~/.local/bin, and nothing on CachyOS adds that to the
+# session's PATH, so rofi and anything else i3 spawns would not find the helpers.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
 case ":${XDG_CURRENT_DESKTOP:-}:" in
     *:GNOME:*) ;;
     *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+$XDG_CURRENT_DESKTOP:}GNOME" ;;

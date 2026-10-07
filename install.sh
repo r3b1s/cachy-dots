@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# athena-dots installer for AthenaOS (Arch-based).
+# cachy-dots installer for CachyOS (Arch-based).
 #
-#   1. installs any missing packages (pacman; sudo is used when not root)
-#   2. enables the guest-agent services
-#   3. symlinks the dots into ~/.config and ~/.local/bin
-#   4. validates the i3 config
+#   1. checks the CachyOS repos, adds chaotic-aur (for qutebrowser-git only)
+#   2. installs any missing packages (pacman; sudo is used when not root)
+#   3. enables the guest-agent services, makes bash the login shell
+#   4. symlinks the dots into ~/.config and ~/.local/bin
+#   5. validates the i3 config
 #
 # Safe to re-run: installed packages are skipped, existing non-symlink targets
 # are backed up, existing symlinks are replaced.
@@ -22,7 +23,7 @@ for arg in "$@"; do
         --packages-only) do_links=0 ;;
         --links-only)    do_packages=0 ;;
         -n|--dry-run)    dry=1 ;;
-        -h|--help)       sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)       sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -34,7 +35,17 @@ run()  { if [ "$dry" = 1 ]; then echo "+ $*"; else "$@"; fi; }
 SUDO=
 [ "$(id -u)" -ne 0 ] && SUDO=sudo
 
+# The user the dots are for: the invoking user even under sudo.
+TARGET_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+
 # ── packages ──────────────────────────────────────────────────────────────
+
+# Packages are named plainly, never as cachyos-extra-v3/foo: CachyOS lists its
+# optimised repos (cachyos-v3/-v4/-znver4, cachyos-core-*, cachyos-extra-*,
+# cachyos) above core/extra in pacman.conf, so pacman already takes the Cachy
+# build whenever one exists, and which of v3/v4/znver4 that is depends on the
+# CPU the installer picked. Hard-coding a level would break on other hardware.
+# check_cachy_repos() verifies that ordering; see AGENTS.md, "Repos".
 
 # Core stack (see AGENTS.md).
 PKGS=(
@@ -45,8 +56,7 @@ PKGS=(
     firefox                          # second browser; themed and preconfigured by policy
     mise nix                         # package / language managers
 
-    # No display manager: the X server is started per session with `startx`
-    # (i3-wm does not depend on either of these). See AGENTS.md, "Starting i3".
+    # i3-wm depends on neither of these. See AGENTS.md, "Starting i3".
     xorg-server                     # the X server itself
     xorg-xinit                      # startx / xinit
     xorg-xrandr                     # monitor size, set by bin/x11-monitor
@@ -64,7 +74,7 @@ PKGS+=(
     numlockx
     libnotify                        # dunstify links against it (dunst's optdep); the OSDs use it
     curl                             # fetches the seeded wallpaper
-    rofimoji                         # emoji picker (extra/rofimoji), bound in i3/conf.d/30-apps.conf
+    rofimoji                         # emoji picker, bound in i3/conf.d/30-apps.conf
 
     # System-wide dark mode. There is no desktop here, so dconf is the system
     # theme: GTK4/libadwaita read it directly, and the portal reads it for
@@ -79,14 +89,7 @@ PKGS+=(
     starship                         # shell prompt (config in starship/)
     tmux                             # terminal multiplexer (config in tmux/)
     rclone                           # cloud storage sync
-)
-
-# Extra shells and desktop apps (TODO.md). Bash stays the default login shell:
-# nothing here calls chsh; fish/xonsh are launched explicitly when wanted.
-PKGS+=(
-    fish                             # vanilla fish from extra, not the Athena flavour
-    xonsh                            # extra/xonsh
-    obsidian                         # notes (extra/obsidian)
+    obsidian                         # notes
 )
 
 # Session helpers and VM guest integration.
@@ -100,13 +103,110 @@ PKGS+=(
 # Set when something required could not be installed; reported at the end.
 FAILED=0
 
+PACMAN_CONF=/etc/pacman.conf
+
+# CachyOS's own repos must come before core/extra, or pacman takes the generic
+# Arch builds. The CachyOS installer writes them that way; this only checks, and
+# warns rather than rewriting pacman.conf. (cachyos-rate-mirrors and
+# cachyos-repo tooling own that file's repo section.)
+check_cachy_repos() {
+    command -v pacman >/dev/null || return 0
+
+    if ! grep -qx 'ID=cachyos' /etc/os-release 2>/dev/null; then
+        warn "this does not look like CachyOS (/etc/os-release); continuing anyway"
+    fi
+
+    local repos first_cachy first_arch
+    repos=$(pacman-conf --repo-list 2>/dev/null || true)
+    first_cachy=$(printf '%s\n' "$repos" | grep -n '^cachyos' | head -1 | cut -d: -f1)
+    first_arch=$(printf '%s\n' "$repos" | grep -nxE 'core|extra' | head -1 | cut -d: -f1)
+
+    if [ -z "$first_cachy" ]; then
+        warn "no [cachyos*] repos in $PACMAN_CONF: packages will come from plain Arch"
+        return 0
+    fi
+    if [ -n "$first_arch" ] && [ "$first_cachy" -gt "$first_arch" ]; then
+        warn "the [cachyos*] repos are listed after core/extra in $PACMAN_CONF;"
+        warn "pacman will prefer the generic Arch builds. Move them above [core]."
+        return 0
+    fi
+    say "CachyOS repos: $(printf '%s\n' "$repos" | grep '^cachyos' | paste -sd' ')"
+}
+
+# chaotic-aur exists here for qutebrowser-git alone (and blesh-git, if opted in
+# with opt/blesh.sh); nothing else is installed from it. It is appended at the
+# END of pacman.conf, below the Cachy and Arch repos, so it can never shadow
+# their builds of anything: packages are only taken from it by qualified name.
+#
+# Setup follows https://aur.chaotic.cx/docs: trust the signing key, install the
+# keyring and mirrorlist packages from its CDN, then add the repo. A repo that
+# has just been added has no sync database, and the only supported way to get
+# one is a full -Syu (a bare -Sy followed by -S is a partial upgrade).
+CHAOTIC_KEY=3056513887B78AEB
+CHAOTIC_CDN=https://cdn-mirror.chaotic.cx/chaotic-aur
+
+setup_chaotic_aur() {
+    command -v pacman >/dev/null || return 0
+
+    if ! pacman-conf --repo-list 2>/dev/null | grep -qx chaotic-aur; then
+        say "Adding the chaotic-aur repo (for qutebrowser-git)"
+        # One -U for both packages: every pacman transaction costs a pre/post
+        # snapper snapshot pair on CachyOS (cachyos-snapper-support).
+        local pkgs=()
+        pacman -Qq chaotic-keyring >/dev/null 2>&1 || pkgs+=("$CHAOTIC_CDN/chaotic-keyring.pkg.tar.zst")
+        pacman -Qq chaotic-mirrorlist >/dev/null 2>&1 || pkgs+=("$CHAOTIC_CDN/chaotic-mirrorlist.pkg.tar.zst")
+        if [ "${#pkgs[@]}" -gt 0 ]; then
+            { run $SUDO pacman-key --recv-key "$CHAOTIC_KEY" --keyserver keyserver.ubuntu.com \
+                && run $SUDO pacman-key --lsign-key "$CHAOTIC_KEY" \
+                && run $SUDO pacman -U --needed --noconfirm "${pkgs[@]}"; } \
+                || { warn "could not install chaotic-keyring/chaotic-mirrorlist"; FAILED=1; return 0; }
+        fi
+        if [ "$dry" = 1 ]; then
+            echo "+ append [chaotic-aur] to $PACMAN_CONF"
+        else
+            $SUDO cp -a "$PACMAN_CONF" "$PACMAN_CONF.bak.$(date +%s)"
+            printf '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n' \
+                | $SUDO tee -a "$PACMAN_CONF" >/dev/null
+            echo "chaotic-aur: appended to $PACMAN_CONF (last, below the Cachy and Arch repos)"
+        fi
+    fi
+
+    if [ ! -f "$(pacman-conf DBPath 2>/dev/null || echo /var/lib/pacman/)sync/chaotic-aur.db" ]; then
+        say "Syncing the new repo (full -Syu; a bare -Sy would be a partial upgrade)"
+        run $SUDO pacman -Syu --noconfirm || { warn "pacman -Syu failed"; FAILED=1; }
+    fi
+}
+
+# Two packages are taken from one specific repo, by qualified name, with
+# deliberately no fallback to any other:
+#   chaotic-aur/qutebrowser-git  no CachyOS repo builds it, and extra's plain
+#                                `qutebrowser` is not wanted (they conflict, so
+#                                an installed `qutebrowser` is removed first)
+#   cachyos/yay                  CachyOS's own build; never chaotic-aur's
+# If the repo is missing or unsynced, the package is skipped with a warning,
+# the rest still installs, and the run exits non-zero.
+PINNED=(chaotic-aur/qutebrowser-git cachyos/yay)
+
+# Everything goes into ONE pacman transaction: on CachyOS each transaction also
+# takes a pre/post snapper snapshot pair, so separate calls per package would
+# litter the snapshot list.
 install_packages() {
     command -v pacman >/dev/null || { warn "pacman not found; skipping package install"; return; }
 
     say "Checking packages"
-    local missing=() p
+    local missing=() p q
     for p in "${PKGS[@]}"; do
         pacman -Qq "$p" >/dev/null 2>&1 || missing+=("$p")
+    done
+    for q in "${PINNED[@]}"; do
+        pacman -Qq "${q#*/}" >/dev/null 2>&1 && continue
+        if ! pacman -Si "$q" >/dev/null 2>&1; then
+            warn "$q is unavailable (is the [${q%%/*}] repo enabled and synced?)."
+            warn "Not installing ${q#*/} from any other repo. Fix that and re-run."
+            FAILED=1
+            continue
+        fi
+        missing+=("$q")
     done
 
     if [ "${#missing[@]}" -eq 0 ]; then
@@ -114,46 +214,34 @@ install_packages() {
         return
     fi
 
+    case " ${missing[*]} " in
+        *" chaotic-aur/qutebrowser-git "*)
+            if pacman -Qq qutebrowser >/dev/null 2>&1; then
+                warn "replacing non-chaotic qutebrowser with qutebrowser-git"
+                run $SUDO pacman -Rns --noconfirm qutebrowser
+            fi ;;
+    esac
+
     say "Installing: ${missing[*]}"
     run $SUDO pacman -S --needed --noconfirm "${missing[@]}"
 }
 
-# qutebrowser comes from chaotic-aur ONLY (qutebrowser-git, per AGENTS.md); there
-# is deliberately no fallback to extra's `qutebrowser`. The two conflict, so a
-# plain `qutebrowser` already on the system is removed first.
-install_qutebrowser() {
-    command -v pacman >/dev/null || return 0
-    pacman -Qq qutebrowser-git >/dev/null 2>&1 && return 0
+# The shell integrations (shell/) are bash-only, and CachyOS makes fish the
+# login shell, so alacritty would start fish and never load them. Switch the
+# login shell to bash; fish stays installed (it is CachyOS's package, not ours).
+# Run as root (sudo), chsh does not ask for the user's password.
+setup_login_shell() {
+    local current bash_path=/bin/bash
+    current=$(getent passwd "$TARGET_USER" | cut -d: -f7)
+    case "$current" in
+        /bin/bash|/usr/bin/bash) return 0 ;;
+    esac
+    [ "$TARGET_USER" = root ] && { warn "running as root without sudo; not changing root's shell"; return 0; }
 
-    say "Checking qutebrowser-git (chaotic-aur)"
-    if ! pacman -Si chaotic-aur/qutebrowser-git >/dev/null 2>&1; then
-        warn "chaotic-aur/qutebrowser-git is unavailable (is chaotic-aur enabled and synced?)."
-        warn "Not installing qutebrowser from any other repo. Fix chaotic-aur and re-run."
-        FAILED=1
-        return 0
-    fi
-    if pacman -Qq qutebrowser >/dev/null 2>&1; then
-        warn "replacing non-chaotic qutebrowser with qutebrowser-git"
-        run $SUDO pacman -Rns --noconfirm qutebrowser
-    fi
-    run $SUDO pacman -S --needed --noconfirm chaotic-aur/qutebrowser-git
-}
-
-# yay comes from chaotic-aur ONLY, installed by its qualified name so pacman
-# cannot fall back to another repo. As with qutebrowser-git there is deliberately
-# no fallback: if chaotic-aur is absent or unsynced, warn and carry on.
-install_yay() {
-    command -v pacman >/dev/null || return 0
-    pacman -Qq yay >/dev/null 2>&1 && return 0
-
-    say "Checking yay (chaotic-aur)"
-    if ! pacman -Si chaotic-aur/yay >/dev/null 2>&1; then
-        warn "chaotic-aur/yay is unavailable (is chaotic-aur enabled and synced?)."
-        warn "Not installing yay from any other repo. Fix chaotic-aur and re-run."
-        FAILED=1
-        return 0
-    fi
-    run $SUDO pacman -S --needed --noconfirm chaotic-aur/yay
+    say "Changing the login shell of $TARGET_USER: $current -> $bash_path"
+    run $SUDO chsh -s "$bash_path" "$TARGET_USER" \
+        || { warn "could not change the login shell to bash"; return 0; }
+    echo "login shell: $bash_path (applies at next login)"
 }
 
 # Wallpapers live in ~/.config/wallpapers, which is yours: drop anything in and
@@ -239,14 +327,14 @@ setup_wallpapers() {
 # into that file. Merging rather than replacing keeps every setting we do not care
 # about at its packaged value, and keeps working across upgrades that add keys.
 #
-# The original is kept once as config.ini.athena-orig; re-running restores from it
+# The original is kept once as config.ini.cachy-orig; re-running restores from it
 # first, so the merge is idempotent instead of accumulating.
 install_ly_theme() {
     # LY_CONFIG exists so this can be pointed elsewhere for testing; normal use
     # is the system path.
     local target="${LY_CONFIG:-/etc/ly/config.ini}"
     local src="$REPO/ly/pinkrot.ini"
-    local pristine="$target.athena-orig"
+    local pristine="$target.cachy-orig"
 
     [ -r "$src" ] || return 0
     if [ ! -f "$target" ]; then
@@ -313,37 +401,13 @@ install_ly_theme() {
 # Neovim is a LazyVim tree in this repo (init.lua, lua/config, lua/plugins,
 # colors). install_links() calls link_nvim_tree() to link each file
 # individually, so runtime state (lazyvim.json, lazy-lock.json, :Mason, spell,
-# shada) stays out of the repo. setup_nvim() reconciles the reverse: if the
-# user already had a LazyVim setup, any init.lua managed block from the old
-# colourscheme-only days is removed now that init.lua itself is linked.
+# shada) stays out of the repo.
 link_nvim_tree() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
     local rel
     ( cd "$REPO/nvim" && find . -type f | sed 's|^\./||' ) | while IFS= read -r rel; do
         link "$REPO/nvim/$rel" "$cfg/nvim/$rel"
     done
-}
-setup_nvim() {
-    local init="${XDG_CONFIG_HOME:-$HOME/.config}/nvim/init.lua"
-    local open="-- >>> athena-dots >>>"
-
-    # Retire the old managed block: init.lua is a symlink into the repo now,
-    # so a leftover block means the link was replaced by a real file.
-    if [ -f "$init" ] && [ ! -L "$init" ] && grep -qF -e "$open" "$init"; then
-        if [ "$dry" = 1 ]; then
-            echo "+ remove the managed colourscheme block from $init (init.lua is linked now)"
-        else
-            local tmp
-            tmp="$(mktemp)" || return 0
-            awk -v open="$open" -v close="-- <<< athena-dots <<<" '
-                $0 == open { skip = 1; prev_blank = 0; next }
-                skip && $0 == close { skip = 0; next }
-                skip { next }
-                { print }
-            ' "$init" > "$tmp" && run mv "$tmp" "$init" && echo "nvim: retired the managed colourscheme block in $init"
-            rm -f "$tmp"
-        fi
-    fi
 }
 
 # Firefox: the Flame theme and Vimium, via enterprise policy.
@@ -564,8 +628,16 @@ setup_dark_theme() {
         # The gtk portal backend is gated on XDG_CURRENT_DESKTOP; i3/config sets
         # it for everything i3 spawns, this covers the user services.
         XDG_CURRENT_DESKTOP=GNOME run dbus-update-activation-environment --systemd XDG_CURRENT_DESKTOP
-        run systemctl --user enable --now xdg-desktop-portal.service xdg-desktop-portal-gtk.service \
-            || warn "could not start the xdg-desktop-portal user services"
+        # Both units are static and D-Bus activated, so there is nothing to
+        # enable; the first portal request starts them. Starting them here only
+        # works with a display: the GTK backend exits at once without one (as
+        # over ssh), and systemd then refuses retries until its start limit resets.
+        if [ -n "${DISPLAY:-}" ]; then
+            run systemctl --user restart xdg-desktop-portal-gtk.service xdg-desktop-portal.service \
+                || warn "could not start the xdg-desktop-portal user services"
+        else
+            echo "portal: no DISPLAY; it starts on demand in the i3 session"
+        fi
     fi
 }
 
@@ -605,36 +677,31 @@ enable_services() {
             warn "another display manager (${DISPLAY_MANAGER}) is enabled; disable it or ly will not start"
         fi
     fi
-    # spice-vdagentd is socket-activated; qemu-guest-agent is started by udev
-    # when the virtio channel appears, so it has nothing to enable.
-    run $SUDO systemctl enable --now spice-vdagentd.socket \
-        || warn "could not enable spice-vdagentd.socket"
+    # Nothing to enable for the guest agents: spice-vdagentd.socket and
+    # qemu-guest-agent are both static units, pulled in by udev rules when their
+    # virtio port (com.redhat.spice.0 / org.qemu.guest_agent.0) appears. Start
+    # the socket now so the first session does not need a reboot.
+    if [ -e /dev/virtio-ports/com.redhat.spice.0 ]; then
+        run $SUDO systemctl start spice-vdagentd.socket \
+            || warn "could not start spice-vdagentd.socket"
+    else
+        warn "no SPICE virtio port; spice-vdagent (clipboard, resize) will be idle"
+    fi
 }
 
-# Safe sshd config for the day it is ever enabled. Deliberately does NOT
-# enable sshd: `systemctl is-enabled sshd` must stay disabled. Installs a
-# drop-in (pubkey only, no passwords/interactive, no root) and the deploy key
-# into ~/.ssh/authorized_keys, then validates with sshd -t.
+# Hardened sshd config. Unlike athena-dots, sshd is left exactly as found:
+# CachyOS enables it, and on a headless host it is the only way in, so this
+# neither enables nor disables the service. Installs a drop-in (pubkey only, no
+# passwords/interactive, no root) and the deploy key into
+# ~/.ssh/authorized_keys, validates with sshd -t, and reloads sshd if it is
+# running. The key goes in FIRST, so password logins are never switched off
+# before a key that can replace them is in place.
 setup_sshd() {
-    local src="$REPO/ssh/sshd_config.d/10-athena-safe.conf"
-    local target="/etc/ssh/sshd_config.d/10-athena-safe.conf"
+    local src="$REPO/ssh/sshd_config.d/10-cachy-safe.conf"
+    local target="/etc/ssh/sshd_config.d/10-cachy-safe.conf"
     local key='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGeIuM1WNYaQp75xua3Fh/DgPdFdEqGIVN748bbO5Sis athena0'
 
-    if [ -r "$src" ]; then
-        say "Installing the sshd hardening drop-in (service stays disabled)"
-        if [ "$dry" = 1 ]; then
-            echo "+ install $src -> $target"
-        elif [ -f "$target" ] && cmp -s "$src" "$target"; then
-            echo "sshd config: already up to date"
-        else
-            [ -f "$target" ] && run $SUDO cp -a "$target" "$target.bak.$(date +%s)"
-            run $SUDO install -D -m 644 "$src" "$target"
-            echo "sshd config: $target (pubkey only, no root)"
-        fi
-        if [ "$dry" = 0 ] && command -v sshd >/dev/null; then
-            run $SUDO sshd -t && echo "sshd config OK"
-        fi
-    fi
+    say "Installing the sshd hardening drop-in (service state left as is)"
 
     local auth="$HOME/.ssh/authorized_keys"
     if [ "$dry" = 1 ]; then
@@ -652,10 +719,32 @@ setup_sshd() {
         fi
     fi
 
-    # Never enable: a stray `systemctl enable sshd` would undo the intent.
-    if command -v systemctl >/dev/null && systemctl is-enabled --quiet sshd 2>/dev/null; then
-        warn "sshd.service is ENABLED; TODO.md says it must stay disabled (systemctl disable sshd)"
+    if [ -r "$src" ]; then
+        local changed=0
+        if [ "$dry" = 1 ]; then
+            echo "+ install $src -> $target"
+        elif [ -f "$target" ] && cmp -s "$src" "$target"; then
+            echo "sshd config: already up to date"
+        else
+            [ -f "$target" ] && run $SUDO cp -a "$target" "$target.bak.$(date +%s)"
+            run $SUDO install -D -m 644 "$src" "$target"
+            echo "sshd config: $target (pubkey only, no root)"
+            changed=1
+        fi
+        if [ "$changed" = 1 ] && command -v sshd >/dev/null; then
+            if $SUDO sshd -t; then
+                echo "sshd config OK"
+                if systemctl is-active --quiet sshd 2>/dev/null; then
+                    $SUDO systemctl reload sshd && echo "sshd: reloaded"
+                fi
+            else
+                warn "sshd -t rejected the config; removing $target"
+                $SUDO rm -f "$target"
+                FAILED=1
+            fi
+        fi
     fi
+
 }
 # ── links ─────────────────────────────────────────────────────────────────
 
@@ -676,11 +765,11 @@ link() {
 # Everything else in .bashrc is left alone. Remove the block to undo.
 install_bashrc_block() {
     local bashrc="$HOME/.bashrc"
-    local open="# >>> athena-dots >>>"
+    local open="# >>> cachy-dots >>>"
     if [ -f "$bashrc" ] && grep -qF "$open" "$bashrc"; then
-        echo "bashrc: athena-dots block already present"
+        echo "bashrc: cachy-dots block already present"
     elif [ "$dry" = 1 ]; then
-        echo "+ append athena-dots block to $bashrc"
+        echo "+ append cachy-dots block to $bashrc"
     else
         touch "$bashrc"
         {
@@ -688,13 +777,16 @@ install_bashrc_block() {
             echo "$open"
             # shellcheck disable=SC2016  # written literally: expands in .bashrc, not here
             echo '[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/shell/init.sh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/shell/init.sh"'
-            echo "# <<< athena-dots <<<"
+            echo "# <<< cachy-dots <<<"
         } >> "$bashrc"
-        echo "bashrc: appended athena-dots block"
+        echo "bashrc: appended cachy-dots block"
     fi
-    case "$(basename "${SHELL:-}")" in
+    # The passwd entry, not $SHELL: setup_login_shell may have just changed it.
+    local login
+    login=$(getent passwd "$TARGET_USER" | cut -d: -f7)
+    case "$(basename "${login:-unknown}")" in
         bash) ;;
-        *) warn "login shell is ${SHELL:-unknown}, not bash; shell/ is only loaded by bash" ;;
+        *) [ "$dry" = 1 ] || warn "login shell is ${login:-unknown}, not bash; shell/ is only loaded by bash" ;;
     esac
 }
 
@@ -720,9 +812,6 @@ install_links() {
         "btop/btop.conf:btop/btop.conf" \
         "btop/themes/pinkrot.theme:btop/themes/pinkrot.theme" \
         "tmux/tmux.conf:tmux/tmux.conf" \
-        "fish/conf.d/vi_mode.fish:fish/conf.d/vi_mode.fish" \
-        "fish/conf.d/svim.fish:fish/conf.d/svim.fish" \
-        "xonsh/rc.xsh:xonsh/rc.xsh" \
         "starship/starship.toml:starship.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
@@ -730,9 +819,8 @@ install_links() {
 
     # Neovim is a LazyVim tree (init.lua + lua/config + colors). Individual
     # files are linked so runtime state (lazyvim.json, lazy-lock.json, :Mason,
-    # spell, shada) stays out of the repo. setup_nvim() reconciles below.
+    # spell, shada) stays out of the repo.
     link_nvim_tree
-
 
     install_bashrc_block
 
@@ -742,11 +830,7 @@ install_links() {
     # separate link rather than one of the pair mappings above.
     link "$REPO/shell/xprofile" "$HOME/.xprofile"
 
-    # ~/.blerc is ble.sh's own config. The AthenaOS image ships one in
-    # /etc/skel; link ours over it so the image defaults are kept and the
-    # vi-mode indicator stays off. Also outside ~/.config, so the same
-    # separate-link treatment.
-    link "$REPO/shell/blerc" "$HOME/.blerc"
+    # ble.sh is opt-in here (opt/blesh.sh links ~/.blerc), so nothing for it.
 
     local script
     for script in "$REPO"/bin/*; do
@@ -755,7 +839,7 @@ install_links() {
 
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) ;;
-        *) warn "$HOME/.local/bin is not on PATH; i3 binds use it directly but rofi/shells will not" ;;
+        *) echo "note: $HOME/.local/bin is added to PATH by shell/init.sh and ~/.xprofile from the next login" ;;
     esac
 
     if [ "$dry" = 0 ] && command -v i3 >/dev/null; then
@@ -765,9 +849,10 @@ install_links() {
 }
 
 if [ "$do_packages" = 1 ]; then
+    check_cachy_repos
+    setup_chaotic_aur
     install_packages
-    install_qutebrowser
-    install_yay
+    setup_login_shell
     install_ly_theme
     enable_services
     enable_nix
@@ -776,13 +861,12 @@ if [ "$do_packages" = 1 ]; then
     setup_firefox
     setup_chromium
     setup_sshd
-    setup_nvim
 fi
 [ "$do_links" = 1 ] && install_links
 
 echo
 if [ "$FAILED" = 1 ]; then
-    warn "finished with errors: a chaotic-aur package (qutebrowser-git/yay) was not installed (see above)"
+    warn "finished with errors (see the warnings above)"
     exit 1
 fi
 echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."

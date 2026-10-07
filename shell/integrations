@@ -19,36 +19,11 @@ if [[ ! -v BASH_COMPLETION_VERSINFO && -f /usr/share/bash-completion/bash_comple
   source /usr/share/bash-completion/bash_completion
 fi
 
-# starship (the config is starship/starship.toml)
-#
-# Owns the prompt over the image's Athena PS1: ~/.bashrc sets PROMPT_COMMAND to
-# set_bash_prompt BEFORE our managed block runs. The catch is that the image
-# sources ble.sh first, which makes PROMPT_COMMAND an ARRAY and pushes its own
-# prompt-attach hook at index 1. The scalar assignment in ~/.bashrc then only
-# rewrites index 0, so set_bash_prompt ends up at index 1; mise prepends and
-# pushes it further along. Drop that one entry from either form. On a scalar we
-# substitute + collapse the leftover separators; on an array we filter the exact
-# element (mise/zoxide keep each hook as its own element). All other hooks are
-# preserved, and starship registers itself through blehook when ble.sh is
-# present or through PROMPT_COMMAND otherwise. This stays idempotent.
+# starship (the config is starship/starship.toml). It replaces the PS1 from
+# CachyOS's stock ~/.bashrc, and registers itself through blehook when ble.sh
+# is loaded or through PROMPT_COMMAND otherwise.
 if [[ ${TERM:-} != "dumb" ]] && command -v starship &> /dev/null; then
-  if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then
-    __athena_prompt_command=()
-    for __athena_hook in "${PROMPT_COMMAND[@]}"; do
-      [[ $__athena_hook == set_bash_prompt ]] || __athena_prompt_command+=("$__athena_hook")
-    done
-    PROMPT_COMMAND=("${__athena_prompt_command[@]}")
-    unset __athena_prompt_command __athena_hook
-  else
-    PROMPT_COMMAND="${PROMPT_COMMAND//set_bash_prompt/}"
-    while [[ "$PROMPT_COMMAND" == *";;"* ]]; do PROMPT_COMMAND="${PROMPT_COMMAND//;;/;}"; done
-    PROMPT_COMMAND="${PROMPT_COMMAND#;}"; PROMPT_COMMAND="${PROMPT_COMMAND%;}"
-  fi
   eval "$(starship init bash --print-full-init)"
-  STARSHIP_PROMPT_COMMAND="${STARSHIP_PROMPT_COMMAND//set_bash_prompt/}"
-  while [[ "${STARSHIP_PROMPT_COMMAND:-}" == *";;"* ]]; do STARSHIP_PROMPT_COMMAND="${STARSHIP_PROMPT_COMMAND//;;/;}"; done
-  STARSHIP_PROMPT_COMMAND="${STARSHIP_PROMPT_COMMAND#;}"; STARSHIP_PROMPT_COMMAND="${STARSHIP_PROMPT_COMMAND%;}"
-  unset -f set_bash_prompt 2>/dev/null || true
 fi
 
 # zoxide (provides `z`, used by the cd wrapper in ./aliases)

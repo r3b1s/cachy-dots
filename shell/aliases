@@ -50,8 +50,7 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 # ── vi mode ─────────────────────────────────────────────────────────────────
-# vi-style line editing. Bash reads this file; fish/xonsh get their own config
-# files below (fish/vi_mode.fish, xonsh/rc.xsh) linked by install.sh.
+# vi-style line editing.
 if [ -n "${BASH_VERSION:-}" ]; then
   set -o vi
 fi

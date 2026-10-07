@@ -1,6 +1,31 @@
-These dotfiles are intended to set up a custom [AthenaOS](https://athenaos.org/) desktop in a VM. Intended as a CTF / Engagement environment.
+These dotfiles set up a custom i3 desktop on a headless [CachyOS](https://cachyos.org/) VM (qemu/kvm/libvirt).
+They are a port of `athena-dots` (the AthenaOS version), kept as a separate repo for now.
 
-AthenaOS is downstream of arch linux and has access to all official Arch repos. It also has access to the blackarch repos and chaotic-aur repos.
+CachyOS is downstream of Arch and has all the official Arch repos. On top of them it adds its own repos,
+rebuilt for newer CPUs: `cachyos-v3`/`-v4`/`-znver4`, `cachyos-core-*`, `cachyos-extra-*` and the
+architecture-independent `cachyos`. A Cachy repo is preferred for every package that has one.
+
+Never test the scripts on the AthenaOS machine this repo is edited on; the test host is a separate Cachy VM.
+
+## Repos
+
+- **Packages are named plainly in `install.sh`, never as `cachyos-extra-v3/foo`.** The CachyOS installer
+  writes its repos *above* `[core]`/`[extra]` in `/etc/pacman.conf`, so pacman already prefers the Cachy
+  build whenever one exists. Which level (v3, v4, znver4) that is depends on the CPU, so hard-coding one would
+  break on other hardware. `check_cachy_repos()` only verifies the ordering (via `pacman-conf --repo-list`)
+  and warns; it never rewrites the repo section. On the test VM nearly everything resolves to
+  `cachyos-extra-v3`/`cachyos-core-v3`; the rest (`autotiling`, `rofimoji`, `starship`, `obsidian`,
+  `ttf-jetbrains-mono-nerd`, …) has no Cachy build and comes from `extra`. When a dependency has several
+  providers, `--noconfirm` takes provider 1, which pacman lists in repo order, so the Cachy one.
+- **chaotic-aur is added for `qutebrowser-git` only** (and `blesh-git` if opted in, see "Shell"). No Cachy
+  repo builds `qutebrowser-git`. `setup_chaotic_aur()` follows the chaotic-aur docs (key, then
+  `chaotic-keyring` + `chaotic-mirrorlist` from its CDN) and appends `[chaotic-aur]` at the **end** of
+  `pacman.conf`, below the Cachy and Arch repos, so it can never shadow their builds. A freshly added repo has
+  no sync database, and the only supported way to get one is a full `pacman -Syu`, so that is what runs (a
+  bare `-Sy` followed by `-S` would be a partial upgrade). It only runs when `chaotic-aur.db` is missing.
+- **Every pacman transaction is also a snapper snapshot pair** (`cachyos-snapper-support`, the
+  `==> root: N` lines in pacman's output). The installer therefore batches: one `-U` for the chaotic
+  packages, the `-Syu`, then a single `-S` for everything else, including the two pinned packages.
 
 ## packages
 
@@ -14,9 +39,9 @@ AthenaOS is downstream of arch linux and has access to all official Arch repos. 
 | Browsers | `chromium`, `qutebrowser-git`, `firefox` |
 | X and the session | `xorg-server`, `xorg-xinit`, `xorg-xauth`, `xorg-xrandr`, `ly` |
 | Shell and prompt | `starship`, `eza`, `zoxide`, `fzf`, `bat`, `bash-completion` |
-| Extra shells (bash stays default; no chsh) | `fish` (vanilla extra), `xonsh` |
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
 | Sync and notes | `rclone`, `obsidian` |
+| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay` |
 
 Notes on particular entries:
 
@@ -24,9 +49,11 @@ Notes on particular entries:
   `pacman -Si chaotic-aur/qutebrowser-git`, and if that fails it warns, finishes the rest, and exits
   non-zero rather than substituting extra's `qutebrowser`. If a conflicting `qutebrowser` is installed it is
   removed first.
-- **`yay` is chaotic-aur only** too, and installed by its qualified name `chaotic-aur/yay` so pacman cannot
-  pull it from another repo. `install.sh` checks `pacman -Si chaotic-aur/yay` and, if that fails, warns,
-  finishes the rest, and exits non-zero; there is no fallback repo. An already-installed `yay` is left alone.
+- **`yay` comes from Cachy's own `[cachyos]` repo**, installed by its qualified name `cachyos/yay` so pacman
+  cannot take chaotic-aur's build. Same rules: no fallback, warn, finish, exit non-zero. An already-installed
+  `yay` is left alone. (`[cachyos]` also has `paru`.)
+- **No `fish` or `xonsh`.** CachyOS itself ships fish as the default login shell; it stays installed, but
+  nothing here configures it (see "Shell").
 - **`nix` is installed, nothing more.** `install.sh` enables `nix-daemon.socket` and adds the user to
   `nix-users` when that group exists. No channels, no flakes config: project-specific environments only.
 - **`libnotify` is load-bearing**, not a convenience: `dunst` lists it as an optdep for `dunstify`, and every
@@ -45,7 +72,7 @@ at boot you get a login prompt on the virtual console. Pick `i3` as the session;
 
 ly reads exactly one config file, `/etc/ly/config.ini`. The path is compiled into it and there is **no**
 `~/.config/ly/config.ini` fallback, so a per-user config does nothing. `install_ly_theme()` therefore merges
-`ly/pinkrot.ini` into that system file, keeping the packaged original at `/etc/ly/config.ini.athena-orig` and
+`ly/pinkrot.ini` into that system file, keeping the packaged original at `/etc/ly/config.ini.cachy-orig` and
 always re-merging from it, so repeat runs are idempotent. A `pacman -Syu` that upgrades ly restores the
 packaged file (or leaves a `.pacnew`); re-run the installer to put the theme back.
 Autologin is deliberately not enabled: log in interactively.
@@ -57,8 +84,9 @@ when ly will not come up. Do not run a bare `startx` without naming i3: Arch's
 `i3-wm` does not depend on `xorg-server`, which is why the X packages are in the list explicitly.
 
 The display is SPICE (virt-manager's graphical console), paired with `spice-vdagent` for clipboard and
-resize. X has no mode-setting of its own: if X fails to find the video device on first boot, it needs an
-explicit driver in `/etc/X11/xorg.conf.d/`.
+resize; the test VM's GPU is virtio (`Virtio 1.0 GPU`, `/dev/dri/card1`), driven by xorg-server's built-in
+`modesetting` driver. `spice-vdagentd.socket` and `qemu-guest-agent` are static units that udev starts when
+their virtio ports appear, so `enable_services()` only starts the socket (no reboot needed) and enables nothing.
 
 The resolution is pinned to 1920x1080 by `bin/x11-monitor`, run from `05-autostart.conf`'s `exec_always`.
 A headless VM otherwise comes up at whatever size the last SPICE client asked for. If the GPU offers
@@ -108,10 +136,13 @@ exists yet, never overwriting a user-picked theme. Takes effect on next launch.
 
 ## sshd
 
-`setup_sshd()` in `install.sh` hardens without enabling: sshd stays `disabled` (the installer warns if it
-ever finds it enabled). It installs `ssh/sshd_config.d/10-athena-safe.conf` to
-`/etc/ssh/sshd_config.d/` (pubkey yes, passwords/interactive no, root no — validated with `sshd -t`) and
-ensures the `athena0` ed25519 key is in `~/.ssh/authorized_keys` with 700/600 perms.
+Different from athena-dots, where sshd must stay disabled: CachyOS enables sshd, and on a headless VM it is
+the way in, so `setup_sshd()` leaves the service's state alone. It first ensures the `athena0` ed25519 key is
+in `~/.ssh/authorized_keys` (700/600), then installs `ssh/sshd_config.d/10-cachy-safe.conf` to
+`/etc/ssh/sshd_config.d/` (pubkey yes, passwords/interactive no, root no). When that file changed it is
+validated with `sshd -t` (and removed again if rejected) and a running sshd is reloaded, so **password SSH
+logins stop working after the first install**: have a key in `authorized_keys` before running it. The drop-in
+wins because Arch's `sshd_config` Includes `sshd_config.d/*.conf` at its top and sshd keeps the first value.
 
 **Vimium's options cannot be installed by policy.** Its settings live in the extension's own browser
 storage, and the only import path is the Restore control on `chrome-extension://<id>/options.html`. No
@@ -150,10 +181,9 @@ same URL as `b`.
 `theme.lua`, `all-themes.lua` and `omarchy-theme-hotreload.lua` were dropped, and `pinkrot-theme.lua`
 selects the `pinkrot` colourscheme instead. Portable keeps: `snacks-animated-scrolling-off.lua`,
 `disable-news-alert.lua`. `link_nvim_tree()` links each file individually so runtime state
-(`lazyvim.json`, `lazy-lock.json`, `:Mason`, spell, shada) stays out of the repo; a leftover managed
-`-- >>> athena-dots >>>` block in a pre-existing `init.lua` is retired by `setup_nvim()`.
+(`lazyvim.json`, `lazy-lock.json`, `:Mason`, spell, shada) stays out of the repo.
 
-Athena deltas from the Omarchy source: `lua/config/options.lua` adds `vim.opt.wrap = true`;
+Deltas from the Omarchy source: `lua/config/options.lua` adds `vim.opt.wrap = true`;
 `lua/config/clipboard.lua` replaces `remote_clipboard.lua`'s Wayland path (`wl-copy`/`wl-paste`) with X11
 (`xclip`, already a dependency) while keeping the OSC 52 emit under tmux/SSH; `Visual` is high-contrast
 (`#f17e97` on `#050007`) instead of the low-contrast `#24101a` wash.
@@ -161,11 +191,6 @@ Athena deltas from the Omarchy source: `lua/config/options.lua` adds `vim.opt.wr
 One trap in the colours file itself: it set `vim.g.colors_name` before `highlight clear`, and that command
 resets `g:colors_name`, so it read back as nil even though the colours applied. The assignment now comes
 after, and `:colorscheme` reports `pinkrot` again.
-
-Separately, the AthenaOS image ships a `~/.vimrc` from the amix/vimrc installer that hardcodes
-`/home/athena/.vim_runtime`. On this VM the user is `t`, so every `source` in it failed with E484 and Vim
-would not start cleanly. The paths are `$HOME`-relative now. That file is image state, not part of this repo,
-so a rebuild needs the same one-line repair.
 
 ## Layout and install
 
@@ -179,9 +204,9 @@ so a rebuild needs the same one-line repair.
   everything after a `;` as a new command, so a bare `$bin/x11-wallpaper` is rejected at runtime with
   "Expected one of these tokens: ... 'exec' ...". Note `i3 -C` validates the config file but **not** the
   command body of a `bindsym`, so it accepts that mistake silently and the bind does nothing.
-- `install.sh` installs missing packages (pacman), enables `spice-vdagentd.socket`,
-  symlinks the dots, then validates with `i3 -C`. It is the source of truth for the
-  package list; keep it in sync with this file.
+- `install.sh` checks the Cachy repos, adds chaotic-aur, installs missing packages (pacman), switches the
+  login shell to bash, starts `spice-vdagentd.socket`, symlinks the dots, then validates with `i3 -C`. It is
+  the source of truth for the package list; keep it in sync with this file.
 - GTK ignores `org.gnome.desktop.interface` for the theme and icon theme: it reads XSETTINGS, which needs a
   settings daemon, and there is none in a bare i3 session. `setup_gtk()` in `install.sh` therefore writes
   `~/.config/gtk-{3,4}.0/settings.ini` with `gtk-theme-name=Adwaita`, `gtk-application-prefer-dark-theme=1`
@@ -195,7 +220,8 @@ so a rebuild needs the same one-line repair.
   No icon files live in this repo. The glyph renders at the 0.35 opacity baked into Adwaita's SVG, so it is
   dimmer than the bar text; strip the `opacity` attributes in the generated files to brighten it.
 - System dark mode: `setup_dark_theme()` in `install.sh` sets dconf `color-scheme=prefer-dark` and
-  `gtk-theme=Adwaita`, and enables the `xdg-desktop-portal{,-gtk}` user services. Those exist for the things
+  `gtk-theme=Adwaita`, and (with a `DISPLAY`) restarts the `xdg-desktop-portal{,-gtk}` user services, which are
+  static, D-Bus-activated units with nothing to enable. Those exist for the things
   that ask a portal rather than reading settings themselves, which is sandboxed apps and Qt6 (qutebrowser).
   GTK's own dark mode does **not** come from here: see the settings.ini bullet above. The portal backend is
   gated on `XDG_CURRENT_DESKTOP`, exported from `shell/xprofile` (-> `~/.xprofile`) because i3 has no
@@ -203,8 +229,9 @@ so a rebuild needs the same one-line repair.
   which is why that variable names GNOME at all. Check it with
   `busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop
   org.freedesktop.portal.Settings ReadOne ss org.gnome.desktop.interface color-scheme`, which should answer
-  `"prefer-dark"`. Run the installer from inside the i3 session, or the dconf half is skipped with
-  instructions.
+  `"prefer-dark"`. Over ssh on Cachy the systemd user instance provides a session bus, so the dconf half
+  still runs; the GTK portal backend cannot start without a display, so it is left to start on demand in the
+  i3 session. With no session bus at all (a bare tty), the dconf half is skipped with instructions.
 - Guest is qemu/kvm/libvirt: no i3lock, no picom, no brightness/nightlight/screen recording.
 - Colours are the pinkrot theme throughout, kept inside each app's own dir: `i3/conf.d/01-pinkrot.conf` (window
   colours), `i3/conf.d/15-bar.conf` (bar colours; a `bar` block can't be split across includes),
@@ -214,25 +241,38 @@ so a rebuild needs the same one-line repair.
   pinkrot colours, but nothing in the config launches it and its remote-control socket is off.
 - `install.sh` links whole dirs for i3, kitty, alacritty, rofi, dunst, i3status-rust, shell; individual files for
   qutebrowser (`config.py`, `pinkrot.py`, `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
-  `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), fish
-  (`fish/conf.d/*.fish`), xonsh (`xonsh/rc.xsh` -> `~/.config/xonsh/rc.xsh`), chromium policy
+  `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), chromium policy
   (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
-  `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` and
-  `shell/blerc` are linked separately to `~/.xprofile` and `~/.blerc`, which are outside `~/.config`; `bin/*` goes
-  to `~/.local/bin`; the sshd drop-in goes to `/etc/ssh/sshd_config.d/` (never enabled). The ly theme is merged
+  `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` is
+  linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`; the sshd
+  drop-in goes to `/etc/ssh/sshd_config.d/`. The ly theme is merged
   into `/etc/ly/config.ini` instead
   of linked, and the GTK icon theme is generated into `~/.local/share/icons/`.
-- `shell/` is sourced by a managed `# >>> athena-dots >>>` block appended to `~/.bashrc` (idempotent, bash only):
-  `init.sh` -> `aliases` (eza, zoxide `cd`/`zd`, fzf `ff`/`eff`/`sff`, `..`/`...`/`....`) and
-  `integrations` (mise activation, bash-completion, starship, zoxide, fzf key bindings). Definitions are guarded by
-  `command -v`, so a missing tool silently disables its aliases. `shell/blerc` is linked to `~/.blerc`, ble.sh's
-  own config (the image ships `blesh-git` and a `/etc/skel/.blerc`): it keeps the image defaults and turns off
-  ble.sh's vi-mode `-- INSERT --` indicator with the deferred `bleopt keymap_vi_mode_show:=` form, since ~/.blerc
-  is sourced before the option is declared.
-- Requires a bash login shell; `install.sh` warns if `$SHELL` is something else.
+- See "Shell" below for `shell/` and the login shell.
 - mise is activated in `shell/integrations` (with `set +h`, or bash caches binary paths ahead of the
   shims). No global or project mise config is managed by this repo; put one in `mise/config.toml` if wanted.
 - `root/` holds dots for the root user and has its own `root/install.sh` (`sudo ./root/install.sh`).
   It is opt-in: the top-level `install.sh` never runs it. It COPIES (never symlinks) into `/root`, since
   root must not read user-writable files, and backs up differing existing files. Its `appendrc` carries the
   same eza/zoxide/fzf aliases plus root-only extras (`wipehist`, `compress`, ssh port forwards `fip`/`dip`/`lip`).
+
+## Shell
+
+- **The login shell is switched to bash.** CachyOS makes fish the login shell, and every integration in
+  `shell/` is bash-only, so alacritty would start fish and never load them. `setup_login_shell()` runs
+  `sudo chsh -s /bin/bash <user>` when the passwd entry says otherwise (as root, chsh does not prompt). fish
+  itself stays installed; it is Cachy's package (`cachyos-fish-config`), not ours.
+- `shell/` is sourced by a managed `# >>> cachy-dots >>>` block appended to `~/.bashrc` (idempotent, bash
+  only), after Cachy's stock PS1, which starship replaces. `init.sh` puts `~/.local/bin` on PATH (Cachy's
+  stock `~/.bashrc` does not; `shell/xprofile` does the same for the i3 session), then sources `aliases`
+  (eza, zoxide `cd`/`zd`, fzf `ff`/`eff`/`sff`, `..`/`...`/`....`) and `integrations` (mise activation,
+  bash-completion, starship, zoxide, fzf key bindings). Definitions are guarded by `command -v`, so a missing
+  tool silently disables its aliases. starship wraps an existing scalar `PROMPT_COMMAND` (mise's hook) in
+  `STARSHIP_PROMPT_COMMAND` and runs it from `starship_precmd`, so mise still fires.
+- **ble.sh is opt-in.** `install.sh` neither installs it nor links `~/.blerc`. `opt/blesh.sh` installs
+  `chaotic-aur/blesh-git` (run `install.sh` first; it adds chaotic-aur) and links `shell/blerc` to
+  `~/.blerc`; `opt/blesh.sh --remove` undoes both. `shell/init.sh` sources `/usr/share/blesh/ble.sh` first
+  whenever it is installed, as the AthenaOS image's `~/.bashrc` did, so starship then registers through
+  `blehook`. ble.sh does not load under `bash -c` or without a tty, so test it in a real terminal. `blerc`
+  turns off the vi-mode `-- INSERT --` indicator with the deferred `bleopt keymap_vi_mode_show:=` form, since
+  `~/.blerc` is sourced before the option is declared.

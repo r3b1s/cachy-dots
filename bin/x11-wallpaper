@@ -15,7 +15,7 @@ timeout=5
 
 notify() {
     command -v dunstify >/dev/null || return 0
-    dunstify -a athena-dots -u "$urgency" -t "$timeout" "Wallpaper" "$1"
+    dunstify -a cachy-dots -u "$urgency" -t "$timeout" "Wallpaper" "$1"
 }
 
 if [ ! -d "$dir" ]; then

@@ -1,4 +1,4 @@
-# athena-dots i3 config — entry point, for AthenaOS (Arch-based) in a
+# cachy-dots i3 config — entry point, for CachyOS (Arch-based) in a
 # qemu/kvm/libvirt guest.
 #
 # Variables must be defined before the includes so every module can use them.

@@ -72,6 +72,6 @@ for out in $OUTS; do
 done
 
 if [ "$changed" = 1 ] && command -v dunstify >/dev/null; then
-    dunstify -a athena-dots "Monitor set" "$RES @ ${RATE}Hz"
+    dunstify -a cachy-dots "Monitor set" "$RES @ ${RATE}Hz"
 fi
 exit 0

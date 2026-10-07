@@ -1,8 +1,8 @@
-# ble.sh (the AthenaOS image's blesh-git package) reads this as ~/.blerc.
+# ble.sh reads this as ~/.blerc. Opt-in: opt/blesh.sh installs blesh-git from
+# chaotic-aur and links this file; install.sh does neither.
 #
-# The first three settings reproduce /etc/skel/.blerc from the image so that
-# replacing it with a symlink to this file does not lose the packaged defaults.
-# Everything below is our own.
+# The first three settings reproduce /etc/skel/.blerc from the AthenaOS image,
+# where these dots came from. Everything below is our own.
 
 # Set proper background color on the autocomplete
 ble-face auto_complete='fg=242,bg=235'

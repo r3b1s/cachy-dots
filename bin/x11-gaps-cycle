@@ -14,4 +14,4 @@ outer=${preset#*:}
 
 i3-msg "gaps inner all set $inner; gaps outer all set $outer" >/dev/null
 echo "$idx" > "$STATE"
-dunstify -a athena-dots -r 9994 "Window gaps: inner ${inner}px, outer ${outer}px"
+dunstify -a cachy-dots -r 9994 "Window gaps: inner ${inner}px, outer ${outer}px"
