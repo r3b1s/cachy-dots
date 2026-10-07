@@ -23,15 +23,19 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
   `pacman.conf`, below the Cachy and Arch repos, so it can never shadow their builds. A freshly added repo has
   no sync database, and the only supported way to get one is a full `pacman -Syu`, so that is what runs (a
   bare `-Sy` followed by `-S` would be a partial upgrade). It only runs when `chaotic-aur.db` is missing.
-- **Cachy can lag Arch on a Qt minor, which breaks qutebrowser.** `qutebrowser-git` runs on extra's
-  `python-pyqt6`, which has no Cachy build. When Arch moves to a new Qt minor first, `cachyos-extra-*` shadows
-  extra's newer `qt6-base` & co. with the older version, and qutebrowser dies with
-  ``libQt6Core.so.6: version `Qt_6.N' not found``; pacman cannot see it because PyQt6 depends on `qt6-base`
-  unversioned. Hit on the first fresh install (extra at Qt 6.12.0, `cachyos-extra-v3` at 6.11.2).
-  `fix_qt_skew()` runs only when `python3 -c 'import PyQt6.QtWebEngineWidgets'` fails, and then takes from
-  `extra` exactly the installed `qt6-*` packages that extra has newer. It heals itself: Cachy versions a
-  rebuild as Arch's pkgrel plus `.1` (`6.12.0-2` -> `6.12.0-2.1`), so once Cachy catches up, the next `-Syu`
-  moves them back to the Cachy builds.
+- **Cachy can lag Arch on a Qt minor, which breaks Qt apps.** Qt modules link against `qt6-base`'s
+  *private* API, versioned per release (`Qt_6_PRIVATE_API`, `QtPrivate_6_11_2`), so every module must be on
+  `qt6-base`'s minor; pacman cannot enforce it because the dependencies are unversioned. When Arch moves to a
+  new Qt minor, Cachy rebuilds piecemeal and the mix breaks. Both directions were hit on 2026-10-07:
+  qutebrowser died (``version `Qt_6.12' not found``) because extra's `python-pyqt6` (no Cachy build) was built
+  for 6.12 while `cachyos-extra-v3` still had `qt6-base` 6.11.2; hours later Cachy had `qt6-base` 6.12 but
+  `qt6-svg` 6.11.2, so CopyQ died (`undefined symbol ... QtPrivate_6_11_2`) on a pure-Cachy install.
+  `sync_qt_stack()` runs after every install: the newest `qt6-base` wins whichever repo it is in, and every
+  installed `qt6-*` module below its minor is taken from `extra` when extra has it at that minor. Modules extra
+  itself ships older (`qt6-webengine` trails `qt6-base` by design) are left alone. It heals itself: Cachy
+  versions a rebuild as Arch's pkgrel plus `.1` (`6.12.0-1` -> `6.12.0-1.1`), so the next `-Syu` after Cachy
+  catches up moves each module back. A Qt app installed by hand in that window can still pull a stale module
+  from Cachy; re-running `./install.sh --packages-only` fixes it.
 - **Every pacman transaction is also a snapper snapshot pair** (`cachyos-snapper-support`, the
   `==> root: N` lines in pacman's output). The installer therefore batches: one `-U` for the chaotic
   packages, the `-Syu`, then a single `-S` for everything else, including the two pinned packages.
@@ -50,7 +54,11 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Shell and prompt | `starship`, `eza`, `zoxide`, `fzf`, `bat`, `bash-completion` |
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
 | Sync and notes | `rclone`, `obsidian` |
-| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay` |
+| Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
+| Lock, nightlight | `cachyos/i3lock-color` + `xss-lock`, `gammastep` |
+| Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
+| Files, build | `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
+| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay`, `cachyos/i3lock-color` |
 
 Notes on particular entries:
 
@@ -61,6 +69,10 @@ Notes on particular entries:
 - **`yay` comes from Cachy's own `[cachyos]` repo**, installed by its qualified name `cachyos/yay` so pacman
   cannot take chaotic-aur's build. Same rules: no fallback, warn, finish, exit non-zero. An already-installed
   `yay` is left alone. (`[cachyos]` also has `paru`.)
+- **Package source priority:** a Cachy repo, then the official Arch repos, then chaotic-aur, and never the
+  plain AUR when chaotic-aur has the package. `i3lock-color` is in Cachy's own `[cachyos]` repo, so it is
+  pinned there (on vanilla Arch it would be `chaotic-aur/i3lock-color`). It conflicts with `extra/i3lock`,
+  which is removed first, like `qutebrowser` for `qutebrowser-git`.
 - **No `fish` or `xonsh`.** CachyOS itself ships fish as the default login shell; it stays installed, but
   nothing here configures it (see "Shell").
 - **`nix` is installed, nothing more.** `install.sh` enables `nix-daemon.socket` and adds the user to
@@ -250,7 +262,8 @@ after, and `:colorscheme` reports `pinkrot` again.
   pinkrot colours, but nothing in the config launches it and its remote-control socket is off.
 - `install.sh` links whole dirs for i3, kitty, alacritty, rofi, dunst, i3status-rust, shell; individual files for
   qutebrowser (`config.py`, `pinkrot.py`, `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
-  `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), chromium policy
+  `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
+  (`satty/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
   (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
   `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` is
   linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`; the sshd
@@ -285,3 +298,37 @@ after, and `:colorscheme` reports `pinkrot` again.
   `blehook`. ble.sh does not load under `bash -c` or without a tty, so test it in a real terminal. `blerc`
   turns off the vi-mode `-- INSERT --` indicator with the deferred `bleopt keymap_vi_mode_show:=` form, since
   `~/.blerc` is sourced before the option is declared.
+
+## Desktop tools
+
+These were left out while the dots only targeted disposable VMs; they are for daily use on bare metal.
+
+- **Clipboard history: CopyQ, driven from rofi.** `05-autostart.conf` starts `copyq` (it keeps the history
+  and a tray icon). `bin/x11-clipboard history` (`$mod+Ctrl+v`) lists the history in rofi; the chosen item goes
+  back on the clipboard and to the top. Image items get a thumbnail as their rofi row icon: CopyQ's script
+  writes each to `$XDG_RUNTIME_DIR/x11-clipboard/<index>.png` (tmpfs, rebuilt each time, so history images
+  never land on persistent disk). Those rows are icon-tall, so the menu overrides the theme's 16 lines with 7.
+  `bin/x11-clipboard wipe` (`$mod+Shift+Ctrl+Mod1+v`) clears the clipboard and primary selection first, so
+  CopyQ has nothing current to re-add, then removes every item. Testing over ssh: the `xclip` helpers it
+  leaves owning the selections keep an ssh session's output open, so ssh appears to hang; from i3 it does not.
+- **Screenshots.** `$mod+;` is unchanged (maim region to the clipboard). `$mod+Shift+;` captures a region and
+  `$mod+Ctrl+;` the whole screen into **satty** for annotation; a `for_window` rule floats it full-screen.
+  `satty/config.toml`: Enter copies (via `xclip`, not satty's default `wl-copy`) and closes, Ctrl+S saves to
+  `~/Pictures/Screenshots`, Escape discards; keys 1-6 pick the pinkrot palette.
+- **Lock: i3lock-color + xss-lock.** `bin/x11-lock` (`$mod+Ctrl+Escape`, and "lock" in the `$mod+Escape`
+  menu) runs i3lock-color blurred, with a pinkrot ring and clock, and refuses to stack a second locker.
+  `xss-lock --transfer-sleep-lock` locks before suspend, holding suspend until the locker is up (which is why
+  `x11-lock` execs `i3lock --nofork`), and when the X screensaver fires: `xset s 600 600`, 10 idle minutes.
+- **Nightlight.** `bin/x11-nightlight` (`$mod+Ctrl+n`) toggles `gammastep -m randr -O 4000` (one-shot: it sets
+  the gamma ramps and exits, X keeps them, so no daemon runs). `NIGHTLIGHT_TEMP` changes the warmth. The
+  virtio GPU on the test VM supports gamma ramps (`xrandr --verbose` shows `Gamma: 1.0:1.3:1.6` when on).
+- **Bluetooth.** `blueman-manager` is in rofi's drun list; `blueman-applet` starts only when
+  `/sys/class/bluetooth` has an adapter. `bluetooth.service` is enabled; its unit is conditioned on the same
+  directory, so on a VM it is enabled but never starts.
+- **yazi** is the file manager, on `$mod+e` in a terminal (the bind used to run `nautilus`, which was never
+  installed). Image previews in alacritty would need `ueberzugpp`; not installed.
+- **Telemetry opt-outs: `env/telemetry.conf`.** One `KEY=VALUE` file (the strict subset that both
+  environment.d(5) and `sh` accept), merged from quattro-dots' `shell/envs` and its environment.d file. It is
+  linked to `~/.config/environment.d/telemetry.conf` for systemd --user (read when the user manager starts,
+  i.e. at login), and the same path is sourced with `set -a` by `shell/xprofile` (the i3 session) and
+  `shell/init.sh` (terminals). Delete a line to restore a tool's default; note `NPM_CONFIG_AUDIT=false`.

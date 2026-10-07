@@ -22,6 +22,14 @@ case ":$PATH:" in
     *) export PATH="$HOME/.local/bin:$PATH" ;;
 esac
 
+# Telemetry opt-outs for everything i3 starts (env/telemetry.conf; the same file
+# systemd --user reads through environment.d).
+if [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/telemetry.conf" ]; then
+    set -a
+    . "${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/telemetry.conf"
+    set +a
+fi
+
 case ":${XDG_CURRENT_DESKTOP:-}:" in
     *:GNOME:*) ;;
     *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+$XDG_CURRENT_DESKTOP:}GNOME" ;;

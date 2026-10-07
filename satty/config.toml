@@ -1,0 +1,33 @@
+# satty — screenshot annotation. Fed by bin/x11-screenshot (maim | satty -f -).
+# Reference: /usr/share/doc/satty/README.md ("Configuration").
+[general]
+# Enter copies and closes; Escape just closes. Ctrl+S saves to output-filename.
+early-exit = ["all"]
+actions-on-enter = ["save-to-clipboard", "exit"]
+actions-on-escape = ["exit"]
+# X11 clipboard; satty's default is wl-copy.
+copy-command = "xclip -selection clipboard -t image/png"
+output-filename = "~/Pictures/Screenshots/satty-%Y-%m-%d_%H-%M-%S.png"
+initial-tool = "arrow"
+corner-roundness = 6
+annotation-size-factor = 1.5
+default-round-caps = true
+brush-smooth-history-size = 5
+primary-highlighter = "block"
+notification-thumbnail = "screenshot"
+
+[font]
+family = "JetBrainsMono Nerd Font"
+style = "Regular"
+
+# pinkrot (i3/conf.d/01-pinkrot.conf), plus white and black for contrast on
+# arbitrary screenshots. Keys 1-0 pick these in order.
+[color-palette]
+palette = [
+    "#f17e97ff",
+    "#d40d40ff",
+    "#f00f40ff",
+    "#a85869ff",
+    "#ffffffff",
+    "#050007ff",
+]

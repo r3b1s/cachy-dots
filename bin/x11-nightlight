@@ -1,0 +1,32 @@
+#!/bin/sh
+# x11-nightlight [toggle|on|off|status] — warm the screen (gammastep, one-shot).
+#
+# gammastep -O sets the gamma ramps through RandR and exits; X keeps them, so no
+# daemon runs. The state lives in $XDG_RUNTIME_DIR, so it resets at login,
+# which is also when X resets the ramps. NIGHTLIGHT_TEMP sets the warmth in
+# kelvin (default 4000; lower is more orange, 6500 is neutral).
+set -eu
+
+temp="${NIGHTLIGHT_TEMP:-4000}"
+state="${XDG_RUNTIME_DIR:-/tmp}/x11-nightlight"
+
+notify() { dunstify -a cachy-dots -r 9990 "$@" 2>/dev/null || true; }
+
+on() {
+    gammastep -m randr -P -O "$temp" >/dev/null 2>&1
+    echo "$temp" > "$state"
+    notify "Nightlight on" "${temp}K"
+}
+off() {
+    gammastep -m randr -x >/dev/null 2>&1
+    rm -f "$state"
+    notify "Nightlight off"
+}
+
+case "${1:-toggle}" in
+    toggle) if [ -f "$state" ]; then off; else on; fi ;;
+    on)     on ;;
+    off)    off ;;
+    status) if [ -f "$state" ]; then echo "on $(cat "$state")K"; else echo off; fi ;;
+    *) echo "usage: x11-nightlight [toggle|on|off|status]" >&2; exit 2 ;;
+esac

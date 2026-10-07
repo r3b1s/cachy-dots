@@ -1,0 +1,84 @@
+#!/bin/sh
+# x11-clipboard history|wipe — CopyQ's clipboard history, driven from rofi.
+#
+#   history: list every item in rofi; the chosen one goes back on the clipboard
+#            (and to the top of the history)
+#   wipe:    clear the clipboard and primary selection, then delete every item
+#            from the history, in memory and on disk
+#
+# CopyQ itself is started by i3/conf.d/05-autostart.conf and owns the history;
+# this only talks to it through the `copyq` CLI.
+set -eu
+
+notify() { dunstify -a cachy-dots -r 9991 "$@" 2>/dev/null || true; }
+
+if ! copyq size >/dev/null 2>&1; then
+    notify -u critical "Clipboard" "CopyQ is not running"
+    exit 1
+fi
+
+case "${1:-history}" in
+    history)
+        # Image items are written out as PNGs and shown as row icons, so a
+        # screenshot is recognisable at a glance. The directory is rebuilt on
+        # every run and lives in $XDG_RUNTIME_DIR (tmpfs, per user, gone at
+        # logout), so history images never land on persistent disk here.
+        thumbs="${XDG_RUNTIME_DIR:-/tmp}/x11-clipboard"
+        rm -rf "$thumbs"
+        mkdir -p -m 700 "$thumbs"
+
+        # One line per item, in history order: "<label>\t<image path or empty>".
+        # Text is flattened to a single line; an item with no text is shown as
+        # its format, and an image one also gets its PNG written for the icon.
+        list=$(THUMBS="$thumbs" copyq eval -- '
+            var dir = str(env("THUMBS"));
+            for (var i = 0; i < size(); ++i) {
+                var text = str(read(i));
+                var label, icon = "";
+                if (text.length) {
+                    label = text.replace(/\s+/g, " ").trim().substring(0, 160);
+                } else {
+                    var formats = str(read("?", i)).split("\n").filter(function (f) { return f.length; });
+                    var image = formats.filter(function (f) { return f.indexOf("image/") === 0; })[0];
+                    label = "[" + (image || formats[0] || "empty") + "]";
+                    if (image) {
+                        var path = dir + "/" + i + ".png";
+                        var file = new File(path);
+                        if (file.openWriteOnly()) {
+                            file.write(read("image/png", i).length ? read("image/png", i) : read(image, i));
+                            file.close();
+                            icon = path;
+                        }
+                    }
+                }
+                print(label + "\t" + icon + "\n");
+            }' 2>/dev/null)
+        [ -n "$list" ] || { notify "Clipboard" "History is empty"; exit 0; }
+
+        # rofi's dmenu row options: "<text>\0icon\x1f<path>". -format i returns
+        # the row index, which is CopyQ's item index. The rows are icon-tall, so
+        # the theme's 16 lines would overflow a 1080p screen; 7 still scroll.
+        row=$(printf '%s\n' "$list" | while IFS='	' read -r label icon; do
+                  if [ -n "$icon" ]; then
+                      printf '%s\0icon\037%s\n' "$label" "$icon"
+                  else
+                      printf '%s\n' "$label"
+                  fi
+              done | rofi -dmenu -i -show-icons -format i -p clipboard \
+                         -theme-str 'element-icon { size: 3.5em; } element-text { vertical-align: 0.5; } listview { lines: 7; }') || exit 0
+        [ -n "$row" ] && copyq select "$row" >/dev/null
+        ;;
+    wipe)
+        count=$(copyq size)
+        # Clear the live selections first, so CopyQ has nothing current to
+        # re-add once the history is gone.
+        printf '' | xclip -selection clipboard >/dev/null 2>&1
+        printf '' | xclip -selection primary >/dev/null 2>&1
+        copyq eval -- '
+            var rows = [];
+            for (var i = 0; i < size(); ++i) rows.push(i);
+            if (rows.length) remove.apply(this, rows);' >/dev/null
+        notify "Clipboard history wiped" "Cleared $count entries"
+        ;;
+    *) echo "usage: x11-clipboard history|wipe" >&2; exit 2 ;;
+esac

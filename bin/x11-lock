@@ -1,0 +1,33 @@
+#!/bin/sh
+# x11-lock — lock the screen with i3lock-color in pinkrot colours.
+#
+# Run by the lock bind, the power menu, and xss-lock (05-autostart.conf), which
+# calls it before suspend and when the X screensaver timer fires. It execs
+# i3lock with --nofork so xss-lock's --transfer-sleep-lock hands the sleep
+# inhibitor to the locker itself: the machine suspends only once the screen is
+# actually locked.
+set -eu
+
+# Never stack a second locker on top of a running one.
+pgrep -x -u "$(id -u)" i3lock >/dev/null && exit 0
+
+# pinkrot: see i3/conf.d/01-pinkrot.conf. i3lock-color wants rrggbbaa.
+bg=050007ff fg=f17e97ff accent=d40d40ff bright=f00f40ff
+muted=a85869ff clear=00000000 dim=050007cc
+
+exec i3lock --nofork \
+    --blur 8 --color "$bg" \
+    --indicator --radius 110 --ring-width 6 \
+    --inside-color "$dim" --ring-color "$accent" --line-color "$clear" \
+    --separator-color "$clear" \
+    --keyhl-color "$bright" --bshl-color "$muted" \
+    --insidever-color "$dim" --ringver-color "$fg" \
+    --insidewrong-color "$dim" --ringwrong-color "$bright" \
+    --verif-color "$fg" --wrong-color "$bright" --modif-color "$muted" \
+    --clock --time-str "%H:%M" --date-str "%a %d %b" \
+    --time-color "$fg" --date-color "$muted" \
+    --time-font "JetBrainsMono Nerd Font" --date-font "JetBrainsMono Nerd Font" \
+    --verif-font "JetBrainsMono Nerd Font" --wrong-font "JetBrainsMono Nerd Font" \
+    --time-size 32 --date-size 14 \
+    --verif-text "checking…" --wrong-text "nope" --noinput-text "empty" \
+    --ignore-empty-password --show-failed-attempts

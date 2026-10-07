@@ -1,10 +1,20 @@
 #!/bin/sh
-# x11-screenshot region|full
+# x11-screenshot region|full|annotate-region|annotate-full
 #
 # maim screenshots (grim/slurp replacement).
-#   region: interactive selection, copied to the clipboard
-#   full:   whole screen, saved to ~/Pictures and copied to the clipboard
+#   region:          interactive selection, copied to the clipboard
+#   full:            whole screen, saved to ~/Pictures and copied to the clipboard
+#   annotate-region: interactive selection, opened in satty to draw on
+#   annotate-full:   whole screen, opened in satty to draw on
+#
+# In satty (config in satty/config.toml): Enter copies to the clipboard and
+# closes, Ctrl+S saves to ~/Pictures/Screenshots, Escape discards.
 set -eu
+
+annotate() {
+    mkdir -p "${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+    satty --filename - "$@"
+}
 
 case "${1:-region}" in
     region)
@@ -19,5 +29,15 @@ case "${1:-region}" in
         xclip -selection clipboard -t image/png < "$file"
         dunstify -a x11-screenshot "Screenshot" "Saved $file"
         ;;
-    *) echo "usage: x11-screenshot region|full" >&2; exit 1 ;;
+    annotate-region)
+        # Capture first, so a cancelled selection never opens an empty editor.
+        tmp=$(mktemp --suffix=.png)
+        trap 'rm -f "$tmp"' EXIT
+        maim -s -u "$tmp" || exit 0
+        annotate < "$tmp"
+        ;;
+    annotate-full)
+        maim -u | annotate --fullscreen
+        ;;
+    *) echo "usage: x11-screenshot region|full|annotate-region|annotate-full" >&2; exit 1 ;;
 esac
