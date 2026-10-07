@@ -1,7 +1,9 @@
-# alacritty — the default terminal ($terminal in i3/config). Kept as one file
-# rather than split from its colours: alacritty resolves `import` relative to
-# the importing file, and a single file keeps the theme and the settings that
-# reference it (font, padding) in one place.
+# alacritty — the default terminal ($terminal in i3/config). Colours come from
+# the active theme (x11-theme renders omarchy's alacritty.toml.tpl). x11-theme
+# touches this file after a switch, which is what makes alacritty reload.
+
+[general]
+import = ["~/.local/state/omarchy/current/theme/alacritty.toml"]
 
 [env]
 TERM = "xterm-256color"
@@ -26,27 +28,3 @@ bindings = [
   { key = "Insert", mods = "Control", action = "Copy" },
   { key = "Return", mods = "Shift",   chars = "\u001B\r" }
 ]
-
-[colors.primary]
-background = "#050007"
-foreground = "#f17e97"
-
-[colors.normal]
-black   = "#050007"
-red     = "#8F0936"
-green   = "#AF0B39"
-yellow  = "#CE0D3C"
-blue    = "#E80F3E"
-magenta = "#D40D40"
-cyan    = "#F00F40"
-white   = "#f17e97"
-
-[colors.bright]
-black   = "#a85869"
-red     = "#8F0936"
-green   = "#AF0B39"
-yellow  = "#CE0D3C"
-blue    = "#E80F3E"
-magenta = "#D40D40"
-cyan    = "#F00F40"
-white   = "#f17e97"

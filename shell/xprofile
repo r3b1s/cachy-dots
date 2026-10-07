@@ -30,6 +30,12 @@ if [ -r "${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/telemetry.conf" ]; then
     set +a
 fi
 
+# Qt takes its palette from GTK3 (qt6-base's gtk3 platform theme), and GTK3 is
+# recoloured by the theme's gtk.css, so Qt apps (CopyQ, qutebrowser's dialogs)
+# follow the theme with no Qt-specific config. Verified on the VM: CopyQ's
+# selection went from GTK's blue to the theme accent.
+export QT_QPA_PLATFORMTHEME=gtk3
+
 case ":${XDG_CURRENT_DESKTOP:-}:" in
     *:GNOME:*) ;;
     *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+$XDG_CURRENT_DESKTOP:}GNOME" ;;

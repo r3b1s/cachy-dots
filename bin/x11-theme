@@ -1,0 +1,333 @@
+#!/usr/bin/env bash
+# x11-theme — omarchy themes for the i3 desktop.
+#
+#   x11-theme install <git-url>   clone an omarchy theme repo and apply it
+#   x11-theme install-omarchy [name]  fetch one of omarchy's built-in themes and
+#                                 apply it; without a name, list them
+#   x11-theme set <name>          apply an installed (or built-in) theme
+#   x11-theme refresh             re-render the current theme (after editing a template)
+#   x11-theme list                installed themes, one per line
+#   x11-theme current             the applied theme's name
+#   x11-theme menu                pick a theme in rofi ($mod+Ctrl+t)
+#   x11-theme remove <name>       delete an installed theme (not the current one)
+#
+# Themes use omarchy's format and paths, so any omarchy theme repo works and
+# omarchy-style hooks keep working:
+#   ~/.config/omarchy/themes/<name>/          installed themes (git clones)
+#   ~/.local/state/omarchy/current/theme/     the applied theme, rendered
+#   ~/.local/state/omarchy/current/theme.name
+#   ~/.config/omarchy/themed/*.tpl            your own extra templates
+#   ~/.config/omarchy/hooks/theme-set.d/*     run as `bash <hook> <name>` after a switch
+#
+# Rendering is omarchy's own: theme/bin/omarchy-theme-set-templates fills every
+# theme/default/themed/*.tpl from the theme's colors.toml (see theme/VENDORED.md).
+# What follows the switch (reloads, wallpaper, GTK mode, Chromium) is ours.
+set -euo pipefail
+
+SELF=$(readlink -f "${BASH_SOURCE[0]}")
+REPO=$(cd -- "$(dirname -- "$SELF")/.." && pwd)
+export OMARCHY_PATH="$REPO/theme"
+export PATH="$OMARCHY_PATH/bin:$PATH"
+
+STATE="$HOME/.local/state/omarchy/current"
+CURRENT="$STATE/theme"
+NEXT="$STATE/next-theme"
+USER_THEMES="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/themes"
+BUILTIN_THEMES="$OMARCHY_PATH/themes"
+HOOKS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks"
+LOCK="${XDG_RUNTIME_DIR:-/tmp}/x11-theme.lock"
+CHROMIUM_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
+OMARCHY_REPO=https://github.com/basecamp/omarchy
+OMARCHY_CACHE=""
+# Marks a theme directory that came from somewhere else without a .git of its
+# own (install-omarchy copies one theme out of omarchy's repo).
+SOURCE_MARK=.x11-theme-source
+
+# A theme cloned from a repo is someone else's code. As in omarchy-theme-set,
+# it may not ship anything that runs: Lua (nvim, hyprland), terminal configs
+# (they name the program the terminal launches) or vscode.json (it names an
+# extension to install). Our templates render those files instead.
+DENIED=(alacritty.toml foot.ini ghostty.conf kitty.conf vscode.json)
+
+die()    { echo "x11-theme: $*" >&2; exit 1; }
+notify() { command -v dunstify >/dev/null && dunstify -a cachy-dots -r 9988 "$@" 2>/dev/null || true; }
+
+# "Tokyo Night" -> tokyo-night, as omarchy-theme-set normalises names.
+normalise() { sed -E 's/<[^>]+>//g' <<<"$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'; }
+
+valid_name() { (LC_ALL=C; [[ $1 =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); }
+
+theme_exists() { [[ -d $USER_THEMES/$1 || -d $BUILTIN_THEMES/$1 ]]; }
+
+is_denied() {
+    local name=$1 d
+    [[ $name == *.lua ]] && return 0
+    for d in "${DENIED[@]}"; do [[ $name == "$d" ]] && return 0; done
+    return 1
+}
+
+# Copy a repo theme without following symlinks (one could point at any file
+# the session can read) and without the denied files. Dotfiles (.git) are
+# skipped by the glob.
+stage_untrusted() {
+    local src=$1 dest=$2 entry name
+    mkdir -p "$dest"
+    for entry in "$src"/*; do
+        [[ -e $entry && ! -L $entry ]] || continue
+        name=${entry##*/}
+        if [[ -d $entry ]]; then
+            stage_untrusted "$entry" "$dest/$name"
+        elif is_denied "$name"; then
+            case ${name,,} in readme* | license* | *.md | *.txt) ;; *) echo "ignored from the theme repo: $name" >&2 ;; esac
+        else
+            cp "$entry" "$dest/$name"
+        fi
+    done
+}
+
+stage() {
+    local name=$1 user="$USER_THEMES/$1"
+    rm -rf "$NEXT"
+    mkdir -p "$NEXT"
+    # Built-in first, then the installed theme over it, as omarchy does.
+    if [[ -d $BUILTIN_THEMES/$name ]]; then cp -r "$BUILTIN_THEMES/$name/." "$NEXT/"; fi
+    if [[ -d $user && ! -L $user && ( -d $user/.git || -f $user/$SOURCE_MARK ) ]]; then
+        stage_untrusted "$user" "$NEXT"
+    elif [[ -d $user ]]; then
+        # A theme you wrote yourself (or a symlink to your working copy) is yours.
+        cp -r "$user/." "$NEXT/"
+        rm -rf "$NEXT/.git"
+    fi
+    [[ -f $NEXT/colors.toml ]] || { rm -rf "$NEXT"; die "theme '$name' has no colors.toml (older alacritty-only themes are not supported)"; }
+    # Its last step (omarchy-shell overrides) returns 1 for a theme that ships a
+    # shell.*.toml but no shell.toml, tokyo-night's shell.lock.toml for one, and
+    # omarchy-theme-set ignores the status. So do we, and check the output instead.
+    omarchy-theme-set-templates || true
+    [[ -s $NEXT/i3.conf && -s $NEXT/gtk.css ]] || { rm -rf "$NEXT"; die "rendering the templates for '$name' failed"; }
+}
+
+color() { omarchy-theme-color --file "$CURRENT/colors.toml" "$@" 2>/dev/null; }
+
+# ── after a switch ──────────────────────────────────────────────────────────
+
+# Light/dark: the dconf colour scheme (libadwaita, portal, Qt), and the GTK3
+# theme variant plus prefer-dark in settings.ini (GTK reads that file, not dconf).
+apply_mode() {
+    local mode scheme gtk3 dark f
+    mode=$(color mode || echo dark)
+    if [[ $mode == light ]]; then scheme=prefer-light gtk3=adw-gtk3 dark=0
+    else scheme=prefer-dark gtk3=adw-gtk3-dark dark=1; fi
+    if command -v gsettings >/dev/null && [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} ]]; then
+        gsettings set org.gnome.desktop.interface color-scheme "$scheme" 2>/dev/null || true
+        gsettings set org.gnome.desktop.interface gtk-theme "$gtk3" 2>/dev/null || true
+    fi
+    for f in "${XDG_CONFIG_HOME:-$HOME/.config}"/gtk-{3,4}.0/settings.ini; do
+        [[ -f $f ]] || continue
+        sed -i -E "s|^gtk-application-prefer-dark-theme=.*|gtk-application-prefer-dark-theme=$dark|" "$f"
+        if [[ $f == */gtk-3.0/* ]]; then sed -i -E "s|^gtk-theme-name=.*|gtk-theme-name=$gtk3|" "$f"; fi
+    done
+}
+
+# The icon theme GTK is told to use (settings.ini) is always "x11-theme", a small
+# generated one:
+#   * it inherits the icon theme the omarchy theme names in icons.theme (pinkrot:
+#     Yaru-red, tokyo-night: Yaru-magenta), when that is installed, so folder and
+#     file icons follow the theme as they do on omarchy; then Adwaita, hicolor;
+#   * it carries the tray's NetworkManager glyphs, recoloured to the theme's
+#     foreground from the package's symbolic icons. nm-applet asks for the plain
+#     (non -symbolic) names, so both are written.
+tint_icons() {
+    local src=/usr/share/icons/hicolor/scalable/apps
+    local dest="$HOME/.local/share/icons/x11-theme" fg f base inherits=Adwaita,hicolor named=""
+    [[ -d $src ]] || return 0
+    fg=$(color foreground) || return 0
+    if [[ -f $CURRENT/icons.theme ]]; then
+        named=$(tr -d '[:space:]' < "$CURRENT/icons.theme")
+        if [[ $named =~ ^[A-Za-z0-9._+-]+$ && -d /usr/share/icons/$named ]]; then
+            inherits="$named,$inherits"
+        fi
+    fi
+    rm -rf "$dest"
+    mkdir -p "$dest/scalable/apps"
+    for f in "$src"/nm-*-symbolic.svg; do
+        [[ -e $f ]] || continue
+        base=$(basename "$f" -symbolic.svg)
+        sed -e "s/fill=\"#474747\"/fill=\"$fg\"/" -e "s/fill=\"#bebebe\"/fill=\"$fg\"/" "$f" > "$dest/scalable/apps/$base.svg"
+        cp "$dest/scalable/apps/$base.svg" "$dest/scalable/apps/$base-symbolic.svg"
+    done
+    printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with NetworkManager glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nType=Scalable\n' "$inherits" > "$dest/index.theme"
+    gtk-update-icon-cache -q -t -f "$dest" 2>/dev/null || true
+}
+
+# Chromium's toolbar colour comes from the BrowserThemeColor policy, a root-owned
+# file. install.sh installs a root-owned helper that writes only that, and a
+# sudoers rule for it alone; without them this is skipped.
+apply_chromium() {
+    [[ -x $CHROMIUM_HELPER ]] || return 0
+    local rgb hex
+    rgb=$(tr -d '[:space:]' < "$CURRENT/chromium.theme" 2>/dev/null) || return 0
+    [[ $rgb =~ ^([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3})$ ]] || return 0
+    printf -v hex '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+    sudo -n "$CHROMIUM_HELPER" "$hex" 2>/dev/null || echo "x11-theme: could not set Chromium's colour (sudo rule missing?)" >&2
+}
+
+reload_apps() {
+    local i3sock
+    # i3 re-reads the included i3.conf; the reload restarts i3bar and with it
+    # i3status-rs, which re-reads its theme file.
+    if command -v i3-msg >/dev/null && [[ -n ${DISPLAY:-} ]]; then
+        i3-msg -q reload 2>/dev/null || true
+    elif i3sock=$(ls "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/i3/ipc-socket.* 2>/dev/null | head -1); [[ -n $i3sock ]]; then
+        i3-msg -q -s "$i3sock" reload 2>/dev/null || true
+    fi
+    pkill -USR2 -x i3status-rs 2>/dev/null || true          # restarts in place, re-reading its config
+    dunstctl reload 2>/dev/null || true
+    pkill -USR1 -x kitty 2>/dev/null || true                 # kitty re-reads kitty.conf
+    pkill -USR2 -x btop 2>/dev/null || true                  # btop re-reads its theme
+    # alacritty reloads when its config changes; the theme is an import, so
+    # touch the main file (a link into the repo) to make it look again.
+    touch -c "${XDG_CONFIG_HOME:-$HOME/.config}/alacritty/alacritty.toml" 2>/dev/null || true
+    # The :command form talks to the running instance, but only with a display;
+    # without one (over ssh) qutebrowser aborts instead.
+    if [[ -n ${DISPLAY:-} ]] && pgrep -x qutebrowser >/dev/null 2>&1; then
+        qutebrowser :config-source >/dev/null 2>&1 || true
+    fi
+    if [[ -n ${DISPLAY:-} ]]; then
+        "$REPO/bin/x11-wallpaper" current >/dev/null 2>&1 || true
+    fi
+}
+
+run_hooks() {
+    local name=$1 hook
+    if [[ -f $HOOKS/theme-set ]]; then bash "$HOOKS/theme-set" "$name" || echo "hook failed: $HOOKS/theme-set" >&2; fi
+    [[ -d $HOOKS/theme-set.d ]] || return 0
+    for hook in "$HOOKS"/theme-set.d/*; do
+        [[ -f $hook && $hook != *.sample ]] || continue
+        bash "$hook" "$name" || echo "hook failed: $hook" >&2
+    done
+}
+
+apply() {
+    local name=$1
+    exec 9>"$LOCK"
+    flock 9
+    stage "$name"
+    rm -rf "$CURRENT"
+    mv "$NEXT" "$CURRENT"
+    echo "$name" > "$STATE/theme.name"
+    flock -u 9
+
+    apply_mode
+    tint_icons
+    apply_chromium
+    reload_apps
+    run_hooks "$name"
+}
+
+# ── commands ────────────────────────────────────────────────────────────────
+
+cmd_set() {
+    local name
+    name=$(normalise "${1:?usage: x11-theme set <name>}")
+    valid_name "$name" && theme_exists "$name" || die "no theme '$1' (see: x11-theme list)"
+    apply "$name"
+    echo "theme: $name"
+    notify "Theme" "$name"
+}
+
+cmd_install() {
+    local url=${1:?usage: x11-theme install <git-url>} path name
+    # A URL is passed to git as data, never as an option or transport helper.
+    [[ $url == https://* || $url == ssh://* || $url =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+: ]] \
+        || die "use an https://, ssh:// or user@host: git URL"
+    path=$url
+    if [[ $path != *"://"* && $path == *:* ]]; then path=${path#*:}; fi
+    name=$(basename -- "$path" .git | sed -E 's/^omarchy-//; s/-theme$//' | tr '[:upper:]' '[:lower:]')
+    valid_name "$name" || die "'$url' does not give a usable theme name"
+    mkdir -p "$USER_THEMES"
+    rm -rf "${USER_THEMES:?}/$name.tmp"
+    git clone --depth 1 -- "$url" "$USER_THEMES/$name.tmp" || { rm -rf "${USER_THEMES:?}/$name.tmp"; die "clone failed"; }
+    rm -rf "${USER_THEMES:?}/$name"
+    mv "$USER_THEMES/$name.tmp" "$USER_THEMES/$name"
+    cmd_set "$name"
+}
+
+# omarchy keeps its built-in themes inside its own repo (279 MB of them, mostly
+# backgrounds), so fetch only the one asked for: a blobless, sparse, shallow
+# clone into a temporary directory, then check out themes/<name> alone.
+omarchy_checkout() {
+    OMARCHY_TMP=$(mktemp -d)
+    trap 'rm -rf "$OMARCHY_TMP"' EXIT
+    git clone --quiet --depth 1 --filter=blob:none --sparse -- "$OMARCHY_REPO" "$OMARCHY_TMP/omarchy" \
+        || die "could not clone $OMARCHY_REPO"
+    OMARCHY_CACHE="$OMARCHY_TMP/omarchy"
+}
+
+cmd_install_omarchy() {
+    local name=${1:-}
+    omarchy_checkout
+    if [[ -z $name ]]; then
+        git -C "$OMARCHY_CACHE" ls-tree --name-only HEAD themes/ | sed 's|^themes/||'
+        return
+    fi
+    name=$(normalise "$name")
+    valid_name "$name" || die "bad theme name '$1'"
+    git -C "$OMARCHY_CACHE" ls-tree --name-only HEAD "themes/$name" | grep -q . \
+        || die "omarchy has no theme '$name' (run: x11-theme install-omarchy)"
+    git -C "$OMARCHY_CACHE" sparse-checkout set "themes/$name"
+    mkdir -p "$USER_THEMES"
+    rm -rf "${USER_THEMES:?}/$name.tmp"
+    cp -r "$OMARCHY_CACHE/themes/$name" "$USER_THEMES/$name.tmp"
+    echo "$OMARCHY_REPO themes/$name" > "$USER_THEMES/$name.tmp/$SOURCE_MARK"
+    rm -rf "${USER_THEMES:?}/$name"
+    mv "$USER_THEMES/$name.tmp" "$USER_THEMES/$name"
+    cmd_set "$name"
+}
+
+cmd_list() {
+    { ls -1 "$USER_THEMES" 2>/dev/null; ls -1 "$BUILTIN_THEMES" 2>/dev/null; } | grep -v '\.tmp$' | sort -u
+}
+
+cmd_current() { cat "$STATE/theme.name" 2>/dev/null || die "no theme applied"; }
+
+cmd_refresh() { cmd_set "$(cmd_current)"; }
+
+cmd_remove() {
+    local name
+    name=$(normalise "${1:?usage: x11-theme remove <name>}")
+    valid_name "$name" && [[ -d $USER_THEMES/$name ]] || die "'$1' is not an installed theme"
+    [[ $name != "$(cat "$STATE/theme.name" 2>/dev/null)" ]] || die "'$name' is the current theme; switch first"
+    rm -rf "${USER_THEMES:?}/$name"
+    echo "removed $name"
+}
+
+# rofi picker: each row shows the theme's preview.png (or first background).
+cmd_menu() {
+    local name icon dir current row label
+    current=$(cat "$STATE/theme.name" 2>/dev/null || true)
+    row=$(cmd_list | while read -r name; do
+              icon=""
+              for dir in "$USER_THEMES/$name" "$BUILTIN_THEMES/$name"; do
+                  [[ -f $dir/preview.png ]] && { icon=$dir/preview.png; break; }
+                  icon=$(find "$dir/backgrounds" -maxdepth 1 -type f 2>/dev/null | sort | head -1)
+                  [[ -n $icon ]] && break
+              done
+              label=$name; [[ $name == "$current" ]] && label="$name  (current)"
+              if [[ -n $icon ]]; then printf '%s\0icon\037%s\n' "$label" "$icon"; else printf '%s\n' "$label"; fi
+          done | rofi -dmenu -i -show-icons -p theme \
+                     -theme-str 'element-icon { size: 4em; } element-text { vertical-align: 0.5; } listview { lines: 6; }') || exit 0
+    name=${row%%  (current)}
+    if [[ -n $name ]]; then cmd_set "$name"; fi
+}
+
+case "${1:-}" in
+    install) shift; cmd_install "$@" ;;
+    install-omarchy) shift; cmd_install_omarchy "$@" ;;
+    set)     shift; cmd_set "$@" ;;
+    refresh) cmd_refresh ;;
+    list)    cmd_list ;;
+    current) cmd_current ;;
+    menu)    cmd_menu ;;
+    remove)  shift; cmd_remove "$@" ;;
+    *) sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

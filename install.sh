@@ -100,7 +100,9 @@ PKGS+=(
     xss-lock                         # locks on suspend and idle (i3lock-color is pinned below)
     gammastep                        # nightlight, toggled by bin/x11-nightlight
     blueman bluez bluez-utils        # bluetooth manager GUI + tray applet, the stack under it
-    yazi                             # TUI file manager ($mod+e)
+    yazi                             # TUI file manager ($mod+Shift+e)
+    nautilus gvfs                    # GUI file manager ($mod+e); gvfs: trash, mounts, network
+    adw-gtk-theme                    # adw-gtk3: GTK3 drawn like libadwaita, recoloured by x11-theme's gtk.css
     # yazi's previewers and helpers (its optdepends): archives, PDFs, video
     # thumbnails, SVG, images, search. jq/fzf/zoxide are already above.
     7zip poppler ffmpegthumbnailer resvg imagemagick fd ripgrep
@@ -197,12 +199,14 @@ setup_chaotic_aur() {
 #                                `qutebrowser` is not wanted (they conflict, so
 #                                an installed `qutebrowser` is removed first)
 #   cachyos/yay                  CachyOS's own build; never chaotic-aur's
+#   chaotic-aur/yaru-icon-theme  the icon themes omarchy themes name in icons.theme
+#                                (Yaru-red, Yaru-blue, ...); in no official repo
 #   cachyos/i3lock-color         the lock screen; i3lock with colour options,
 #                                which plain extra/i3lock lacks (they conflict,
 #                                so an installed `i3lock` is removed first)
 # If the repo is missing or unsynced, the package is skipped with a warning,
 # the rest still installs, and the run exits non-zero.
-PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color)
+PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color chaotic-aur/yaru-icon-theme)
 
 # Everything goes into ONE pacman transaction: on CachyOS each transaction also
 # takes a pre/post snapper snapshot pair, so separate calls per package would
@@ -319,82 +323,6 @@ setup_login_shell() {
     run $SUDO chsh -s "$bash_path" "$TARGET_USER" \
         || { warn "could not change the login shell to bash"; return 0; }
     echo "login shell: $bash_path (applies at next login)"
-}
-
-# Wallpapers live in ~/.config/wallpapers, which is yours: drop anything in and
-# bin/x11-wallpaper picks from it at random. The pinkrot background set is
-# seeded on first run so the desktop is not bare, and an existing file is never
-# overwritten.
-WALLPAPER_BASE="https://raw.githubusercontent.com/r3b1s/omarchy-pinkrot-theme/main/backgrounds"
-WALLPAPERS=(
-    bleach_0.webp
-    elden_ring_malenia_0.webp
-    elden_ring_malenia_1.webp
-    skullkid_moon_0.png
-)
-
-setup_wallpapers() {
-    local dir="$1"
-
-    if [ "$dry" = 1 ]; then
-        echo "+ ensure $dir exists"
-        local name
-        for name in "${WALLPAPERS[@]}"; do
-            [ -e "$dir/$name" ] || echo "+ download $name into $dir"
-        done
-        return
-    fi
-
-    [ -d "$dir" ] || { run mkdir -p "$dir"; echo "created $dir"; }
-
-    local fetch=""
-    if command -v curl >/dev/null; then
-        fetch=curl
-    elif command -v wget >/dev/null; then
-        fetch=wget
-    else
-        warn "neither curl nor wget is available; not fetching wallpapers"
-        return
-    fi
-
-    local name url dest tmp ok
-    for name in "${WALLPAPERS[@]}"; do
-        dest="$dir/$name"
-        if [ -e "$dest" ]; then
-            echo "wallpaper: $name already present"
-            continue
-        fi
-
-        url="$WALLPAPER_BASE/$name"
-        say "Fetching $name"
-        # Download to a temporary name and move it into place, so an interrupted
-        # or failed fetch can never leave a truncated image that --bg-fill would
-        # choke on.
-        tmp="$dir/.$name.part.$$"
-        ok=0
-        if [ "$fetch" = curl ]; then
-            curl -fsSL --max-time 120 -o "$tmp" "$url" && ok=1
-        else
-            wget -q -T 120 -O "$tmp" "$url" && ok=1
-        fi
-
-        if [ "$ok" = 1 ] && [ -s "$tmp" ]; then
-            mv "$tmp" "$dest"
-            echo "wallpaper: saved $dest ($(du -h "$dest" | cut -f1))"
-        else
-            rm -f "$tmp"
-            warn "could not download $url (offline?)"
-        fi
-    done
-
-    local existing
-    existing=$(find "$dir" -maxdepth 1 -type f -not -name '.*' \
-        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' \) \
-        -print -quit 2>/dev/null || true)
-    if [ -z "$existing" ]; then
-        warn "no wallpapers in $dir; the desktop will stay unset"
-        warn "drop any image into $dir by hand"
-    fi
 }
 
 # ly's pinkrot theme.
@@ -514,19 +442,17 @@ setup_firefox() {
         else
             [ -f "$target" ] && run $SUDO cp -a "$target" "$target.bak.$(date +%s)"
             run $SUDO install -D -m 644 "$src" "$target"
-            echo "firefox policy: $target (Flame theme, Vimium from AMO, Brave default search)"
+            echo "firefox policy: $target (system theme, Vimium from AMO, Brave default search)"
         fi
     fi
 
 }
 
-# Chromium: Brave default search via enterprise policy. The built-in "Rose"
-# theme cannot be set by policy (no theme-selection policy exists), so it is
-# seeded into the user profile's Preferences instead — see seed_chromium_rose()
-# below. Policy files live in /etc/chromium/policies/managed/ and apply on
-# next launch; managed (not recommended/) so the user can still change search
-# back in settings if wanted... actually managed LOCKS it. That is the only
-# level that sets a default engine: recommended/ merely suggests.
+# Chromium: Brave default search via enterprise policy, in
+# /etc/chromium/policies/managed/ (managed, because that is the only level that
+# sets a default engine; recommended/ merely suggests). The toolbar colour is a
+# second policy file, color.json, written by x11-theme on every theme switch
+# through the helper installed by setup_theme_helper().
 setup_chromium() {
     local src="$REPO/chromium/policies/managed/brave-search.json"
     local target="/etc/chromium/policies/managed/brave-search.json"
@@ -543,39 +469,44 @@ setup_chromium() {
             echo "chromium policy: $target (Brave default search)"
         fi
     fi
-
-    seed_chromium_rose
 }
 
-# Seed the built-in "Rose" theme into the default Chromium profile. Chromium
-# exposes no policy for theme selection; the theme choice lives in the
-# profile's Preferences (browser.theme.color_scheme + extensions.theme). Rose
-# is the built-in pink user-color theme. Only writes when no theme choice
-# exists yet, so a user-picked theme is never overwritten. Takes effect on
-# next Chromium launch.
-seed_chromium_rose() {
-    local prefs="${XDG_CONFIG_HOME:-$HOME/.config}/chromium/Default/Preferences"
-    [ -r "$prefs" ] || return 0
-    command -v python3 >/dev/null || return 0
-    python3 - "$prefs" <<'EOF' || warn "could not seed the Chromium Rose theme"
-import json, sys
-p = sys.argv[1]
-try:
-    with open(p) as f:
-        d = json.load(f)
-except (OSError, ValueError) as e:
-    print(f"chromium Rose theme: skipping ({e})")
-    sys.exit(0)
-theme = d.setdefault("browser", {}).setdefault("theme", {})
-# color_scheme 2 = Rose (built-in pink); only seed when unset.
-if "color_scheme" not in theme and "color_scheme2" not in theme:
-    theme["color_scheme"] = 2
-    with open(p, "w") as f:
-        json.dump(d, f)
-    print("chromium Rose theme: seeded into Default/Preferences")
-else:
-    print("chromium Rose theme: already chosen, leaving it alone")
-EOF
+# x11-theme retints Chromium through the BrowserThemeColor policy, a root-owned
+# file. As omarchy does, that write goes through one root-owned helper with a
+# sudoers rule for it alone, so a theme switch never prompts for a password:
+#   /usr/local/lib/cachy-dots/chromium-theme-color   COPIED from theme/root/
+#     (root must not run a file the user can edit), takes one '#rrggbb'
+#   /etc/sudoers.d/cachy-dots-theme                  NOPASSWD for that path only
+THEME_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
+THEME_SUDOERS=/etc/sudoers.d/cachy-dots-theme
+
+setup_theme_helper() {
+    local src="$REPO/theme/root/chromium-theme-color" rule tmp
+    [ -r "$src" ] || return 0
+    say "Installing the Chromium theme-colour helper"
+    if [ "$dry" = 1 ]; then
+        echo "+ install $src -> $THEME_HELPER (root:root 755)"
+        echo "+ write $THEME_SUDOERS"
+        return
+    fi
+    if ! cmp -s "$src" "$THEME_HELPER" 2>/dev/null; then
+        $SUDO install -D -o root -g root -m 755 "$src" "$THEME_HELPER"
+        echo "theme helper: $THEME_HELPER"
+    fi
+    rule="$TARGET_USER ALL=(root) NOPASSWD: $THEME_HELPER"
+    if ! $SUDO grep -qxF "$rule" "$THEME_SUDOERS" 2>/dev/null; then
+        tmp=$(mktemp)
+        printf '# cachy-dots: lets x11-theme set Chromium'"'"'s toolbar colour policy.\n%s\n' "$rule" > "$tmp"
+        # visudo checks the syntax before anything reaches sudoers.d; a broken
+        # file there would lock sudo out entirely.
+        if $SUDO visudo -cqf "$tmp"; then
+            $SUDO install -o root -g root -m 440 "$tmp" "$THEME_SUDOERS"
+            echo "theme helper: sudoers rule in $THEME_SUDOERS"
+        else
+            warn "the sudoers rule did not validate; Chromium will not follow the theme"
+        fi
+        rm -f "$tmp"
+    fi
 }
 
 # Set a key in an INI file, creating the file and its [Settings] section as
@@ -608,62 +539,31 @@ ini_set() {
 # GTK does not read org.gnome.desktop.interface for either of these. It reads the
 # XSETTINGS protocol, which a desktop session publishes via a settings daemon.
 # There is none here, so the gsettings values that setup_dark_theme() writes are
-# ignored by GTK and it falls back to Adwaita light and the hicolor icons.
-# Confirmed on the VM with Gtk.IconTheme: nm-device-wired resolved to
-# /usr/share/icons/hicolor/... however gsettings was set. GTK does read
-# ~/.config/gtk-{3,4}.0/settings.ini directly, which fixes it, and is also what
-# finally makes GTK3 apps dark.
+# ignored by GTK. Confirmed on the VM with Gtk.IconTheme: nm-device-wired
+# resolved to /usr/share/icons/hicolor/... however gsettings was set. GTK does
+# read ~/.config/gtk-{3,4}.0/settings.ini directly, which fixes it.
 #
-# The icon theme is generated from the symbolic NetworkManager icons shipped by
-# the package, recoloured to pinkrot, so no icon files live in this repo. Each
-# one is written under both the plain and the "-symbolic" name: nm-applet asks
-# for the plain name (it never references "-symbolic"), and that is what replaces
-# its pastel hardware illustration in the i3bar tray with a pinkrot glyph.
-PINKROT_FG="#f17e97"
-PINKROT_ICON_SRC="${PINKROT_ICON_SRC:-/usr/share/icons/hicolor/scalable/apps}"
-
+#   * GTK3 theme: adw-gtk3-dark (adw-gtk-theme), which draws GTK3 like libadwaita
+#     and takes the same named colours, so the one gtk.css x11-theme renders
+#     recolours GTK3 (Firefox, virt-manager) and GTK4 (nautilus) alike. x11-theme
+#     switches it to adw-gtk3 for a light theme. Never "Adwaita-dark": no GTK3
+#     theme has that name, and naming one that does not exist makes GTK fall back
+#     to *light* Adwaita without a word (menu background #F6F5F4, not #353535).
+#   * icon theme: x11-theme, generated by x11-theme from the NetworkManager
+#     symbolic icons tinted to the theme (the i3bar tray's nm-applet glyph).
+#   * gtk.css: linked from the rendered theme (see install_links).
 setup_gtk() {
-    local icons="$HOME/.local/share/icons/pinkrot"
-    local f base count=0
-
-    if [ -d "$PINKROT_ICON_SRC" ]; then
-        if [ "$dry" = 0 ]; then mkdir -p "$icons/scalable/apps"; fi
-        for f in "$PINKROT_ICON_SRC"/nm-*-symbolic.svg; do
-            [ -e "$f" ] || continue
-            base=$(basename "$f" -symbolic.svg)
-            count=$((count + 1))
-            # Skip the work entirely under --dry-run: a redirection is performed
-            # by the shell before run() is called, so it cannot be intercepted.
-            [ "$dry" = 1 ] && continue
-            sed -e "s/fill=\"#474747\"/fill=\"$PINKROT_FG\"/" \
-                -e "s/fill=\"#bebebe\"/fill=\"$PINKROT_FG\"/" "$f" \
-                > "$icons/scalable/apps/$base.svg"
-            cp "$icons/scalable/apps/$base.svg" "$icons/scalable/apps/$base-symbolic.svg"
-        done
-        if [ "$dry" = 1 ]; then
-            echo "+ write $icons/index.theme ($count icons)"
-        else
-            printf '[Icon Theme]\nName=pinkrot\nComment=NetworkManager icons recoloured for pinkrot\nInherits=Adwaita,hicolor\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nType=Scalable\n' > "$icons/index.theme"
-            gtk-update-icon-cache -q -t -f "$icons" 2>/dev/null || true
-            echo "icon theme: $count NetworkManager icons -> $icons"
-        fi
-    else
-        warn "no $PINKROT_ICON_SRC; skipping the pinkrot icon theme"
-    fi
-
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
     local dir
     for dir in gtk-3.0 gtk-4.0; do
-        # "Adwaita" plus prefer-dark, NOT "Adwaita-dark": there is no theme by
-        # that name in GTK3, and naming one that does not exist makes GTK fall
-        # back to *light* Adwaita without a word. Verified on the VM: the menu
-        # background was #F6F5F4 with Adwaita-dark and #353535 with Adwaita +
-        # gtk-application-prefer-dark-theme=1.
-        ini_set "$cfg/$dir/settings.ini" gtk-theme-name Adwaita
-        ini_set "$cfg/$dir/settings.ini" gtk-icon-theme-name pinkrot
+        [ "$dir" = gtk-3.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name adw-gtk3-dark
+        [ "$dir" = gtk-4.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name Adwaita
+        ini_set "$cfg/$dir/settings.ini" gtk-icon-theme-name x11-theme
         ini_set "$cfg/$dir/settings.ini" gtk-application-prefer-dark-theme 1
     done
-    [ "$dry" = 1 ] || echo "gtk: Adwaita (dark), icon theme pinkrot ($cfg/gtk-{3,4}.0/settings.ini)"
+    # The previous generated icon theme, before x11-theme took it over.
+    [ -d "$HOME/.local/share/icons/pinkrot" ] && run rm -rf "$HOME/.local/share/icons/pinkrot"
+    [ "$dry" = 1 ] || echo "gtk: adw-gtk3-dark / Adwaita (dark), icons x11-theme ($cfg/gtk-{3,4}.0/settings.ini)"
 }
 
 # Make the session read as dark.
@@ -690,16 +590,16 @@ setup_dark_theme() {
         warn "no session bus: cannot set the system colour scheme from here."
         warn "Run these inside the i3 session to finish:"
         warn "  gsettings set org.gnome.desktop.interface color-scheme prefer-dark"
-        warn "  gsettings set org.gnome.desktop.interface gtk-theme Adwaita"
+        warn "  gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark"
         warn "  systemctl --user enable --now xdg-desktop-portal.service xdg-desktop-portal-gtk.service"
         return
     fi
 
     say "Setting the system colour scheme to dark"
     run gsettings set org.gnome.desktop.interface color-scheme prefer-dark
-    run gsettings set org.gnome.desktop.interface gtk-theme Adwaita
+    run gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark
     # GTK itself ignores this (see setup_gtk), but other consumers read it.
-    run gsettings set org.gnome.desktop.interface icon-theme pinkrot
+    run gsettings set org.gnome.desktop.interface icon-theme x11-theme
 
     if command -v systemctl >/dev/null; then
         # The gtk portal backend is gated on XDG_CURRENT_DESKTOP; i3/config sets
@@ -830,6 +730,27 @@ setup_sshd() {
     fi
 
 }
+# Apply a theme, so every file the configs point into the state directory
+# exists (i3 includes its colours from there, i3bar runs its rendered config).
+# First run: pinkrot, cloned from its repo for the backgrounds and previews; with
+# no network, the built-in copy of its colors.toml (theme/themes/pinkrot).
+# Later runs re-render the current theme, picking up any template changes.
+PINKROT_REPO=https://github.com/r3b1s/omarchy-pinkrot-theme
+
+setup_theme() {
+    local theme="$REPO/bin/x11-theme"
+    if [ "$dry" = 1 ]; then echo "+ x11-theme (apply or refresh)"; return; fi
+    if [ -f "$HOME/.local/state/omarchy/current/theme.name" ]; then
+        say "Re-rendering the current theme"
+        "$theme" refresh || { warn "x11-theme refresh failed"; FAILED=1; }
+    else
+        say "Applying the default theme (pinkrot)"
+        "$theme" install "$PINKROT_REPO" \
+            || { warn "could not clone $PINKROT_REPO; using the built-in pinkrot colours"; "$theme" set pinkrot; } \
+            || { warn "could not apply any theme"; FAILED=1; }
+    fi
+}
+
 # ── links ─────────────────────────────────────────────────────────────────
 
 link() {
@@ -882,19 +803,35 @@ install_links() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 
     local d
-    for d in i3 kitty alacritty rofi dunst i3status-rust shell; do
+    for d in i3 kitty alacritty rofi shell; do
         link "$REPO/$d" "$cfg/$d"
     done
 
-    setup_wallpapers "$cfg/wallpapers"
+    # Earlier layouts linked these whole directories. dunst now needs a real
+    # directory (its theme is a drop-in beside dunstrc), and i3status-rust's
+    # config is rendered into the state directory instead.
+    for d in dunst i3status-rust; do
+        if [ -L "$cfg/$d" ] && [ "$(readlink -f "$cfg/$d")" = "$REPO/$d" ]; then
+            run rm "$cfg/$d"
+            echo "removed the old $cfg/$d directory link"
+        fi
+    done
+
+    # Files the rendered theme provides: ~/.local/state/omarchy/current/theme/
+    # is replaced on every switch, so these links stay valid.
+    local th="$HOME/.local/state/omarchy/current/theme"
+    link "$th/dunst.conf" "$cfg/dunst/dunstrc.d/90-theme.conf"
+    link "$th/btop.theme" "$cfg/btop/themes/current.theme"
+    link "$th/gtk.css" "$cfg/gtk-3.0/gtk.css"
+    link "$th/gtk.css" "$cfg/gtk-4.0/gtk.css"
 
     for pair in \
         "qutebrowser/config.py:qutebrowser/config.py" \
-        "qutebrowser/pinkrot.py:qutebrowser/pinkrot.py" \
+        "qutebrowser/omarchy_theme.py:qutebrowser/omarchy_theme.py" \
+        "dunst/dunstrc:dunst/dunstrc" \
         "qutebrowser/vimium.py:qutebrowser/vimium.py" \
         "qutebrowser/startpage.html:qutebrowser/startpage.html" \
         "btop/btop.conf:btop/btop.conf" \
-        "btop/themes/pinkrot.theme:btop/themes/pinkrot.theme" \
         "tmux/tmux.conf:tmux/tmux.conf" \
         "satty/config.toml:satty/config.toml" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
@@ -928,6 +865,10 @@ install_links() {
         *) echo "note: $HOME/.local/bin is added to PATH by shell/init.sh and ~/.xprofile from the next login" ;;
     esac
 
+}
+
+validate_i3() {
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
     if [ "$dry" = 0 ] && command -v i3 >/dev/null; then
         say "Validating i3 config"
         i3 -C -c "$cfg/i3/config" && echo "i3 config OK"
@@ -947,9 +888,14 @@ if [ "$do_packages" = 1 ]; then
     setup_gtk
     setup_firefox
     setup_chromium
+    setup_theme_helper
     setup_sshd
 fi
-[ "$do_links" = 1 ] && install_links
+if [ "$do_links" = 1 ]; then
+    install_links
+    setup_theme
+    validate_i3
+fi
 
 echo
 if [ "$FAILED" = 1 ]; then

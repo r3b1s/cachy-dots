@@ -1,0 +1,22 @@
+#!/bin/sh
+# chromium-theme-color '#rrggbb' — set Chromium's toolbar colour by policy.
+#
+# Installed by install.sh as a root-owned COPY in /usr/local/lib/cachy-dots/
+# (never a link into the user-writable repo), with a sudoers rule that lets the
+# user run exactly this, password-less, so x11-theme can retint Chromium. It
+# therefore accepts one strictly validated argument and writes one file.
+set -eu
+PATH=/usr/bin:/bin
+
+case "${1:-}" in
+    \#[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) color=$1 ;;
+    *) echo "usage: chromium-theme-color '#rrggbb'" >&2; exit 2 ;;
+esac
+[ "$(id -u)" -eq 0 ] || { echo "chromium-theme-color: must run as root" >&2; exit 1; }
+
+dir=/etc/chromium/policies/managed
+install -d -m 755 -o root -g root /etc/chromium /etc/chromium/policies "$dir"
+tmp=$(mktemp "$dir/.color.json.XXXXXX")
+printf '{"BrowserThemeColor": "%s", "BrowserColorScheme": "device"}\n' "$color" > "$tmp"
+chmod 644 "$tmp"
+mv -f "$tmp" "$dir/color.json"

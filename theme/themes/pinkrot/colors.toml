@@ -1,0 +1,60 @@
+# pinkrot — a dark, near-black theme in the Caelid register: scarlet, ember,
+# gold, and pink over a red-tinted void, with bruised purples for contrast.
+#
+# Ported from the athena-dots pinkrot palette (i3 / alacritty / kitty / rofi /
+# dunst / nvim) and re-tuned so the accents stay on the pink-red spectrum.
+# There is deliberately no green, blue, teal or brown: every role is either a
+# red/gold or a pink/purple.
+
+mode = "dark"
+
+accent = "#d40d40"
+selection = "#d40d40"
+selection_foreground = "#190710"
+muted = "#6e3345"
+
+# Deep burgundy ramp: dark enough to keep the chrome quiet, red-pink enough
+# that background steps read as distinct surfaces instead of flat black.
+background = "#190710"
+dark_background = "#12040a"
+darker_background = "#0b0206"
+lighter_background = "#2a1019"
+
+foreground = "#f08a9b"
+dark_foreground = "#8a4557"
+light_foreground = "#d99aa8"
+bright_foreground = "#ffd4dc"
+
+# Scarlet / ember / gold, with a classic magenta in the "yellow" slot
+red = "#ff3b5c"
+orange = "#ff7a45"
+yellow = "#d75fd7"
+
+# Pinks
+green = "#ff9db0"
+blue = "#ff6f9c"
+magenta = "#ff3d6e"
+
+# Bruised purples
+cyan = "#c07ab8"
+purple = "#7d4a8e"
+brown = "#5a1f3a"
+
+bright_red = "#ff6b84"
+bright_yellow = "#e58fe5"
+bright_green = "#ffb8c8"
+bright_cyan = "#d99ae0"
+bright_blue = "#ff8fb5"
+bright_magenta = "#ff6f96"
+
+# Hyprland / omarchy-shell window borders: crimson into bruise.
+hyprland_active_border = "#d40d40 #c07ab8 45deg"
+hyprland_inactive_border = "rgba(3a1420aa)"
+
+# Notes on the naming, so the palette reads as intended:
+#   green   is a soft rose, not a green  -> strings, success, diff-added
+#   blue    is a hot rose, not a blue    -> functions, directories, dates
+#   yellow  is a classic magenta, not gold -> types, warnings, nvim modes
+#   cyan    is a dusky orchid, not teal  -> links, code, the shell prompt
+#   magenta is the hot pink keyword colour
+#   purple  and brown are deep plums for highlights and dark accents

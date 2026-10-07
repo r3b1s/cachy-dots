@@ -57,8 +57,9 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
 | Lock, nightlight | `cachyos/i3lock-color` + `xss-lock`, `gammastep` |
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
-| Files, build | `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
-| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay`, `cachyos/i3lock-color` |
+| Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
+| Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
+| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay`, `cachyos/i3lock-color`, `chaotic-aur/yaru-icon-theme` |
 
 Notes on particular entries:
 
@@ -173,7 +174,8 @@ one-time manual import. See "qutebrowser" below for the same settings applied wh
 
 ## qutebrowser
 
-`qutebrowser/config.py` sources `pinkrot.py` (colours) and `vimium.py` (Vimium parity). `vimium.py` is
+`qutebrowser/config.py` sources `omarchy_theme.py` (colours from the active theme; see "Theming") and
+`vimium.py` (Vimium parity). `vimium.py` is
 generated from `firefox/vimium-options.json` and carries the Vimium shortcuts and search keywords in
 qutebrowser's syntax: `config.bind()` instead of `map` lines, and a dict with a `{}` placeholder instead of
 `keyword: URL` lines with `%s`.
@@ -217,10 +219,11 @@ after, and `:colorscheme` reports `pinkrot` again.
 
 - `i3/` — `config` + numbered `conf.d/` modules (see header of `i3/config`).
 - One top-level dir per app (`kitty/`, `alacritty/`, `rofi/`, `dunst/`, `starship/`, …), plus `shell/` (bash integration), `bin/` (helper scripts → `~/.local/bin`).
-- `~/.config/wallpapers/` is yours: `install.sh` creates it and seeds the backgrounds from the
-  `r3b1s/omarchy-pinkrot-theme` repo (`backgrounds/`) on first run, downloading each file individually and
-  never overwriting an existing one. `bin/x11-wallpaper` picks a random image from
-  it (jpg/jpeg/png/webp/bmp) on every i3 start and reload. A failed download is a warning, not a failure.
+- Wallpapers come from the active theme's `backgrounds/` plus `~/.config/omarchy/backgrounds/<theme>/` (yours,
+  as on omarchy); `~/.config/wallpapers/` is only the fallback when a theme has none. `bin/x11-wallpaper`
+  picks a random one on every i3 start and reload, `next` cycles (`$mod+Ctrl+w`), and it keeps
+  `~/.local/state/omarchy/current/background` and `~/.config/wallpapers/current` (qutebrowser's startpage)
+  pointing at the image.
 - `$mod+Shift+r` reloads i3 and then re-runs the wallpaper. Both halves need their own `exec`: i3 treats
   everything after a `;` as a new command, so a bare `$bin/x11-wallpaper` is rejected at runtime with
   "Expected one of these tokens: ... 'exec' ...". Note `i3 -C` validates the config file but **not** the
@@ -230,18 +233,19 @@ after, and `:colorscheme` reports `pinkrot` again.
   the source of truth for the package list; keep it in sync with this file.
 - GTK ignores `org.gnome.desktop.interface` for the theme and icon theme: it reads XSETTINGS, which needs a
   settings daemon, and there is none in a bare i3 session. `setup_gtk()` in `install.sh` therefore writes
-  `~/.config/gtk-{3,4}.0/settings.ini` with `gtk-theme-name=Adwaita`, `gtk-application-prefer-dark-theme=1`
-  and icon theme `pinkrot`. Two traps here, both verified on the VM. First, the dark variant comes from
-  `prefer-dark` and not from the theme name: `Adwaita-dark` is not a real GTK3 theme, and naming it makes GTK
-  fall back to **light** Adwaita without complaint (menu background `#F6F5F4` versus `#353535`). Second, the
-  `icon-theme` dconf key is ignored here too, so the icon theme has to be named in settings.ini.
-- `setup_gtk()` also generates a small `pinkrot` icon theme in `~/.local/share/icons/` from the package's
-  symbolic NetworkManager icons, recoloured to `#f17e97`. nm-applet asks for the plain (non-`-symbolic`)
-  names, so each is written under both, which is what replaces its pastel hardware glyph in the i3bar tray.
-  No icon files live in this repo. The glyph renders at the 0.35 opacity baked into Adwaita's SVG, so it is
-  dimmer than the bar text; strip the `opacity` attributes in the generated files to brighten it.
+  `~/.config/gtk-{3,4}.0/settings.ini` with `gtk-theme-name` (`adw-gtk3-dark` for GTK3, `Adwaita` for GTK4),
+  `gtk-application-prefer-dark-theme=1` and icon theme `x11-theme`; x11-theme flips the variant and
+  prefer-dark for light themes. Two traps, both verified on the VM. First, never name `Adwaita-dark`: it is
+  not a real GTK3 theme, and naming it makes GTK fall back to **light** Adwaita without complaint (menu
+  background `#F6F5F4` versus `#353535`). Second, the `icon-theme` dconf key is ignored here too, so the icon
+  theme has to be named in settings.ini.
+- The `x11-theme` icon theme in `~/.local/share/icons/` is generated by `x11-theme` on every switch: it
+  inherits the theme's `icons.theme` (Yaru-*), and carries the package's symbolic NetworkManager icons
+  recoloured to the theme foreground. nm-applet asks for the plain (non-`-symbolic`) names, so each is
+  written under both, which is what replaces its pastel hardware glyph in the i3bar tray. The glyph renders at
+  the 0.35 opacity baked into Adwaita's SVG, so it is dimmer than the bar text.
 - System dark mode: `setup_dark_theme()` in `install.sh` sets dconf `color-scheme=prefer-dark` and
-  `gtk-theme=Adwaita`, and (with a `DISPLAY`) restarts the `xdg-desktop-portal{,-gtk}` user services, which are
+  `gtk-theme=adw-gtk3-dark`, and (with a `DISPLAY`) restarts the `xdg-desktop-portal{,-gtk}` user services, which are
   static, D-Bus-activated units with nothing to enable. Those exist for the things
   that ask a portal rather than reading settings themselves, which is sandboxed apps and Qt6 (qutebrowser).
   GTK's own dark mode does **not** come from here: see the settings.ini bullet above. The portal backend is
@@ -253,15 +257,15 @@ after, and `:colorscheme` reports `pinkrot` again.
   `"prefer-dark"`. Over ssh on Cachy the systemd user instance provides a session bus, so the dconf half
   still runs; the GTK portal backend cannot start without a display, so it is left to start on demand in the
   i3 session. With no session bus at all (a bare tty), the dconf half is skipped with instructions.
-- Guest is qemu/kvm/libvirt: no i3lock, no picom, no brightness/nightlight/screen recording.
-- Colours are the pinkrot theme throughout, kept inside each app's own dir: `i3/conf.d/01-pinkrot.conf` (window
-  colours), `i3/conf.d/15-bar.conf` (bar colours; a `bar` block can't be split across includes),
-  `kitty/pinkrot.conf`, `alacritty/alacritty.toml` (single file), `i3status-rust/themes/`, `rofi/`, `dunst/`,
-  `qutebrowser/pinkrot.py`, `btop/`, `nvim/`; ly's is `ly/pinkrot.ini`, see "Starting i3".
-- Default terminal is alacritty (`set $terminal` in `i3/config`). Kitty stays installed and keeps its
-  pinkrot colours, but nothing in the config launches it and its remote-control socket is off.
-- `install.sh` links whole dirs for i3, kitty, alacritty, rofi, dunst, i3status-rust, shell; individual files for
-  qutebrowser (`config.py`, `pinkrot.py`, `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
+- Guest is qemu/kvm/libvirt today, but the dots now also carry what bare metal needs (lock, nightlight,
+  bluetooth; see "Desktop tools"). Still no picom, brightness or screen recording.
+- Colours come from the active theme for almost everything (see "Theming"); the exceptions with static
+  pinkrot colours are `nvim/`, `ly/pinkrot.ini` (see "Starting i3") and `satty/config.toml`'s palette.
+- Default terminal is alacritty (`set $terminal` in `i3/config`). Kitty stays installed and follows the
+  theme, but nothing in the config launches it and its remote-control socket is off.
+- `install.sh` links whole dirs for i3, kitty, alacritty, rofi, shell; individual files for dunst (`dunstrc`;
+  the theme drop-in goes beside it in `dunstrc.d/`), qutebrowser (`config.py`, `omarchy_theme.py`,
+  `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
   `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
   (`satty/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
   (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
@@ -316,7 +320,7 @@ These were left out while the dots only targeted disposable VMs; they are for da
   `satty/config.toml`: Enter copies (via `xclip`, not satty's default `wl-copy`) and closes, Ctrl+S saves to
   `~/Pictures/Screenshots`, Escape discards; keys 1-6 pick the pinkrot palette.
 - **Lock: i3lock-color + xss-lock.** `bin/x11-lock` (`$mod+Ctrl+Escape`, and "lock" in the `$mod+Escape`
-  menu) runs i3lock-color blurred, with a pinkrot ring and clock, and refuses to stack a second locker.
+  menu) runs i3lock-color blurred, with a ring and clock in the theme's colours, and refuses to stack a second locker.
   `xss-lock --transfer-sleep-lock` locks before suspend, holding suspend until the locker is up (which is why
   `x11-lock` execs `i3lock --nofork`), and when the X screensaver fires: `xset s 600 600`, 10 idle minutes.
 - **Nightlight.** `bin/x11-nightlight` (`$mod+Ctrl+n`) toggles `gammastep -m randr -O 4000` (one-shot: it sets
@@ -325,10 +329,76 @@ These were left out while the dots only targeted disposable VMs; they are for da
 - **Bluetooth.** `blueman-manager` is in rofi's drun list; `blueman-applet` starts only when
   `/sys/class/bluetooth` has an adapter. `bluetooth.service` is enabled; its unit is conditioned on the same
   directory, so on a VM it is enabled but never starts.
-- **yazi** is the file manager, on `$mod+e` in a terminal (the bind used to run `nautilus`, which was never
-  installed). Image previews in alacritty would need `ueberzugpp`; not installed.
+- **File managers:** nautilus on `$mod+e`, yazi in a terminal on `$mod+Shift+e`. yazi's image previews in
+  alacritty would need `ueberzugpp`; not installed.
 - **Telemetry opt-outs: `env/telemetry.conf`.** One `KEY=VALUE` file (the strict subset that both
   environment.d(5) and `sh` accept), merged from quattro-dots' `shell/envs` and its environment.d file. It is
   linked to `~/.config/environment.d/telemetry.conf` for systemd --user (read when the user manager starts,
   i.e. at login), and the same path is sourced with `set -a` by `shell/xprofile` (the i3 session) and
   `shell/init.sh` (terminals). Delete a line to restore a tool's default; note `NPM_CONFIG_AUDIT=false`.
+
+## Theming
+
+Omarchy themes, applied to this i3 stack by `bin/x11-theme`, with omarchy's own formats and paths so any
+omarchy theme repo works and omarchy-style hooks (quattro-dots' qutebrowser and vesktop ones) run unchanged.
+No quickshell, nothing else from omarchy's shell.
+
+- **Commands.** `x11-theme install <git-url>` clones a theme repo into `~/.config/omarchy/themes/<name>` and
+  applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`
+  fetches one of omarchy's built-in themes (they live inside omarchy's repo, 279 MB in all, so a blobless
+  sparse shallow clone into a temp dir checks out only `themes/<name>`); with no name it lists them.
+  `set`, `refresh` (re-render after editing a template), `list`, `current`, `remove`, and `menu` (rofi,
+  each row iconed with the theme's `preview.png`; `$mod+Ctrl+t`). `$mod+Ctrl+w` cycles the theme's
+  backgrounds.
+- **Engine.** `theme/` mirrors omarchy's layout so `OMARCHY_PATH=theme/` runs omarchy's
+  `omarchy-theme-color` (palette resolver: aliases, derived shades, light/dark `mode`) and
+  `omarchy-theme-set-templates` (fills `{{ key }}`, `{{ key_strip }}`, `{{ key_rgb }}`,
+  `{{ mix a b N% }}`) **unmodified**; provenance in `theme/VENDORED.md`. A switch stages the theme in
+  `~/.local/state/omarchy/current/next-theme`, renders every `theme/default/themed/*.tpl` (and
+  `~/.config/omarchy/themed/*.tpl`) that the theme does not ship itself, then swaps it in as
+  `.../current/theme` and writes `theme.name`. The template script returns 1 for themes with a
+  `shell.*.toml` but no `shell.toml` (tokyo-night); omarchy ignores that and so do we, checking that
+  `i3.conf` and `gtk.css` were rendered instead.
+- **Untrusted themes.** A theme with a `.git` (or the `.x11-theme-source` mark `install-omarchy` writes) is
+  staged as omarchy stages one: no symlinks followed, and no Lua, terminal configs or `vscode.json` (they run
+  code or name programs); our templates render those files instead. Your own theme directory, or a symlink to
+  a working copy, is copied as is.
+- **Built-in pinkrot.** `theme/themes/pinkrot/colors.toml` is the omarchy-pinkrot palette, so a theme can be
+  applied offline. `install.sh` (`setup_theme`) installs the full theme from
+  `r3b1s/omarchy-pinkrot-theme` on first run (backgrounds, previews) and falls back to that; later runs
+  `x11-theme refresh`. A theme must always be applied: i3 includes `i3.conf` and i3bar runs the rendered
+  status config from the state directory (i3 only warns about a missing include; i3status-rs shows an error).
+- **What follows the theme, and how:**
+
+  | App | Mechanism | Live? |
+  | --- | --- | --- |
+  | i3 windows, i3bar | `i3.conf.tpl` -> `$th_*` vars, included by `i3/config`; `01-colors.conf`, `15-bar.conf` | `i3-msg reload` |
+  | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical | SIGUSR2 (in-place restart) |
+  | rofi | `rofi.rasi.tpl`, `@import`ed by `rofi/config.rasi` | next open |
+  | dunst | `dunst.conf.tpl` -> `~/.config/dunst/dunstrc.d/90-theme.conf` drop-in | `dunstctl reload` |
+  | alacritty, kitty, btop | omarchy's own templates; alacritty `import`, kitty `include`, btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |
+  | qutebrowser | `qutebrowser/omarchy_theme.py` (from quattro-dots) reads `colors.toml` | `:config-source` |
+  | GTK3, GTK4, Firefox, virt-manager, Qt | `gtk.css.tpl` -> `~/.config/gtk-{3,4}.0/gtk.css` (see below) | app restart |
+  | icons | generated `x11-theme` icon theme inherits the theme's `icons.theme` (Yaru-red ...) | app restart |
+  | Chromium | `BrowserThemeColor` policy from the theme's `chromium.theme` | Chromium re-reads policy |
+  | wallpaper | the theme's `backgrounds/` (+ `~/.config/omarchy/backgrounds/<theme>/`) | immediate |
+  | lock screen | `bin/x11-lock` reads `colors.toml` | next lock |
+  | light/dark | `mode` -> dconf `color-scheme`, adw-gtk3 vs adw-gtk3-dark, `prefer-dark` | app restart |
+
+- **GTK, Firefox and Qt from one file.** GTK3 uses **adw-gtk3** (`adw-gtk-theme`), which draws GTK3 like
+  libadwaita and takes the same named colours, so one `gtk.css` with `@define-color window_bg_color` & co.
+  recolours GTK4/libadwaita (nautilus) and GTK3 (virt-manager, verified with gtk3-widget-factory) alike.
+  Firefox's **default ("system") theme follows GTK3**, so the policy now activates `default-theme@mozilla.org`
+  instead of Flame (still installed, selectable). Qt reads its palette from GTK3 through qt6-base's gtk3
+  platform theme (`QT_QPA_PLATFORMTHEME=gtk3` in `shell/xprofile`); for that the CSS also defines GTK3's
+  legacy `theme_*` names, without which Qt's selection stayed GTK's blue.
+- **Chromium needs root, narrowly.** The policy lives in root-owned `/etc/chromium/policies/managed/`.
+  `setup_theme_helper()` copies `theme/root/chromium-theme-color` to `/usr/local/lib/cachy-dots/` (root:root
+  755, never a link into the repo) and adds `/etc/sudoers.d/cachy-dots-theme`, validated with `visudo -c`,
+  allowing exactly that path without a password. The helper accepts one `#rrggbb` and writes only
+  `color.json` (`BrowserThemeColor` + `BrowserColorScheme: device`); this is what omarchy does too.
+- **Not themed yet:** Neovim (omarchy's template needs the `aether.nvim` plugin), ly (a root file; still
+  `ly/pinkrot.ini`), satty's palette, CopyQ's own item list, tmux, yazi, starship. Running GTK apps keep their
+  colours until restarted (no settings daemon to signal them).
+- **Testing on the VM**: sync with `rsync -a --delete`, not tar. A stale `01-pinkrot.conf` left behind by a
+  tar copy loaded after `01-colors.conf` and kept the old window colours.

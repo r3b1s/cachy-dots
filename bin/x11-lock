@@ -11,9 +11,17 @@ set -eu
 # Never stack a second locker on top of a running one.
 pgrep -x -u "$(id -u)" i3lock >/dev/null && exit 0
 
-# pinkrot: see i3/conf.d/01-pinkrot.conf. i3lock-color wants rrggbbaa.
-bg=050007ff fg=f17e97ff accent=d40d40ff bright=f00f40ff
-muted=a85869ff clear=00000000 dim=050007cc
+# Colours from the active theme (x11-theme), as rrggbb; pinkrot if there is
+# none. i3lock-color wants rrggbbaa.
+repo=$(dirname "$(dirname "$(readlink -f "$0")")")
+colors="$HOME/.local/state/omarchy/current/theme/colors.toml"
+c() {
+    v=$("$repo/theme/bin/omarchy-theme-color" --file "$colors" "$1" 2>/dev/null) || v=$2
+    printf '%s' "${v#\#}"
+}
+bg=$(c background 190710)ff fg=$(c foreground f08a9b)ff accent=$(c accent d40d40)ff
+bright=$(c bright_red ff6b84)ff muted=$(c muted 6e3345)ff
+clear=00000000 dim=$(c background 190710)cc
 
 exec i3lock --nofork \
     --blur 8 --color "$bg" \

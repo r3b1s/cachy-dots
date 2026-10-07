@@ -21,7 +21,7 @@
     },
     "Preferences": {
       "extensions.activeThemeID": {
-        "Value": "nova-flame@mozilla.org",
+        "Value": "default-theme@mozilla.org",
         "Status": "default"
       }
     }

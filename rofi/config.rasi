@@ -8,14 +8,11 @@ configuration {
     display-window: "Windows";
 }
 
+/* Colours (bg, fg, accent, ...) come from the active theme, rendered by
+ * x11-theme from theme/default/themed/rofi.rasi.tpl. */
+@import "~/.local/state/omarchy/current/theme/rofi.rasi"
+
 * {
-    bg:     #050007;
-    bg-row: #141218;
-    bg-alt: #000000;
-    fg:     #f17e97;
-    muted:  #a85869;
-    accent: #D40D40;
-    urgent: #8F0936;
     background-color: @bg;
     text-color:       @fg;
 }
@@ -70,7 +67,7 @@ element alternate.normal {
 
 element selected.normal {
     background-color: @accent;
-    text-color:       @bg;
+    text-color:       @on-accent;
 }
 
 element normal.urgent {
