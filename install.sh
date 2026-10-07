@@ -226,6 +226,48 @@ install_packages() {
     run $SUDO pacman -S --needed --noconfirm "${missing[@]}"
 }
 
+# qutebrowser-git runs on extra's python-pyqt6, which has no CachyOS build, so
+# its Qt has to match whatever Qt that PyQt6 was built against. When Arch moves
+# to a new Qt minor before CachyOS has finished rebuilding it, cachyos-extra-*
+# shadows extra's newer qt6-base & co. with the older version, and PyQt6 fails
+# to load with "version `Qt_6.N' not found". pacman cannot see this: PyQt6
+# depends on qt6-base without a version. (Seen on 2026-10-07: extra at Qt
+# 6.12.0, cachyos-extra-v3 still at 6.11.2.)
+#
+# Only when the import actually fails, take from extra exactly the installed
+# qt6-* packages that extra has newer. It heals itself: CachyOS versions a
+# rebuild as Arch's pkgrel plus ".1" (6.12.0-2 -> 6.12.0-2.1), so once CachyOS
+# catches up, the next -Syu moves them back to the Cachy builds.
+fix_qt_skew() {
+    pacman -Qq qutebrowser-git >/dev/null 2>&1 || return 0
+    [ "$dry" = 1 ] && { echo "+ check that PyQt6 loads against the installed Qt"; return 0; }
+    qt_loads() { python3 -c 'import PyQt6.QtWebEngineWidgets' >/dev/null 2>&1; }
+    qt_loads && return 0
+
+    say "PyQt6 cannot load against the installed Qt (CachyOS behind Arch on Qt?)"
+    local p inst ext behind=()
+    for p in $(pacman -Qq | grep '^qt6-'); do
+        inst=$(pacman -Q "$p" | cut -d' ' -f2)
+        ext=$(pacman -Sl extra 2>/dev/null | awk -v p="$p" '$2 == p { print $3 }')
+        [ -n "$ext" ] && [ "$(vercmp "$inst" "$ext")" -lt 0 ] && behind+=("extra/$p")
+    done
+    if [ "${#behind[@]}" -eq 0 ]; then
+        warn "no qt6-* package is behind extra; cannot fix PyQt6 automatically:"
+        python3 -c 'import PyQt6.QtWebEngineWidgets' 2>&1 | tail -1 >&2
+        FAILED=1
+        return 0
+    fi
+    say "Taking from extra until CachyOS catches up: ${behind[*]}"
+    run $SUDO pacman -S --noconfirm "${behind[@]}"
+    if qt_loads; then
+        echo "qt: PyQt6 loads again"
+    else
+        warn "PyQt6 still does not load:"
+        python3 -c 'import PyQt6.QtWebEngineWidgets' 2>&1 | tail -1 >&2
+        FAILED=1
+    fi
+}
+
 # The shell integrations (shell/) are bash-only, and CachyOS makes fish the
 # login shell, so alacritty would start fish and never load them. Switch the
 # login shell to bash; fish stays installed (it is CachyOS's package, not ours).
@@ -852,6 +894,7 @@ if [ "$do_packages" = 1 ]; then
     check_cachy_repos
     setup_chaotic_aur
     install_packages
+    fix_qt_skew
     setup_login_shell
     install_ly_theme
     enable_services

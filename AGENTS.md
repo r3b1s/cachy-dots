@@ -23,6 +23,15 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
   `pacman.conf`, below the Cachy and Arch repos, so it can never shadow their builds. A freshly added repo has
   no sync database, and the only supported way to get one is a full `pacman -Syu`, so that is what runs (a
   bare `-Sy` followed by `-S` would be a partial upgrade). It only runs when `chaotic-aur.db` is missing.
+- **Cachy can lag Arch on a Qt minor, which breaks qutebrowser.** `qutebrowser-git` runs on extra's
+  `python-pyqt6`, which has no Cachy build. When Arch moves to a new Qt minor first, `cachyos-extra-*` shadows
+  extra's newer `qt6-base` & co. with the older version, and qutebrowser dies with
+  ``libQt6Core.so.6: version `Qt_6.N' not found``; pacman cannot see it because PyQt6 depends on `qt6-base`
+  unversioned. Hit on the first fresh install (extra at Qt 6.12.0, `cachyos-extra-v3` at 6.11.2).
+  `fix_qt_skew()` runs only when `python3 -c 'import PyQt6.QtWebEngineWidgets'` fails, and then takes from
+  `extra` exactly the installed `qt6-*` packages that extra has newer. It heals itself: Cachy versions a
+  rebuild as Arch's pkgrel plus `.1` (`6.12.0-2` -> `6.12.0-2.1`), so once Cachy catches up, the next `-Syu`
+  moves them back to the Cachy builds.
 - **Every pacman transaction is also a snapper snapshot pair** (`cachyos-snapper-support`, the
   `==> root: N` lines in pacman's output). The installer therefore batches: one `-U` for the chaotic
   packages, the `-Syu`, then a single `-S` for everything else, including the two pinned packages.
