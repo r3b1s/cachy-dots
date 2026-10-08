@@ -110,13 +110,46 @@ PKGS+=(
     7zip poppler ffmpegthumbnailer resvg imagemagick fd ripgrep
 )
 
-# Session helpers and VM guest integration.
+# Session helpers.
 PKGS+=(
     polkit-gnome                     # polkit authentication agent
     network-manager-applet           # nm-applet
-    spice-vdagent                    # shared clipboard + display resize
-    qemu-guest-agent                 # host <-> guest control channel
+    gnome-keyring libsecret seahorse # secrets (Wi-Fi, browsers, Vesktop); unlocked at login by ly's PAM
 )
+
+# Default applications (setup_default_apps), each themed by x11-theme.
+PKGS+=(
+    imv                              # images
+    zathura zathura-pdf-mupdf        # PDFs
+    mpv                              # video and audio
+)
+
+# Bare-metal desktop: media and brightness keys, monitors, touchpad, power.
+PKGS+=(
+    playerctl                        # play/pause/next/previous for any MPRIS player
+    brightnessctl                    # backlight keys (bin/x11-brightness)
+    autorandr arandr                 # monitor profiles (bin/x11-display); arandr to arrange them
+    xf86-input-libinput              # the X input driver xorg/30-touchpad.conf configures
+    power-profiles-daemon            # power profile, switched from the $mod+Escape menu
+    tesseract tesseract-data-eng     # OCR: $mod+Print copies the text in a region
+)
+
+# Network and security.
+PKGS+=(
+    wireguard-tools                  # wg, wg-quick (openvpn comes with CachyOS)
+    ufw                              # firewall, set up by setup_firewall
+)
+
+# VM guest integration, only inside a VM: on bare metal these have nothing to
+# talk to, so they are not installed at all.
+IS_VM=0
+if command -v systemd-detect-virt >/dev/null && systemd-detect-virt -q --vm; then
+    IS_VM=1
+    PKGS+=(
+        spice-vdagent                # shared clipboard + display resize (SPICE)
+        qemu-guest-agent             # host <-> guest control channel
+    )
+fi
 
 # Set when something required could not be installed; reported at the end.
 FAILED=0
@@ -673,15 +706,71 @@ enable_services() {
             || warn "could not enable bluetooth.service"
     fi
 
+    if pacman -Qq power-profiles-daemon >/dev/null 2>&1; then
+        run $SUDO systemctl enable --now power-profiles-daemon.service \
+            || warn "could not enable power-profiles-daemon.service"
+    fi
+
     # Nothing to enable for the guest agents: spice-vdagentd.socket and
     # qemu-guest-agent are both static units, pulled in by udev rules when their
     # virtio port (com.redhat.spice.0 / org.qemu.guest_agent.0) appears. Start
     # the socket now so the first session does not need a reboot.
+    [ "$IS_VM" = 1 ] || return 0
     if [ -e /dev/virtio-ports/com.redhat.spice.0 ]; then
         run $SUDO systemctl start spice-vdagentd.socket \
             || warn "could not start spice-vdagentd.socket"
     else
         warn "no SPICE virtio port; spice-vdagent (clipboard, resize) will be idle"
+    fi
+}
+
+# Firewall: deny incoming, allow outgoing (CachyOS ships ufw like this already;
+# this makes it so everywhere). SSH is allowed FIRST when sshd is enabled: on a
+# headless host it is the way in, and a deny-all firewall without it would cut
+# the installing session off. Rate-limited (ufw limit) when this adds the rule;
+# an existing rule for port 22 is left as it is. Listeners for CTF work (reverse
+# shells, HTTP servers) need their own rule: `sudo ufw allow 4444/tcp`.
+setup_firewall() {
+    command -v ufw >/dev/null || return 0
+    say "Firewall (ufw): deny incoming, allow outgoing"
+    if [ "$dry" = 1 ]; then echo "+ ufw: allow ssh if sshd is enabled, default deny incoming, enable"; return; fi
+    if systemctl is-enabled --quiet sshd 2>/dev/null \
+        && ! $SUDO ufw status | grep -qE '^22(/tcp)?[[:space:]]'; then
+        $SUDO ufw limit 22/tcp comment 'ssh (cachy-dots)' >/dev/null && echo "ufw: ssh allowed (rate-limited)"
+    fi
+    $SUDO ufw default deny incoming >/dev/null
+    $SUDO ufw default allow outgoing >/dev/null
+    if ! $SUDO ufw status | grep -q '^Status: active'; then
+        $SUDO ufw --force enable >/dev/null && echo "ufw: enabled"
+    fi
+    $SUDO systemctl enable --quiet ufw.service || warn "could not enable ufw.service"
+    $SUDO ufw status | sed -n '1p'
+}
+
+# Touchpad: tap to click and friends (xorg/30-touchpad.conf). A root file, so a
+# copy; it matches nothing where there is no touchpad.
+setup_touchpad() {
+    local src="$REPO/xorg/30-touchpad.conf" target=/etc/X11/xorg.conf.d/30-touchpad.conf
+    [ -r "$src" ] || return 0
+    if [ "$dry" = 1 ]; then echo "+ install $src -> $target"; return; fi
+    if ! cmp -s "$src" "$target" 2>/dev/null; then
+        $SUDO install -D -o root -g root -m 644 "$src" "$target"
+        echo "touchpad: $target (applies at the next X start)"
+    fi
+}
+
+# The keyring (Wi-Fi passwords for nm-applet, Chromium and Vesktop secrets) is
+# unlocked at login by pam_gnome_keyring in ly's own PAM file, which the ly
+# package ships with those lines. Only checked: if a future package drops them,
+# say so rather than edit a root PAM file behind the user's back.
+check_keyring_pam() {
+    [ -f /etc/pam.d/ly ] || return 0
+    if grep -qE '^-?auth[[:space:]]+optional[[:space:]]+pam_gnome_keyring\.so' /etc/pam.d/ly \
+        && grep -qE '^-?session[[:space:]]+optional[[:space:]]+pam_gnome_keyring\.so.*auto_start' /etc/pam.d/ly; then
+        echo "keyring: unlocked at login by ly's PAM (pam_gnome_keyring)"
+    else
+        warn "/etc/pam.d/ly lacks pam_gnome_keyring; the keyring will not unlock at login."
+        warn "add: 'auth optional pam_gnome_keyring.so' and 'session optional pam_gnome_keyring.so auto_start'"
     fi
 }
 
@@ -840,6 +929,9 @@ install_links() {
     link "$th/satty.config.toml" "$cfg/satty/config.toml"
     link "$th/yazi.toml" "$cfg/yazi/flavors/omarchy.yazi/flavor.toml"
     link "$REPO/yazi/theme.toml" "$cfg/yazi/theme.toml"
+    link "$th/zathurarc" "$cfg/zathura/zathurarc"
+    link "$th/imv.config" "$cfg/imv/config"
+    link "$REPO/mpv/mpv.conf" "$cfg/mpv/mpv.conf"
 
     # omarchy-style theme-set hooks, run by x11-theme after every switch as
     # `bash <hook> <theme>`. vesktop (from quattro-dots) composes the rendered
@@ -897,6 +989,36 @@ install_links() {
 
 }
 
+# Default applications, in ~/.config/mimeapps.list (xdg-mime writes it; the file
+# is the apps' own state, so it is not linked from the repo). Without this,
+# folders opened in a kitty helper and links and PDFs in Chromium.
+DEFAULT_APPS=(
+    "org.qutebrowser.qutebrowser.desktop:x-scheme-handler/http x-scheme-handler/https text/html application/xhtml+xml"
+    "org.gnome.Nautilus.desktop:inode/directory"
+    "org.pwmt.zathura-pdf-mupdf.desktop:application/pdf"
+    "imv.desktop:image/png image/jpeg image/gif image/webp image/bmp image/tiff image/avif"
+    "mpv.desktop:video/mp4 video/x-matroska video/webm video/quicktime video/x-msvideo audio/mpeg audio/flac audio/ogg audio/x-wav audio/mp4"
+)
+
+setup_default_apps() {
+    command -v xdg-mime >/dev/null || return 0
+    say "Default applications"
+    local pair app
+    for pair in "${DEFAULT_APPS[@]}"; do
+        app=${pair%%:*}
+        if [ ! -f "/usr/share/applications/$app" ]; then
+            warn "no $app installed; leaving its file types alone"
+            continue
+        fi
+        # shellcheck disable=SC2086  # the type list is meant to split
+        run xdg-mime default "$app" ${pair#*:}
+        echo "default: $app"
+    done
+    if command -v xdg-settings >/dev/null; then
+        run xdg-settings set default-web-browser org.qutebrowser.qutebrowser.desktop 2>/dev/null || true
+    fi
+}
+
 validate_i3() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
     if [ "$dry" = 0 ] && command -v i3 >/dev/null; then
@@ -920,10 +1042,14 @@ if [ "$do_packages" = 1 ]; then
     setup_firefox
     setup_chromium
     setup_sshd
+    setup_firewall
+    setup_touchpad
+    check_keyring_pam
 fi
 if [ "$do_links" = 1 ]; then
     install_links
     setup_theme
+    setup_default_apps
     validate_i3
 fi
 

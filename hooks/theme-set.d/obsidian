@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Retint Obsidian to the active theme. Run by x11-theme (as omarchy runs its
+# hooks) as `bash <this file> <theme-name>` after every switch.
+#
+# Adapted from omarchy's bin/omarchy-theme-set-obsidian (MIT): the rendered
+# obsidian.css (theme/default/themed/obsidian.css.tpl, omarchy's template) is
+# written into every vault Obsidian knows about as a theme named "Omarchy" (the
+# same name, so a vault synced with an omarchy machine shows one theme, not
+# two). Obsidian reloads a changed theme.css live.
+#
+# Selecting it (appearance.json "cssTheme") is done only while Obsidian is
+# closed, since it rewrites that file from memory; otherwise pick "Omarchy"
+# under Settings > Appearance > Themes once. Quiet, and never fails a switch.
+set -uo pipefail
+
+css="$HOME/.local/state/omarchy/current/theme/obsidian.css"
+registry="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian/obsidian.json"
+[[ -f $css && -f $registry ]] || exit 0
+command -v jq >/dev/null || exit 0
+
+running=0
+pgrep -x -u "$(id -u)" obsidian >/dev/null 2>&1 && running=1
+
+jq -r '.vaults // {} | .[].path' "$registry" 2>/dev/null | while IFS= read -r vault; do
+  [[ -d $vault/.obsidian ]] || continue
+  dir="$vault/.obsidian/themes/Omarchy"
+  mkdir -p "$dir"
+  [[ -f $dir/manifest.json ]] || cat > "$dir/manifest.json" <<'JSON'
+{
+  "name": "Omarchy",
+  "version": "1.0.0",
+  "minAppVersion": "0.16.0",
+  "description": "Follows the current system theme (omarchy, or x11-theme in cachy-dots)",
+  "author": "Omarchy",
+  "authorUrl": "https://omarchy.org"
+}
+JSON
+  if ! cmp -s "$css" "$dir/theme.css"; then
+    cp "$css" "$dir/theme.css.tmp" && mv -f "$dir/theme.css.tmp" "$dir/theme.css"
+  fi
+
+  appearance="$vault/.obsidian/appearance.json"
+  if (( ! running )) && [[ $(jq -r '.cssTheme // ""' "$appearance" 2>/dev/null) != Omarchy ]]; then
+    tmp=$(mktemp)
+    if { [[ -f $appearance ]] && jq '.cssTheme = "Omarchy"' "$appearance" || echo '{"cssTheme":"Omarchy"}'; } > "$tmp"; then
+      mv -f "$tmp" "$appearance"
+      echo "obsidian: selected the Omarchy theme in $vault"
+    else
+      rm -f "$tmp"
+    fi
+  fi
+done
+exit 0

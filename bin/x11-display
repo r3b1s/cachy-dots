@@ -1,0 +1,20 @@
+#!/bin/sh
+# x11-display — set up the outputs, then the wallpaper. Run by i3 (exec_always)
+# on every start and reload.
+#
+#   in a VM:      bin/x11-monitor pins 1920x1080 (the SPICE display otherwise comes
+#                 up at whatever size the last client asked for)
+#   bare metal:   autorandr applies the saved profile matching the connected
+#                 outputs, or lays them out left to right when none matches.
+#                 Arrange them with arandr, then `autorandr --save <name>`.
+#
+# The wallpaper comes after, in the same process: painted before the resolution
+# change, feh's root pixmap would be tiled across the larger screen (see
+# 05-autostart.conf).
+bin=$(dirname "$(readlink -f "$0")")
+if systemd-detect-virt -q --vm; then
+    "$bin/x11-monitor" 1920x1080
+elif command -v autorandr >/dev/null; then
+    autorandr --change --default horizontal >/dev/null 2>&1 || true
+fi
+exec "$bin/x11-wallpaper"

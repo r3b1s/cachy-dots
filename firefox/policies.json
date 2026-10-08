@@ -23,6 +23,10 @@
       "extensions.activeThemeID": {
         "Value": "default-theme@mozilla.org",
         "Status": "default"
+      },
+      "toolkit.legacyUserProfileCustomizations.stylesheets": {
+        "Value": true,
+        "Status": "default"
       }
     }
   }

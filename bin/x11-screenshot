@@ -1,11 +1,12 @@
 #!/bin/sh
-# x11-screenshot region|full|annotate-region|annotate-full
+# x11-screenshot region|full|annotate-region|annotate-full|ocr
 #
 # maim screenshots (grim/slurp replacement).
 #   region:          interactive selection, copied to the clipboard
 #   full:            whole screen, saved to ~/Pictures and copied to the clipboard
 #   annotate-region: interactive selection, opened in satty to draw on
 #   annotate-full:   whole screen, opened in satty to draw on
+#   ocr:             interactive selection, its text (tesseract) to the clipboard
 #
 # In satty (config in satty/config.toml): Enter copies to the clipboard and
 # closes, Ctrl+S saves to ~/Pictures/Screenshots, Escape discards.
@@ -39,5 +40,20 @@ case "${1:-region}" in
     annotate-full)
         maim -u | annotate --fullscreen
         ;;
-    *) echo "usage: x11-screenshot region|full|annotate-region|annotate-full" >&2; exit 1 ;;
+    ocr)
+        # Upscaled 2x before recognition: screen text is small, and tesseract is
+        # tuned for ~300 dpi scans, so it misreads 1:1 UI text far more often.
+        tmp=$(mktemp --suffix=.png)
+        trap 'rm -f "$tmp"' EXIT
+        maim -s -u "$tmp" || exit 0
+        text=$(magick "$tmp" -resize 200% -colorspace Gray png:- | tesseract stdin stdout --psm 6 2>/dev/null \
+               | sed -e 's/[[:space:]]*$//' -e '/./,$!d')
+        if [ -z "$text" ]; then
+            dunstify -a x11-screenshot "Text capture" "No text found"
+            exit 0
+        fi
+        printf '%s' "$text" | xclip -selection clipboard
+        dunstify -a x11-screenshot "Text copied" "$(printf '%s' "$text" | head -c 120)"
+        ;;
+    *) echo "usage: x11-screenshot region|full|annotate-region|annotate-full|ocr" >&2; exit 1 ;;
 esac

@@ -219,6 +219,34 @@ apply_chromium() {
     sudo -n "$CHROMIUM_HELPER" "$hex" 2>/dev/null || echo "x11-theme: could not set Chromium's colour (sudo rule missing?)" >&2
 }
 
+# Firefox: every profile gets chrome/x11-theme.css and x11-theme-content.css,
+# links to the rendered firefox.userChrome.css / firefox.userContent.css, and an
+# @import of each at the top of its userChrome.css / userContent.css (created if
+# missing; your own rules below it are kept). Profiles live in
+# ~/.config/mozilla/firefox on current Firefox, ~/.mozilla/firefox before.
+# Firefox reads these at start, so a switch shows after a restart.
+apply_firefox() {
+    local base prof pair css link target
+    [[ -f $CURRENT/firefox.userChrome.css ]] || return 0
+    for base in "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox" "$HOME/.mozilla/firefox"; do
+        for prof in "$base"/*/; do
+            prof=${prof%/}
+            [[ -f $prof/prefs.js ]] || continue
+            mkdir -p "$prof/chrome"
+            for pair in userChrome:x11-theme userContent:x11-theme-content; do
+                css=$prof/chrome/${pair%%:*}.css link=${pair#*:}.css
+                target="$CURRENT/firefox.${pair%%:*}.css"
+                [[ -f $target ]] || continue
+                ln -sfn "$target" "$prof/chrome/$link"
+                if ! grep -qF "@import \"$link\"" "$css" 2>/dev/null; then
+                    { printf '@import "%s"; /* cachy-dots: theme colours (x11-theme) */\n' "$link"
+                      cat "$css" 2>/dev/null || true; } > "$css.tmp" && mv -f "$css.tmp" "$css"
+                fi
+            done
+        done
+    done
+}
+
 # ly's colours, through the root helper (it reads only /etc/ly/config.ini).
 # Applied at ly's next start, i.e. the next login screen.
 apply_ly() {
@@ -320,6 +348,7 @@ apply() {
     apply_chromium
     apply_ly
     apply_copyq
+    apply_firefox
     reload_apps
     run_hooks "$name"
 }

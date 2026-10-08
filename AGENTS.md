@@ -458,3 +458,31 @@ No quickshell, nothing else from omarchy's shell.
   until restarted (no settings daemon to signal them).
 - **Testing on the VM**: sync with `rsync -a --delete`, not tar. A stale `01-pinkrot.conf` left behind by a
   tar copy loaded after `01-colors.conf` and kept the old window colours.
+
+## Desktop basics (bare metal)
+
+- **VM-only pieces are gated on `systemd-detect-virt --vm`:** `spice-vdagent` and `qemu-guest-agent` are only
+  installed (and the SPICE agent only started) inside a VM. `bin/x11-display` pins 1920x1080 with
+  `x11-monitor` in a VM; on bare metal it runs `autorandr --change --default horizontal` (arrange with
+  `arandr`, then `autorandr --save <name>`), then the wallpaper.
+- **Default apps** (`setup_default_apps`, via `xdg-mime` into `~/.config/mimeapps.list`): qutebrowser
+  (web), nautilus (folders), zathura (PDF), imv (images), mpv (media); each is themed by a template
+  (`zathurarc.tpl`, `imv.config.tpl`, `mpv.conf.tpl` included from `mpv/mpv.conf`).
+- **Keyring:** ly's own PAM file already unlocks gnome-keyring at login; `check_keyring_pam` only warns
+  if those lines disappear. `seahorse` is the GUI.
+- **Keys:** media keys via `playerctl`; backlight via `bin/x11-brightness` (brightnessctl, OSD);
+  `$mod+Print` copies the text in a region (tesseract, upscaled 2x first).
+- **Laptop:** `xorg/30-touchpad.conf` (tap to click, disable while typing) copied to
+  `/etc/X11/xorg.conf.d/`; power profile switched from the `$mod+Escape` menu (power-profiles-daemon).
+  Lid behaviour is logind's default (suspend; ignore when docked). No compositor, by choice.
+- **Firewall:** `setup_firewall` keeps ufw at deny-incoming/allow-outgoing, enabled, allowing SSH first
+  when sshd is enabled (rate-limited if it adds the rule). Open a port for CTF listeners by hand.
+- **Obsidian:** `hooks/theme-set.d/obsidian` (from omarchy) writes the rendered `obsidian.css` into every
+  vault as the "Omarchy" theme, and selects it only while Obsidian is closed. A new vault gets it on the
+  next `x11-theme refresh`.
+- **Firefox** is themed fully from the palette, not through GTK (its system theme did not follow GTK
+  reliably): `firefox.userChrome.css.tpl` (frame, tabs, address bar, panels, accents) and
+  `firefox.userContent.css.tpl` (only `about:` pages), linked into each profile's `chrome/` and
+  `@import`ed by its userChrome/userContent.css; the policy sets
+  `toolkit.legacyUserProfileCustomizations.stylesheets`. Applies at Firefox's next start.
+

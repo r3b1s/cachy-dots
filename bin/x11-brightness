@@ -1,0 +1,25 @@
+#!/bin/sh
+# x11-brightness up|down|up-fine|down-fine — backlight with a dunst OSD.
+#
+# brightnessctl changes the backlight through logind's SetBrightness for the
+# active session, so no video group or udev rule is needed. A machine with no
+# backlight (any VM, most desktops) gets a notice instead.
+set -eu
+
+case "${1:-}" in
+    up)        step=5%+ ;;
+    down)      step=5%- ;;
+    up-fine)   step=1%+ ;;
+    down-fine) step=1%- ;;
+    *) echo "usage: x11-brightness up|down|up-fine|down-fine" >&2; exit 1 ;;
+esac
+
+if ! brightnessctl -l -c backlight 2>/dev/null | grep -q "class 'backlight'"; then
+    dunstify -a x11-brightness -u low -r 9987 "No backlight to adjust"
+    exit 0
+fi
+
+# -n 1: never all the way to black, which on a laptop panel is indistinguishable from off.
+brightnessctl -q -c backlight -n 1 set "$step"
+pct=$(brightnessctl -c backlight -m | cut -d, -f4 | tr -d %)
+dunstify -a x11-brightness -u low -r 9987 -h "int:value:$pct" "Brightness: ${pct}%"
