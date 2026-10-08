@@ -474,23 +474,23 @@ No quickshell, nothing else from omarchy's shell.
 - **Laptop:** `xorg/30-touchpad.conf` (tap to click, disable while typing) copied to
   `/etc/X11/xorg.conf.d/`; power profile switched from the `$mod+Escape` menu (power-profiles-daemon).
   Lid behaviour is logind's default (suspend; ignore when docked). No compositor, by choice.
-- **Virtualisation (`setup_virt`, bare metal only):** libvirt, qemu-desktop, virt-manager, dnsmasq, edk2-ovmf and
-  swtpm are installed only when `IS_VM=0`. Two connections exist and virt-manager lists both:
-  - `qemu:///session` runs as the user, with no root and no group. libvirt starts `virtqemud --session` on demand
-    (no unit ships for it, and none is enabled). Guests get user-mode networking only: no raw packets, no ICMP,
-    and the host reaches a guest only through port forwards.
-  - `qemu:///system` runs the root daemons, socket-activated: `virtqemud`, `virtnetworkd` and `virtstoraged`.
-    The NAT network (`virbr0`) and the `default` storage pool live here, so guests get raw packets and route out
-    through the host's `tun0` (HTB, THM). Access is by the `libvirt` group, which is root-equivalent: it can start
-    any VM with any host device attached. Only the install user is added.
-  The packaged `unix_sock_group` is commented out, which leaves the sockets root-only, so the installer uncomments
-  it for those three daemons. The default network is defined and autostarted, which the package does not do, and
-  the default pool is created because libvirt creates none. ufw's `DEFAULT_FORWARD_POLICY="DROP"` would drop
-  forwarded TCP from `virbr0`, so `ufw route allow in/out on virbr0` is added. Checked on the VM with a network
-  namespace attached to a bridge named `virbr0`: TCP to a forward destination was dropped with the rules removed
-  and forwarded with them present. ICMP passes either way, because ufw's default rules accept echo-request in
-  FORWARD, so a ping test proves nothing here. A `default` network whose subnet clashes with a host interface
-  (the test VM is itself on 192.168.122.0/24) fails to start; the installer warns and carries on.
+- **Virtualisation is opt-in: `opt/virt.sh`**, not part of `install.sh`, so it runs on bare metal or nested
+  inside a VM. It installs libvirt, qemu-desktop, virt-manager, virt-viewer, dnsmasq, edk2-ovmf and swtpm, and
+  (`-n` for a dry run) sets up two connections, which virt-manager lists both of:
+  - `qemu:///system`: the root daemons, socket-activated (`virtqemud`, `virtnetworkd`, `virtstoraged`). It
+    defines and autostarts the NAT network `labbr0` (10.40.40.0/24, gateway 10.40.40.1, DHCP .100-.254) and the
+    `default` storage pool. Access is by the `libvirt` group, which is root-equivalent: it can start any VM with
+    any host device attached. Only the user running the script is added.
+  - `qemu:///session`: nothing to set up. libvirt starts the user's own daemon on demand, with no root and no
+    group. Its guests get user-mode networking only: no raw packets, no ICMP, and the host reaches a guest only
+    through port forwards. That rules out CTF work that needs raw packets or routing through `tun0`.
+  The packaged `unix_sock_group` is commented out, which leaves the sockets root-only, so the script sets it for
+  the three daemons. The default network is deliberately left undefined; `labbr0` is the lab network. ufw's
+  `DEFAULT_FORWARD_POLICY="DROP"` would drop forwarded TCP from `labbr0`, so `ufw route allow in/out on labbr0` is
+  added. Checked on the VM with a network namespace on `labbr0`: with the route rules removed, the forward policy
+  dropped the SYN packets, and with them present it dropped none. ICMP passes either way, because ufw's default
+  rules accept echo-request in FORWARD, so a ping test proves nothing here. `qemu-full` conflicts with
+  `qemu-desktop`, so the script stops if it is installed.
 - **Firewall:** `setup_firewall` keeps ufw at deny-incoming/allow-outgoing, enabled, allowing SSH first
   when sshd is enabled (rate-limited if it adds the rule). Open a port for CTF listeners by hand.
 - **Obsidian:** `hooks/theme-set.d/obsidian` (from omarchy) writes the rendered `obsidian.css` into every
