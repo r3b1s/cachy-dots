@@ -838,6 +838,16 @@ install_links() {
     link "$th/yazi.toml" "$cfg/yazi/flavors/omarchy.yazi/flavor.toml"
     link "$REPO/yazi/theme.toml" "$cfg/yazi/theme.toml"
 
+    # omarchy-style theme-set hooks, run by x11-theme after every switch as
+    # `bash <hook> <theme>`. vesktop (from quattro-dots) composes the rendered
+    # quattro-vesktop.palette.css with vesktop/discord.css into Vesktop's themes
+    # folder; it reads discord.css from the repo, which is why only the hook is
+    # linked.
+    local hook
+    for hook in "$REPO"/hooks/theme-set.d/*; do
+        link "$hook" "$cfg/omarchy/hooks/theme-set.d/$(basename "$hook")"
+    done
+
     for pair in \
         "qutebrowser/config.py:qutebrowser/config.py" \
         "qutebrowser/omarchy_theme.py:qutebrowser/omarchy_theme.py" \

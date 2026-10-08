@@ -405,6 +405,7 @@ No quickshell, nothing else from omarchy's shell.
   | CopyQ tray icon | `copyq.svg` recoloured (handles accent, blades foreground) into the `x11-theme` icon theme | restart (automatic) |
   | ly | `ly.ini.tpl` -> `/etc/ly/config.ini` via the `ly-theme-colors` root helper | next login screen |
   | ZAP | `bin/zaproxy` runs it with Java's GTK look and feel, i.e. through `gtk.css` | restart ZAP |
+  | Vesktop | quattro-dots' `hooks/theme-set.d/vesktop` composes the rendered `quattro-vesktop.palette.css` (`vesktop/palette.css.tpl`) with `vesktop/discord.css` into `~/.config/vesktop/themes/quattro-dots.theme.css` | live (Vencord watches its themes folder) |
   | light/dark | `mode` -> dconf `color-scheme`, adw-gtk3 vs adw-gtk3-dark, `prefer-dark` | app restart |
 
 - **GTK, Firefox and Qt from one file.** GTK3 uses **adw-gtk3** (`adw-gtk-theme`), which draws GTK3 like
@@ -426,7 +427,18 @@ No quickshell, nothing else from omarchy's shell.
 - **ZAP.** Its `GuiBootstrap` honours `swing.defaultlaf` unless a look and feel is picked in ZAP's own
   Options > Display (which then wins). `bin/zaproxy`, ahead of `/usr/bin/zaproxy` on PATH, sets it through
   `JDK_JAVA_OPTIONS` (only that `java` launch, unlike `_JAVA_OPTIONS`) and runs `zap.sh` directly, since
-  `/usr/bin/zaproxy` drops its arguments. Verified with a throwaway `-dir` home next to a running instance.
+  `/usr/bin/zaproxy` drops its arguments. **Java refuses the GTK look and feel ("Cannot load
+  ...GTKLookAndFeel") whenever `XDG_CURRENT_DESKTOP` names GNOME**, which `~/.xprofile` appends for the
+  portal; `i3:GNOME`, `GNOME` and `GNOME:i3` all fail, `i3` works. The wrapper drops the GNOME token for ZAP
+  alone. An earlier test from ssh passed only because that shell lacked the variable: test GUI apps under
+  the session's own environment (`/proc/$(pgrep -xo i3)/environ`).
+- **Vesktop** (installed separately; `cachyos/vesktop-bin`) uses quattro-dots' files verbatim:
+  `vesktop/palette.css.tpl` (linked into `theme/default/themed/` as `quattro-vesktop.palette.css.tpl`, the
+  name the hook expects), `vesktop/discord.css`, and `hooks/theme-set.d/vesktop`, linked into
+  `~/.config/omarchy/hooks/theme-set.d/`. The hook writes the stylesheet into Vencord's themes folder (a
+  write, not a link, so Vencord's directory watch fires) and adds it to `enabledThemes` only while Vesktop is
+  closed, since Vencord rewrites that list from memory on exit; if it was running, enable "quattro-dots"
+  under Settings > Themes once.
 - **Not themed:** Firefox's toolbar beyond what GTK gives it; running GTK apps (and ZAP) keep their colours
   until restarted (no settings daemon to signal them).
 - **Testing on the VM**: sync with `rsync -a --delete`, not tar. A stale `01-pinkrot.conf` left behind by a

@@ -1,0 +1,1 @@
+../../../vesktop/palette.css.tpl

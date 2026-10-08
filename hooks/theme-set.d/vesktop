@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# Retint Vesktop to the active Omarchy theme.
+#
+# Run by omarchy-hook as `bash <this file> <theme-slug>` at the end of every
+# `omarchy theme set`, after the template engine has rendered the palette into
+# the live theme directory.
+#
+# The result is written into each Vencord client's themes directory rather than
+# symlinked. Vencord watches that *directory*, and a directory watch never fires
+# when a symlink's target changes, only when a directory entry does: writing is
+# what makes the retint land live instead of waiting for a restart. The write is
+# staged in the destination directory and renamed into place, so the client
+# never reads a half-written stylesheet, and it is skipped when the content is
+# already correct.
+#
+# This runs inside a theme switch, so it stays quiet and never aborts one.
+
+set -uo pipefail
+
+# Omarchy runs this file by path, and that path is the symlink in its hooks
+# directory, so it has to be resolved before the repo layout can be walked.
+QV_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+QV_DATA="$(cd "$(dirname "$QV_SELF")/../../vesktop" && pwd)"
+QV_THEME_FILE="quattro-dots.theme.css"
+QV_PALETTE_FILE="quattro-vesktop.palette.css"
+THEME_DIR="$HOME/.local/state/omarchy/current/theme"
+
+[[ -r "$QV_DATA/discord.css" ]] || exit 0
+
+# A theme may ship its own vencord.theme.css; a theme author's hand-tuned
+# Discord styling should beat anything derived here.
+if [[ -f "$THEME_DIR/vencord.theme.css" ]]; then
+  printf '/* theme supplies its own vencord.theme.css */\n'
+  cat "$THEME_DIR/vencord.theme.css"
+  exit 0
+fi
+
+compose() {
+  printf '/**\n * @name quattro-dots\n * @description Vesktop, retinted to the active Omarchy theme.\n * @source https://github.com/t/Dotfiles/quattro-dots\n **/\n\n'
+  # Any token the template engine could not resolve (a theme missing `accent`,
+  # say) is dropped rather than emitted as a garbage value, so discord.css
+  # falls back to its own default instead of rendering grey.
+  if [[ -f "$THEME_DIR/$QV_PALETTE_FILE" ]]; then
+    grep -v '{{' "$THEME_DIR/$QV_PALETTE_FILE"
+    printf '\n'
+  fi
+  cat "$QV_DATA/discord.css"
+}
+
+# Resolve the on-accent colour: the text colour for anything sitting on an
+# accent fill. The theme background is not reliable here, because a near-black
+# background is unreadable on a dark accent, so this picks whichever of the
+# deepest surface or white contrasts better. Deciding it here, with the
+# rendered palette in hand, is why the question is not left to CSS: custom
+# properties cannot express "whichever of these two contrasts more".
+resolve_on_accent() {
+  awk '
+    function lum(h,   r, g, b, lr, lg, lb) {
+      h = tolower(h); gsub(/#/, "", h)
+      lr = channel(strtonum("0x" substr(h, 1, 2)) / 255)
+      lg = channel(strtonum("0x" substr(h, 3, 2)) / 255)
+      lb = channel(strtonum("0x" substr(h, 5, 2)) / 255)
+      return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb
+    }
+    function channel(c) {
+      return c <= 0.03928 ? c / 12.92 : exp(log((c + 0.055) / 1.055) * 2.4)
+    }
+    function contrast(a, b,   la, lb, t) {
+      la = lum(a); lb = lum(b)
+      if (la < lb) { t = la; la = lb; lb = t }
+      return (la + 0.05) / (lb + 0.05)
+    }
+    /--qv-accent:/ {
+      for (i = 2; i <= NF; i++) if ($i ~ /^#/) { accent = $i; break }
+    }
+    /--qv-s0:/ {
+      for (i = 2; i <= NF; i++) if ($i ~ /^#/) { deep = $i; break }
+    }
+    END {
+      if (accent == "" || deep == "") { print "var(--qv-on-accent, #ffffff)"; exit }
+      print (contrast(deep, accent) >= contrast("#ffffff", accent)) ? deep : "#ffffff"
+    }
+  ' "$1"
+}
+
+body=$(compose) || exit 0
+body=${body//QV_ON_ACCENT_PLACEHOLDER/$(resolve_on_accent "$THEME_DIR/$QV_PALETTE_FILE")}
+[[ -n "$body" ]] || exit 0
+
+client_running() {
+  pgrep -x -u "$(id -u)" vesktop Vesktop Discord discord equibop >/dev/null 2>&1
+}
+
+shopt -s nullglob
+for root in "$HOME/.config/vesktop" "$HOME/.config/Vencord" "$HOME"/.var/app/*/config/vesktop "$HOME"/.var/app/*/config/Vencord; do
+  # Require the client's own config to exist, not just a themes directory:
+  # creating themes/ under a path the client never made leaves litter.
+  [[ -d "$root" ]] || continue
+  themes_dir="$root/themes"
+  mkdir -p "$themes_dir"
+  target="$themes_dir/$QV_THEME_FILE"
+
+  # Skip the write when the stylesheet is already correct, so a re-applied
+  # theme does not bounce every open client for no reason.
+  if [[ -f "$target" ]] && printf '%s\n' "$body" | cmp -s - "$target"; then
+    continue
+  fi
+
+  tmp=$(mktemp "$themes_dir/.quattro-dots.XXXXXX" 2>/dev/null) || continue
+  if printf '%s\n' "$body" >"$tmp" 2>/dev/null; then
+    chmod 644 "$tmp" 2>/dev/null
+    mv -f "$tmp" "$target" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+done
+
+# Turn the theme on in Vencord, but only while the client is closed: Vencord
+# serves this list from memory and rewrites the whole file when it exits, so an
+# edit made underneath a live client is silently discarded.
+settings="$HOME/.config/vesktop/settings/settings.json"
+if [[ -f "$settings" ]] \
+  && ! jq -e --arg name "$QV_THEME_FILE" \
+  '(.enabledThemes // []) | index($name) != null' "$settings" >/dev/null 2>&1; then
+  if client_running; then
+    printf 'vesktop: it is running, so its theme list was left alone.\n'
+    printf 'vesktop: turn quattro-dots on under Settings > Themes, or close Vesktop and re-run.\n'
+  else
+    staged=$(mktemp)
+    if jq --arg name "$QV_THEME_FILE" \
+      '.enabledThemes = ((.enabledThemes // []) + [$name] | unique)' \
+      "$settings" >"$staged" 2>/dev/null; then
+      mv -f "$staged" "$settings"
+      printf 'vesktop: enabled %s\n' "$QV_THEME_FILE"
+    else
+      rm -f "$staged"
+      printf 'vesktop: could not edit %s; enable it under Settings > Themes\n' "$settings" >&2
+    fi
+  fi
+fi
+
+exit 0
