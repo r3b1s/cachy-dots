@@ -13,6 +13,12 @@
 # JDK_JAVA_OPTIONS reaches only this `java` launch (not every Java program, as
 # _JAVA_OPTIONS would). /usr/bin/zaproxy drops its arguments, so zap.sh is run
 # directly and they are passed on.
+# Java refuses the GTK look and feel ("Cannot load ...GTKLookAndFeel") whenever
+# XDG_CURRENT_DESKTOP names GNOME, which ~/.xprofile appends (i3:GNOME) for the
+# GTK portal backend. ZAP needs no portal, so drop the GNOME token for it alone.
+# Verified on the VM: i3:GNOME, GNOME and GNOME:i3 fail; i3 works.
+XDG_CURRENT_DESKTOP=$(printf '%s' "${XDG_CURRENT_DESKTOP:-}" | tr ':' '\n' | grep -vx GNOME | paste -sd: -)
+export XDG_CURRENT_DESKTOP
 JDK_JAVA_OPTIONS="${JDK_JAVA_OPTIONS:+$JDK_JAVA_OPTIONS }-Dswing.defaultlaf=com.sun.java.swing.plaf.gtk.GTKLookAndFeel -Djdk.gtk.version=3"
 export JDK_JAVA_OPTIONS
 cd /usr/share/zaproxy || exit 1
