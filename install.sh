@@ -454,7 +454,7 @@ link_nvim_tree() {
     done
 }
 
-# Firefox: the Flame theme and Vimium, via enterprise policy.
+# Firefox: Vimium, Brave search and the default theme, via enterprise policy.
 #
 # /etc/firefox/policies/policies.json is the documented system-wide location on
 # Linux (the install-directory alternative under /usr/lib/firefox would be
@@ -481,7 +481,7 @@ setup_firefox() {
         else
             [ -f "$target" ] && run $SUDO cp -a "$target" "$target.bak.$(date +%s)"
             run $SUDO install -D -m 644 "$src" "$target"
-            echo "firefox policy: $target (system theme, Vimium from AMO, Brave default search)"
+            echo "firefox policy: $target (default theme, Vimium from AMO, Brave default search)"
         fi
     fi
 

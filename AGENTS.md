@@ -140,16 +140,15 @@ alternative under `/usr/lib/firefox/distribution` is read too, but a package upg
 
 The policy does three things:
 
-- `Extensions.Install` fetches two add-ons from AMO at Firefox's first start, so that run needs network:
-  Vimium (`vimium-ff`, id `{d7742d87-e61d-4b78-b8a1-b469842139fa}`) and the Flame theme
-  (`nova_flame`, id `nova-flame@mozilla.org`, requires Firefox 153+). Both ids were read out of the XPIs
-  rather than guessed.
+- `Extensions.Install` fetches Vimium (`vimium-ff`, id `{d7742d87-e61d-4b78-b8a1-b469842139fa}`, read out
+  of the XPI) from AMO at Firefox's first start, so that run needs network. `Extensions.Uninstall` removes
+  the Flame theme (`nova-flame@mozilla.org`) that earlier versions of the policy installed: the frame is
+  themed from the palette by userChrome.css now, so Flame was dead weight.
 - `SearchEngines` adds Brave (`https://search.brave.com/search?q={searchTerms}`, alias `b`) and sets
   `Default` to it, so search.brave.com is the default engine on a fresh profile.
-- `Preferences` sets `extensions.activeThemeID` to the theme's id, which is what actually *activates* it;
-  installing a theme does not select it. It is set with status `default`, not `locked`, so the theme is
-  active on a fresh profile but can still be changed in the UI. If a later build ever resets it, `locked`
-  forces it.
+- `Preferences` sets `extensions.activeThemeID` to `default-theme@mozilla.org` (status `default`, so it can
+  still be changed in the UI), and `toolkit.legacyUserProfileCustomizations.stylesheets`, without which
+  Firefox ignores userChrome.css and userContent.css.
 
 ## Chromium
 
@@ -414,7 +413,7 @@ No quickshell, nothing else from omarchy's shell.
   libadwaita and takes the same named colours, so one `gtk.css` with `@define-color window_bg_color` & co.
   recolours GTK4/libadwaita (nautilus) and GTK3 (virt-manager, verified with gtk3-widget-factory) alike.
   Firefox's **default ("system") theme follows GTK3**, so the policy now activates `default-theme@mozilla.org`
-  instead of Flame (still installed, selectable). Qt reads its palette from GTK3 through qt6-base's gtk3
+  (Flame is no longer installed). Qt reads its palette from GTK3 through qt6-base's gtk3
   platform theme (`QT_QPA_PLATFORMTHEME=gtk3` in `shell/xprofile`); for that the CSS also defines GTK3's
   legacy `theme_*` names, without which Qt's selection stayed GTK's blue.
 - **Chromium needs root, narrowly.** The policy lives in root-owned `/etc/chromium/policies/managed/`.

@@ -2,8 +2,10 @@
   "policies": {
     "Extensions": {
       "Install": [
-        "https://addons.mozilla.org/firefox/downloads/latest/vimium-ff/latest.xpi",
-        "https://addons.mozilla.org/firefox/downloads/latest/nova_flame/latest.xpi"
+        "https://addons.mozilla.org/firefox/downloads/latest/vimium-ff/latest.xpi"
+      ],
+      "Uninstall": [
+        "nova-flame@mozilla.org"
       ]
     },
     "SearchEngines": {
