@@ -829,56 +829,6 @@ check_keyring_pam() {
     fi
 }
 
-# Hardened sshd config. Unlike athena-dots, sshd is left exactly as found:
-# CachyOS enables it, and on a headless host it is the only way in, so this
-# neither enables nor disables the service. Installs a drop-in (pubkey only, no
-# passwords/interactive, no root) and the deploy key into
-# ~/.ssh/authorized_keys, validates with sshd -t, and reloads sshd if it is
-# running. The key goes in FIRST, so password logins are never switched off
-# before a key that can replace them is in place.
-setup_sshd() {
-    local src="$REPO/ssh/sshd_config.d/10-cachy-safe.conf"
-    local target="/etc/ssh/sshd_config.d/10-cachy-safe.conf"
-    local auth="$HOME/.ssh/authorized_keys"
-
-    say "Installing the sshd hardening drop-in (service state left as is)"
-
-    # The drop-in turns password logins off. Without a key in authorized_keys
-    # that would lock the user out of a headless host, so it waits for one.
-    # install.sh never writes keys: add yours to ~/.ssh/authorized_keys first.
-    if [ ! -r "$src" ]; then
-        return
-    fi
-    if ! grep -qE '^(ssh-(ed25519|rsa)|ecdsa-sha2-|sk-)' "$auth" 2>/dev/null; then
-        warn "no public key in $auth: not installing the sshd drop-in (it disables password logins)"
-        warn "add your key to $auth, then re-run install.sh"
-        return
-    fi
-
-    local changed=0
-    if [ "$dry" = 1 ]; then
-        echo "+ install $src -> $target"
-    elif [ -f "$target" ] && cmp -s "$src" "$target"; then
-        echo "sshd config: already up to date"
-    else
-        [ -f "$target" ] && run $SUDO cp -a "$target" "$target.bak.$(date +%s)"
-        run $SUDO install -D -m 644 "$src" "$target"
-        echo "sshd config: $target (pubkey only, no root)"
-        changed=1
-    fi
-    if [ "$changed" = 1 ] && command -v sshd >/dev/null; then
-        if $SUDO sshd -t; then
-            echo "sshd config OK"
-            if systemctl is-active --quiet sshd 2>/dev/null; then
-                $SUDO systemctl reload sshd && echo "sshd: reloaded"
-            fi
-        else
-            warn "sshd -t rejected the config; removing $target"
-            $SUDO rm -f "$target"
-            FAILED=1
-        fi
-    fi
-}
 # Apply a theme, so every file the configs point into the state directory
 # exists (i3 includes its colours from there, i3bar runs its rendered config).
 # First run: pinkrot, cloned from its repo for the backgrounds and previews; with
@@ -1089,7 +1039,6 @@ if [ "$do_packages" = 1 ]; then
     setup_gtk
     setup_firefox
     setup_chromium
-    setup_sshd
     setup_firewall
     setup_touchpad
     check_keyring_pam
