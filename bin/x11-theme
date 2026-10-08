@@ -37,6 +37,7 @@ BUILTIN_THEMES="$OMARCHY_PATH/themes"
 HOOKS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/x11-theme.lock"
 CHROMIUM_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
+LY_HELPER=/usr/local/lib/cachy-dots/ly-theme-colors
 OMARCHY_REPO=https://github.com/basecamp/omarchy
 OMARCHY_CACHE=""
 # Marks a theme directory that came from somewhere else without a .git of its
@@ -155,7 +156,15 @@ tint_icons() {
         sed -e "s/fill=\"#474747\"/fill=\"$fg\"/" -e "s/fill=\"#bebebe\"/fill=\"$fg\"/" "$f" > "$dest/scalable/apps/$base.svg"
         cp "$dest/scalable/apps/$base.svg" "$dest/scalable/apps/$base-symbolic.svg"
     done
-    printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with NetworkManager glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nType=Scalable\n' "$inherits" > "$dest/index.theme"
+    # CopyQ's tray icon: it asks the icon theme for "copyq" before its built-in
+    # green scissors. Handles in the accent, blades in the foreground, outlines
+    # in the background.
+    local copyq=/usr/share/icons/hicolor/scalable/apps/copyq.svg accent bg
+    if [[ -f $copyq ]] && accent=$(color accent) && bg=$(color background); then
+        sed -e "s/#7fca9b/$accent/g" -e "s/#e6e6e6/$fg/g" -e "s/#ffffff/$fg/g" -e "s/#000000/$bg/g" \
+            "$copyq" > "$dest/scalable/apps/copyq.svg"
+    fi
+    printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with NetworkManager glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nMinSize=8\nMaxSize=512\nType=Scalable\n' "$inherits" > "$dest/index.theme"
     gtk-update-icon-cache -q -t -f "$dest" 2>/dev/null || true
 }
 
@@ -171,6 +180,40 @@ apply_chromium() {
     sudo -n "$CHROMIUM_HELPER" "$hex" 2>/dev/null || echo "x11-theme: could not set Chromium's colour (sudo rule missing?)" >&2
 }
 
+# ly's colours, through the root helper (it reads only /etc/ly/config.ini).
+# Applied at ly's next start, i.e. the next login screen.
+apply_ly() {
+    [[ -x $LY_HELPER && -f $CURRENT/ly.ini ]] || return 0
+    local args
+    mapfile -t args < <(sed -nE 's/^([a-z_]+)[[:space:]]*=[[:space:]]*(0x[0-9A-Fa-f]{8})[[:space:]]*$/\1=\2/p' "$CURRENT/ly.ini")
+    (( ${#args[@]} )) || return 0
+    sudo -n "$LY_HELPER" "${args[@]}" 2>/dev/null || echo "x11-theme: could not set ly's colours (sudo rule missing?)" >&2
+}
+
+# CopyQ keeps its theme as a [Theme] section of copyq.conf and rewrites that
+# file itself, so it is stopped, edited and restarted (the restart also picks up
+# the re-tinted tray icon). Without a display a running CopyQ is left alone, as
+# it could not be restarted.
+apply_copyq() {
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/copyq/copyq.conf" running=0 i tmp
+    [[ -f $CURRENT/copyq.ini ]] && command -v copyq >/dev/null || return 0
+    if pgrep -x -u "$(id -u)" copyq >/dev/null; then
+        [[ -n ${DISPLAY:-} ]] || return 0
+        running=1
+        copyq exit >/dev/null 2>&1 || true
+        for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -u "$(id -u)" copyq >/dev/null || break; sleep 0.3; done
+    fi
+    mkdir -p "$(dirname "$conf")"
+    touch "$conf"
+    tmp=$(mktemp)
+    awk '/^\[/ { skip = ($0 == "[Theme]") } !skip' "$conf" > "$tmp"
+    { echo "[Theme]"; grep -E '^[a-z_]+=' "$CURRENT/copyq.ini"; } >> "$tmp"
+    mv "$tmp" "$conf"
+    if (( running )); then
+        setsid copyq </dev/null >/dev/null 2>&1 &
+    fi
+}
+
 reload_apps() {
     local i3sock
     # i3 re-reads the included i3.conf; the reload restarts i3bar and with it
@@ -183,6 +226,9 @@ reload_apps() {
     pkill -USR2 -x i3status-rs 2>/dev/null || true          # restarts in place, re-reading its config
     dunstctl reload 2>/dev/null || true
     pkill -USR1 -x kitty 2>/dev/null || true                 # kitty re-reads kitty.conf
+    if tmux list-sessions >/dev/null 2>&1; then              # tmux re-sources its config
+        tmux source-file "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf" >/dev/null 2>&1 || true
+    fi
     pkill -USR2 -x btop 2>/dev/null || true                  # btop re-reads its theme
     # alacritty reloads when its config changes; the theme is an import, so
     # touch the main file (a link into the repo) to make it look again.
@@ -220,6 +266,8 @@ apply() {
     apply_mode
     tint_icons
     apply_chromium
+    apply_ly
+    apply_copyq
     reload_apps
     run_hooks "$name"
 }
@@ -329,5 +377,8 @@ case "${1:-}" in
     current) cmd_current ;;
     menu)    cmd_menu ;;
     remove)  shift; cmd_remove "$@" ;;
+    # install.sh re-merges /etc/ly/config.ini from its pristine copy, which
+    # drops the colours; this puts the current theme's back.
+    apply-ly) apply_ly ;;
     *) sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

@@ -1,0 +1,39 @@
+#!/bin/sh
+# ly-theme-colors key=0xAARRGGBB ... — set ly's colours in /etc/ly/config.ini.
+#
+# ly reads only /etc/ly/config.ini, a root file, so x11-theme reaches it through
+# this: installed by install.sh as a root-owned COPY in /usr/local/lib/cachy-dots/
+# (never a link into the user-writable repo), with a sudoers rule for exactly this
+# path. It therefore takes only the colour keys below, each with a strictly
+# validated value, and edits nothing else. ly applies them at its next start.
+set -eu
+PATH=/usr/bin:/bin
+
+conf=/etc/ly/config.ini
+allowed=" bg fg border_fg error_bg error_fg cmatrix_fg cmatrix_head_col gameoflife_fg doom_top_color doom_middle_color doom_bottom_color "
+
+[ "$(id -u)" -eq 0 ] || { echo "ly-theme-colors: must run as root" >&2; exit 1; }
+[ -f "$conf" ] || { echo "ly-theme-colors: no $conf" >&2; exit 0; }
+[ "$#" -gt 0 ] || { echo "usage: ly-theme-colors key=0xAARRGGBB ..." >&2; exit 2; }
+
+for kv in "$@"; do
+    key=${kv%%=*} val=${kv#*=}
+    case "$allowed" in *" $key "*) ;; *) echo "ly-theme-colors: key not allowed: $key" >&2; exit 2 ;; esac
+    printf '%s\n' "$val" | grep -Eqx '0x[0-9A-Fa-f]{8}' || { echo "ly-theme-colors: bad value for $key" >&2; exit 2; }
+done
+
+tmp=$(mktemp /etc/ly/.config.ini.XXXXXX)
+trap 'rm -f "$tmp"' EXIT
+cat "$conf" > "$tmp"
+for kv in "$@"; do
+    key=${kv%%=*} val=${kv#*=}
+    if grep -Eq "^$key[[:space:]]*=" "$tmp"; then
+        sed -i -E "s/^$key[[:space:]]*=.*/$key = $val/" "$tmp"
+    else
+        printf '%s = %s\n' "$key" "$val" >> "$tmp"
+    fi
+done
+if cmp -s "$tmp" "$conf"; then exit 0; fi
+chmod 644 "$tmp"
+mv -f "$tmp" "$conf"
+trap - EXIT

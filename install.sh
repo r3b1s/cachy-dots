@@ -104,6 +104,7 @@ PKGS+=(
     yazi                             # TUI file manager ($mod+Shift+e)
     nautilus gvfs                    # GUI file manager ($mod+e); gvfs: trash, mounts, network
     adw-gtk-theme                    # adw-gtk3: GTK3 drawn like libadwaita, recoloured by x11-theme's gtk.css
+    zaproxy                          # web proxy ($mod+z workspace)
     # yazi's previewers and helpers (its optdepends): archives, PDFs, video
     # thumbnails, SVG, images, search. jq/fzf/zoxide are already above.
     7zip poppler ffmpegthumbnailer resvg imagemagick fd ripgrep
@@ -326,7 +327,7 @@ setup_login_shell() {
     echo "login shell: $bash_path (applies at next login)"
 }
 
-# ly's pinkrot theme.
+# ly's settings overlay (colours come from the theme; see x11-theme apply_ly).
 #
 # ly reads exactly one config file, /etc/ly/config.ini - the path is compiled in,
 # and there is no ~/.config/ly/config.ini fallback - so the theme has to be merged
@@ -339,7 +340,7 @@ install_ly_theme() {
     # LY_CONFIG exists so this can be pointed elsewhere for testing; normal use
     # is the system path.
     local target="${LY_CONFIG:-/etc/ly/config.ini}"
-    local src="$REPO/ly/pinkrot.ini"
+    local src="$REPO/ly/overlay.ini"
     local pristine="$target.cachy-orig"
 
     [ -r "$src" ] || return 0
@@ -348,7 +349,7 @@ install_ly_theme() {
         return
     fi
 
-    say "Applying the pinkrot ly theme"
+    say "Applying the ly overlay"
     local merged
     merged=$(mktemp)
 
@@ -400,8 +401,10 @@ install_ly_theme() {
     fi
     rm -f "$merged"
 
-    # Not worth a reboot request: log out of the session and back in.
-    echo "ly theme: log out and back in to see it"
+    # The merge starts from the pristine file, so put the theme's colours back.
+    if [ "$dry" = 0 ] && [ -f "$HOME/.local/state/omarchy/current/theme.name" ]; then
+        "$REPO/bin/x11-theme" apply-ly || true
+    fi
 }
 
 # Neovim is a LazyVim tree in this repo (init.lua, lua/config, lua/plugins,
@@ -472,39 +475,45 @@ setup_chromium() {
     fi
 }
 
-# x11-theme retints Chromium through the BrowserThemeColor policy, a root-owned
-# file. As omarchy does, that write goes through one root-owned helper with a
-# sudoers rule for it alone, so a theme switch never prompts for a password:
-#   /usr/local/lib/cachy-dots/chromium-theme-color   COPIED from theme/root/
-#     (root must not run a file the user can edit), takes one '#rrggbb'
-#   /etc/sudoers.d/cachy-dots-theme                  NOPASSWD for that path only
-THEME_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
+# x11-theme writes two root-owned files: Chromium's BrowserThemeColor policy and
+# ly's colours in /etc/ly/config.ini. As omarchy does for Chromium, each write
+# goes through one root-owned helper, with a sudoers rule naming those helpers
+# alone, so a theme switch never prompts for a password:
+#   /usr/local/lib/cachy-dots/{chromium-theme-color,ly-theme-colors}
+#     COPIED from theme/root/ (root must not run a file the user can edit);
+#     each accepts only strictly validated colour arguments
+#   /etc/sudoers.d/cachy-dots-theme    NOPASSWD for exactly those two paths
+THEME_HELPER_DIR=/usr/local/lib/cachy-dots
+THEME_HELPERS=(chromium-theme-color ly-theme-colors)
 THEME_SUDOERS=/etc/sudoers.d/cachy-dots-theme
 
 setup_theme_helper() {
-    local src="$REPO/theme/root/chromium-theme-color" rule tmp
-    [ -r "$src" ] || return 0
-    say "Installing the Chromium theme-colour helper"
-    if [ "$dry" = 1 ]; then
-        echo "+ install $src -> $THEME_HELPER (root:root 755)"
-        echo "+ write $THEME_SUDOERS"
-        return
-    fi
-    if ! cmp -s "$src" "$THEME_HELPER" 2>/dev/null; then
-        $SUDO install -D -o root -g root -m 755 "$src" "$THEME_HELPER"
-        echo "theme helper: $THEME_HELPER"
-    fi
-    rule="$TARGET_USER ALL=(root) NOPASSWD: $THEME_HELPER"
+    local h src rule tmp paths=()
+    say "Installing the theme helpers (Chromium, ly)"
+    for h in "${THEME_HELPERS[@]}"; do
+        src="$REPO/theme/root/$h"
+        [ -r "$src" ] || continue
+        paths+=("$THEME_HELPER_DIR/$h")
+        if [ "$dry" = 1 ]; then
+            echo "+ install $src -> $THEME_HELPER_DIR/$h (root:root 755)"
+        elif ! cmp -s "$src" "$THEME_HELPER_DIR/$h" 2>/dev/null; then
+            $SUDO install -D -o root -g root -m 755 "$src" "$THEME_HELPER_DIR/$h"
+            echo "theme helper: $THEME_HELPER_DIR/$h"
+        fi
+    done
+    [ "${#paths[@]}" -gt 0 ] || return 0
+    rule="$TARGET_USER ALL=(root) NOPASSWD: $(IFS=,; echo "${paths[*]}" | sed 's/,/, /g')"
+    if [ "$dry" = 1 ]; then echo "+ write $THEME_SUDOERS: $rule"; return; fi
     if ! $SUDO grep -qxF "$rule" "$THEME_SUDOERS" 2>/dev/null; then
         tmp=$(mktemp)
-        printf '# cachy-dots: lets x11-theme set Chromium'"'"'s toolbar colour policy.\n%s\n' "$rule" > "$tmp"
+        printf '# cachy-dots: lets x11-theme set Chromium'"'"'s colour policy and ly'"'"'s colours.\n%s\n' "$rule" > "$tmp"
         # visudo checks the syntax before anything reaches sudoers.d; a broken
         # file there would lock sudo out entirely.
         if $SUDO visudo -cqf "$tmp"; then
             $SUDO install -o root -g root -m 440 "$tmp" "$THEME_SUDOERS"
-            echo "theme helper: sudoers rule in $THEME_SUDOERS"
+            echo "theme helpers: sudoers rule in $THEME_SUDOERS"
         else
-            warn "the sudoers rule did not validate; Chromium will not follow the theme"
+            warn "the sudoers rule did not validate; Chromium and ly will not follow the theme"
         fi
         rm -f "$tmp"
     fi
@@ -825,6 +834,9 @@ install_links() {
     link "$th/btop.theme" "$cfg/btop/themes/current.theme"
     link "$th/gtk.css" "$cfg/gtk-3.0/gtk.css"
     link "$th/gtk.css" "$cfg/gtk-4.0/gtk.css"
+    link "$th/satty.config.toml" "$cfg/satty/config.toml"
+    link "$th/yazi.toml" "$cfg/yazi/flavors/omarchy.yazi/flavor.toml"
+    link "$REPO/yazi/theme.toml" "$cfg/yazi/theme.toml"
 
     for pair in \
         "qutebrowser/config.py:qutebrowser/config.py" \
@@ -834,7 +846,6 @@ install_links() {
         "qutebrowser/startpage.html:qutebrowser/startpage.html" \
         "btop/btop.conf:btop/btop.conf" \
         "tmux/tmux.conf:tmux/tmux.conf" \
-        "satty/config.toml:satty/config.toml" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
         "starship/starship.toml:starship.toml"
     do
@@ -843,8 +854,13 @@ install_links() {
 
     # Neovim is a LazyVim tree (init.lua + lua/config + colors). Individual
     # files are linked so runtime state (lazyvim.json, lazy-lock.json, :Mason,
-    # spell, shada) stays out of the repo.
+    # spell, shada) stays out of the repo. lua/plugins/theme.lua is the rendered
+    # theme (aether.nvim with its palette), as on omarchy; replacing it is what
+    # lazy.nvim's change detection sees, and omarchy-theme-hotreload.lua applies.
     link_nvim_tree
+    link "$th/neovim.lua" "$cfg/nvim/lua/plugins/theme.lua"
+    # Links into the repo whose file has since been removed (pinkrot-theme.lua).
+    [ "$dry" = 1 ] || find "$cfg/nvim" -xtype l -lname "$REPO/*" -print -delete 2>/dev/null | sed 's/^/removed dangling link /' || true
 
     install_bashrc_block
 
@@ -882,6 +898,7 @@ if [ "$do_packages" = 1 ]; then
     install_packages
     sync_qt_stack
     setup_login_shell
+    setup_theme_helper
     install_ly_theme
     enable_services
     enable_nix
@@ -889,7 +906,6 @@ if [ "$do_packages" = 1 ]; then
     setup_gtk
     setup_firefox
     setup_chromium
-    setup_theme_helper
     setup_sshd
 fi
 if [ "$do_links" = 1 ]; then

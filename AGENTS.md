@@ -59,6 +59,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
 | Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
 | Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
+| Pentest | `zaproxy` (themed via `bin/zaproxy`) |
 | Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay`, `cachyos/i3lock-color`, `chaotic-aur/yaru-icon-theme` |
 
 Notes on particular entries:
@@ -94,9 +95,12 @@ at boot you get a login prompt on the virtual console. Pick `i3` as the session;
 
 ly reads exactly one config file, `/etc/ly/config.ini`. The path is compiled into it and there is **no**
 `~/.config/ly/config.ini` fallback, so a per-user config does nothing. `install_ly_theme()` therefore merges
-`ly/pinkrot.ini` into that system file, keeping the packaged original at `/etc/ly/config.ini.cachy-orig` and
-always re-merging from it, so repeat runs are idempotent. A `pacman -Syu` that upgrades ly restores the
-packaged file (or leaves a `.pacnew`); re-run the installer to put the theme back.
+`ly/overlay.ini` (non-colour settings) into that system file, keeping the packaged original at
+`/etc/ly/config.ini.cachy-orig` and always re-merging from it, so repeat runs are idempotent; it then runs
+`x11-theme apply-ly` to put the theme's colours back. The colours follow the theme: x11-theme renders
+`ly.ini.tpl` and writes its keys through the root helper `ly-theme-colors` (see "Theming"); ly shows them at
+its next start. A `pacman -Syu` that upgrades ly restores the packaged file (or leaves a `.pacnew`); re-run
+the installer to put the overlay and colours back.
 Autologin is deliberately not enabled: log in interactively.
 
 `xorg-xinit` and `xorg-xauth` are still installed, so `startx /usr/bin/i3` works from a tty as a fallback
@@ -200,9 +204,13 @@ same URL as `b`.
 ## Neovim
 
 `nvim/` is a LazyVim tree ported from the Omarchy host (`init.lua`, `lua/config/lazy.lua`,
-`lua/config/options.lua`, `lua/config/keymaps.lua`, `lua/config/autocmds.lua`), minus Omarchy theming:
-`theme.lua`, `all-themes.lua` and `omarchy-theme-hotreload.lua` were dropped, and `pinkrot-theme.lua`
-selects the `pinkrot` colourscheme instead. Portable keeps: `snacks-animated-scrolling-off.lua`,
+`lua/config/options.lua`, `lua/config/keymaps.lua`, `lua/config/autocmds.lua`). Theming works as on
+omarchy: `lua/plugins/theme.lua` is a link (made by install.sh, not in the repo) to the rendered
+`~/.local/state/omarchy/current/theme/neovim.lua`, omarchy's template for `aether.nvim` (v3) filled with the
+active palette, and `omarchy-theme-hotreload.lua` (from quattro-dots) re-applies it in running instances when
+lazy.nvim's change detection sees the link's target replaced (its notification is turned off in
+`lazy.lua`). `colors/pinkrot.lua` is kept only as the colourscheme lazy shows while installing. Verified
+headless: `colors_name` is `aether` and Normal's background is the theme's. Portable keeps: `snacks-animated-scrolling-off.lua`,
 `disable-news-alert.lua`. `link_nvim_tree()` links each file individually so runtime state
 (`lazyvim.json`, `lazy-lock.json`, `:Mason`, spell, shada) stays out of the repo.
 
@@ -260,7 +268,8 @@ after, and `:colorscheme` reports `pinkrot` again.
 - Guest is qemu/kvm/libvirt today, but the dots now also carry what bare metal needs (lock, nightlight,
   bluetooth; see "Desktop tools"). Still no picom, brightness or screen recording.
 - Colours come from the active theme for almost everything (see "Theming"); the exceptions with static
-  pinkrot colours are `nvim/`, `ly/pinkrot.ini` (see "Starting i3") and `satty/config.toml`'s palette.
+  pinkrot colours are gone: starship uses only named ANSI colours, so it follows the terminal's palette,
+  which the theme sets.
 - Default terminal is alacritty (`set $terminal` in `i3/config`). Kitty stays installed and follows the
   theme, but nothing in the config launches it and its remote-control socket is off.
 - `install.sh` links whole dirs for i3, kitty, alacritty, rofi, shell; individual files for dunst (`dunstrc`;
@@ -383,6 +392,14 @@ No quickshell, nothing else from omarchy's shell.
   | Chromium | `BrowserThemeColor` policy from the theme's `chromium.theme` | Chromium re-reads policy |
   | wallpaper | the theme's `backgrounds/` (+ `~/.config/omarchy/backgrounds/<theme>/`) | immediate |
   | lock screen | `bin/x11-lock` reads `colors.toml` | next lock |
+  | Neovim | omarchy's `neovim.lua.tpl` (aether.nvim), linked as `lua/plugins/theme.lua` | hot-reload plugin |
+  | tmux | `tmux.conf.tpl`, `source-file -q`'d by `tmux/tmux.conf` | `tmux source-file` |
+  | yazi | omaxian's `yazi.toml.tpl` as the `omarchy` flavour (`yazi/theme.toml` selects it) | next start |
+  | satty | `satty/config.toml.tpl` (palette from the theme), linked like the bar config | next start |
+  | CopyQ | `copyq.ini.tpl` -> the `[Theme]` section of `copyq.conf` (stop, edit, restart) | restart (automatic) |
+  | CopyQ tray icon | `copyq.svg` recoloured (handles accent, blades foreground) into the `x11-theme` icon theme | restart (automatic) |
+  | ly | `ly.ini.tpl` -> `/etc/ly/config.ini` via the `ly-theme-colors` root helper | next login screen |
+  | ZAP | `bin/zaproxy` runs it with Java's GTK look and feel, i.e. through `gtk.css` | restart ZAP |
   | light/dark | `mode` -> dconf `color-scheme`, adw-gtk3 vs adw-gtk3-dark, `prefer-dark` | app restart |
 
 - **GTK, Firefox and Qt from one file.** GTK3 uses **adw-gtk3** (`adw-gtk-theme`), which draws GTK3 like
@@ -397,8 +414,15 @@ No quickshell, nothing else from omarchy's shell.
   755, never a link into the repo) and adds `/etc/sudoers.d/cachy-dots-theme`, validated with `visudo -c`,
   allowing exactly that path without a password. The helper accepts one `#rrggbb` and writes only
   `color.json` (`BrowserThemeColor` + `BrowserColorScheme: device`); this is what omarchy does too.
-- **Not themed yet:** Neovim (omarchy's template needs the `aether.nvim` plugin), ly (a root file; still
-  `ly/pinkrot.ini`), satty's palette, CopyQ's own item list, tmux, yazi, starship. Running GTK apps keep their
-  colours until restarted (no settings daemon to signal them).
+- **Root helpers.** Two root files follow the theme, each through its own root-owned helper COPIED to
+  `/usr/local/lib/cachy-dots/` (`chromium-theme-color`, `ly-theme-colors`), with one sudoers file
+  (`/etc/sudoers.d/cachy-dots-theme`, `visudo -c`'d) allowing exactly those two paths without a password.
+  `ly-theme-colors` takes only ly's colour keys, each `0xAARRGGBB`, and changes nothing else.
+- **ZAP.** Its `GuiBootstrap` honours `swing.defaultlaf` unless a look and feel is picked in ZAP's own
+  Options > Display (which then wins). `bin/zaproxy`, ahead of `/usr/bin/zaproxy` on PATH, sets it through
+  `JDK_JAVA_OPTIONS` (only that `java` launch, unlike `_JAVA_OPTIONS`) and runs `zap.sh` directly, since
+  `/usr/bin/zaproxy` drops its arguments. Verified with a throwaway `-dir` home next to a running instance.
+- **Not themed:** Firefox's toolbar beyond what GTK gives it; running GTK apps (and ZAP) keep their colours
+  until restarted (no settings daemon to signal them).
 - **Testing on the VM**: sync with `rsync -a --delete`, not tar. A stale `01-pinkrot.conf` left behind by a
   tar copy loaded after `01-colors.conf` and kept the old window colours.

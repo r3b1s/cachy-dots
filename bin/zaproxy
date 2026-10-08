@@ -1,0 +1,19 @@
+#!/bin/sh
+# zaproxy — ZAP, drawn with Java's GTK look and feel so it follows the theme.
+#
+# Linked into ~/.local/bin, which is ahead of /usr/bin on PATH, so the i3 bind
+# and rofi's launcher (zaproxy.desktop runs `zaproxy`) both come here.
+#
+# ZAP's GuiBootstrap honours the swing.defaultlaf system property when no look
+# and feel is chosen in its own Options > Display (choosing one there wins over
+# this). Java's GTK look and feel renders through GTK3, i.e. adw-gtk3 recoloured
+# by the theme's gtk.css, so ZAP takes the theme's colours. Like any GTK app it
+# reads them at start: restart ZAP after a theme switch.
+#
+# JDK_JAVA_OPTIONS reaches only this `java` launch (not every Java program, as
+# _JAVA_OPTIONS would). /usr/bin/zaproxy drops its arguments, so zap.sh is run
+# directly and they are passed on.
+JDK_JAVA_OPTIONS="${JDK_JAVA_OPTIONS:+$JDK_JAVA_OPTIONS }-Dswing.defaultlaf=com.sun.java.swing.plaf.gtk.GTKLookAndFeel -Djdk.gtk.version=3"
+export JDK_JAVA_OPTIONS
+cd /usr/share/zaproxy || exit 1
+exec ./zap.sh "$@"

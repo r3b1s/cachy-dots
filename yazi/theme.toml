@@ -1,0 +1,6 @@
+# yazi: use the "omarchy" flavour, which x11-theme renders from the active
+# theme (theme/default/themed/yazi.toml.tpl, from omaxian) and links as
+# ~/.config/yazi/flavors/omarchy.yazi/flavor.toml. yazi reads it at start.
+[flavor]
+dark = "omarchy"
+light = "omarchy"

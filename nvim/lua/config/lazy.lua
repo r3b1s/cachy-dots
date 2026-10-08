@@ -35,6 +35,9 @@ require("lazy").setup({
     enabled = true, -- check for plugin updates periodically
     notify = false, -- notify on update
   }, -- automatically check for plugin updates
+  -- x11-theme swaps lua/plugins/theme.lua (a link) on every theme switch, and
+  -- omarchy-theme-hotreload.lua re-applies it; no need to announce it.
+  change_detection = { notify = false },
   performance = {
     rtp = {
       -- disable some rtp plugins
