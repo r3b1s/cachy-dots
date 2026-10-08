@@ -98,6 +98,7 @@ PKGS+=(
     copyq                            # clipboard history; bin/x11-clipboard puts it in rofi
     satty                            # screenshot annotation (bin/x11-screenshot annotate-*)
     xss-lock                         # locks on suspend and idle (i3lock-color is pinned below)
+    xorg-xset                        # xset: sets the idle timer xss-lock watches (05-autostart.conf)
     gammastep                        # nightlight, toggled by bin/x11-nightlight
     blueman bluez bluez-utils        # bluetooth manager GUI + tray applet, the stack under it
     yazi                             # TUI file manager ($mod+Shift+e)

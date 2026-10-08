@@ -55,7 +55,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
 | Sync and notes | `rclone`, `obsidian` |
 | Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
-| Lock, nightlight | `cachyos/i3lock-color` + `xss-lock`, `gammastep` |
+| Lock, nightlight | `cachyos/i3lock-color` + `xss-lock` + `xorg-xset` (the idle timer), `gammastep` |
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
 | Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
 | Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
