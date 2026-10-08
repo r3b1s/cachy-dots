@@ -87,7 +87,41 @@
   --toolbarbutton-badge-background-color: {{ accent }} !important;
   --link-color: {{ blue }} !important;
 }
+/* moz-button (the address bar's search-engine pill, panel buttons) declares
+ * its button tokens on its shadow host, so :root never reaches them. */
+moz-button {
+  --button-background-color: {{ lighter_background }} !important;
+  --button-background-color-hover: {{ mix lighter_background accent 20% }} !important;
+  --button-background-color-active: {{ mix lighter_background accent 35% }} !important;
+  --button-background-color-selected: {{ mix lighter_background accent 35% }} !important;
+  --button-text-color: {{ foreground }} !important;
+  --button-text-color-hover: {{ bright_foreground }} !important;
+  --button-text-color-active: {{ bright_foreground }} !important;
+  --button-text-color-selected: {{ bright_foreground }} !important;
+  /* type="muted": the search-engine pill */
+  --button-background-color-muted: {{ lighter_background }} !important;
+  --button-background-color-muted-hover: {{ mix lighter_background accent 20% }} !important;
+  --button-background-color-muted-active: {{ mix lighter_background accent 35% }} !important;
+  --button-background-color-muted-selected: {{ mix lighter_background accent 35% }} !important;
+  --button-text-color-muted: {{ foreground }} !important;
+  --button-text-color-muted-hover: {{ bright_foreground }} !important;
+  --button-text-color-muted-active: {{ bright_foreground }} !important;
+  --button-text-color-muted-selected: {{ bright_foreground }} !important;
+  /* type="ghost": transparent until hovered */
+  --button-background-color-ghost-hover: {{ lighter_background }} !important;
+  --button-background-color-ghost-active: {{ mix lighter_background accent 35% }} !important;
+  --button-text-color-ghost: {{ foreground }} !important;
+  --button-background-color-primary: {{ accent }} !important;
+  --button-background-color-primary-hover: {{ mix accent bright_foreground 15% }} !important;
+  --button-background-color-primary-active: {{ mix accent bright_foreground 30% }} !important;
+  --button-text-color-primary: {{ selection_foreground }} !important;
+}
 #navigator-toolbox { background-color: {{ dark_background }} !important; }
+/* Selected text in the address and search fields (GTK's blue otherwise). */
+.urlbar-input::selection, #urlbar-input::selection, input::selection {
+  background-color: {{ selection }} !important;
+  color: {{ selection_foreground }} !important;
+}
 /* A thin accent line on the selected tab, as on the i3 bar. */
 .tabbrowser-tab[selected] .tab-background {
   box-shadow: inset 0 -2px 0 {{ accent }} !important;
