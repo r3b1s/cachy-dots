@@ -4,6 +4,13 @@
 # brightnessctl changes the backlight through logind's SetBrightness for the
 # active session, so no video group or udev rule is needed. A machine with no
 # backlight (any VM, most desktops) gets a notice instead.
+#
+# A laptop can expose several backlights. intel_backlight (or amdgpu_bl*,
+# nv_backlight) drives the panel; acpi_video* is ACPI's own interface and can
+# accept a write without changing the panel. brightnessctl without -d takes the
+# first device it lists, so the panel driver is named explicitly, and the value
+# is read back from that same device: if it does not move, the OSD says so
+# instead of showing a level that is not on screen.
 set -eu
 
 case "${1:-}" in
@@ -14,12 +21,46 @@ case "${1:-}" in
     *) echo "usage: x11-brightness up|down|up-fine|down-fine" >&2; exit 1 ;;
 esac
 
-if ! brightnessctl -l -c backlight 2>/dev/null | grep -q "class 'backlight'"; then
+# The panel driver if there is one, else the first non-ACPI device, else ACPI.
+pick_backlight() {
+    dir=${1:-${X11_BACKLIGHT_DIR:-/sys/class/backlight}}
+    [ -d "$dir" ] || return 1
+    for pat in intel_backlight amdgpu_bl* nv_backlight; do
+        for d in "$dir"/$pat; do
+            [ -e "$d" ] && { basename "$d"; return 0; }
+        done
+    done
+    for d in "$dir"/*; do
+        [ -e "$d" ] || continue
+        case $(basename "$d") in acpi_video*) continue ;; esac
+        basename "$d"; return 0
+    done
+    for d in "$dir"/*; do
+        [ -e "$d" ] && { basename "$d"; return 0; }
+    done
+    return 1
+}
+
+dev=$(pick_backlight) || {
     dunstify -a x11-brightness -u low -r 9987 "No backlight to adjust"
     exit 0
-fi
+}
+
+before=$(brightnessctl -d "$dev" -m | cut -d, -f3)
+max=$(brightnessctl -d "$dev" max)
 
 # -n 1: never all the way to black, which on a laptop panel is indistinguishable from off.
-brightnessctl -q -c backlight -n 1 set "$step"
-pct=$(brightnessctl -c backlight -m | cut -d, -f4 | tr -d %)
+brightnessctl -q -d "$dev" -n 1 set "$step"
+
+after=$(brightnessctl -d "$dev" -m | cut -d, -f3)
+pct=$(brightnessctl -d "$dev" -m | cut -d, -f4 | tr -d %)
+if [ "$after" = "$before" ]; then
+    # Unchanged is fine only at the end of the range the key pushes towards.
+    case $1 in up*) edge=$max ;; *) edge=1 ;; esac
+    if [ "$before" != "$edge" ]; then
+        dunstify -a x11-brightness -u critical -r 9987 "Brightness did not change" \
+            "$dev accepted the change but the level stayed at $pct%"
+        exit 1
+    fi
+fi
 dunstify -a x11-brightness -u low -r 9987 -h "int:value:$pct" "Brightness: ${pct}%"
