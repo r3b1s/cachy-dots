@@ -5,43 +5,86 @@
  * The browser frame in the theme's colours: tab strip, toolbar, address bar,
  * menus and panels, and the theme's exact accent wherever Firefox uses its own
  * (focus rings, primary buttons, toggles, the selected tab). Firefox's own
- * pages (about:) are in firefox.userContent.css. Read at start. */
+ * pages (about:) are in firefox.userContent.css. Read at start.
+ *
+ * Token names are Firefox's design-system ones (checked against 157's
+ * omni.ja: global/design-system/tokens-shared.css, tabbrowser/tab.tokens.css).
+ * Firefox renames these between releases, and an unknown name is silently
+ * ignored, so a frame that turns grey again after an upgrade means a rename. */
 :root {
-  /* surfaces */
-  --lwt-accent-color: {{ dark_background }} !important;             /* tab strip */
+  /* tab strip */
+  --lwt-accent-color: {{ dark_background }} !important;
   --lwt-text-color: {{ foreground }} !important;
-  --toolbox-bgcolor: {{ dark_background }} !important;
-  --toolbox-textcolor: {{ foreground }} !important;
-  --toolbar-bgcolor: {{ background }} !important;
-  --toolbar-color: {{ foreground }} !important;
+  --toolbox-background-color: {{ dark_background }} !important;
+  --toolbox-background-color-inactive: {{ dark_background }} !important;
+  --toolbox-text-color: {{ foreground }} !important;
+  --toolbox-text-color-inactive: {{ dark_foreground }} !important;
+  --tab-text-color: {{ light_foreground }} !important;
+  --tab-text-color-hover: {{ foreground }} !important;
+  --tab-text-color-selected: {{ bright_foreground }} !important;
+  --tab-background-color-hover: {{ mix dark_background lighter_background 50% }} !important;
+  --tab-background-color-selected: {{ lighter_background }} !important;
+  --tab-border-color-selected: transparent !important;
+  --tabs-navbar-separator-color: {{ lighter_background }} !important;
+
+  /* nav and bookmarks toolbars */
+  --toolbar-background-color: {{ background }} !important;
+  --toolbar-text-color: {{ foreground }} !important;
+  --toolbarbutton-icon-fill: {{ foreground }} !important;
+  --toolbarbutton-icon-fill-attention: {{ accent }} !important;
+  --toolbarbutton-background-color-hover: {{ lighter_background }} !important;
+  --toolbarbutton-background-color-active: {{ mix lighter_background accent 30% }} !important;
+  --toolbarseparator-color: {{ lighter_background }} !important;
+
+  /* address bar and its dropdown */
   --toolbar-field-background-color: {{ dark_background }} !important;
-  --toolbar-field-color: {{ bright_foreground }} !important;
-  --toolbar-field-focus-background-color: {{ darker_background }} !important;
-  --toolbar-field-focus-color: {{ bright_foreground }} !important;
+  --toolbar-field-background-color-focus: {{ darker_background }} !important;
+  --toolbar-field-text-color: {{ bright_foreground }} !important;
+  --toolbar-field-text-color-focus: {{ bright_foreground }} !important;
   --toolbar-field-border-color: {{ lighter_background }} !important;
-  --tabpanel-background-color: {{ background }} !important;
-  --tab-selected-bgcolor: {{ lighter_background }} !important;
-  --tab-selected-textcolor: {{ bright_foreground }} !important;
-  --tab-hover-background-color: {{ mix dark_background lighter_background 50% }} !important;
-  --arrowpanel-background: {{ background }} !important;
-  --arrowpanel-color: {{ foreground }} !important;
-  --arrowpanel-border-color: {{ lighter_background }} !important;
+  --toolbar-field-border-color-focus: {{ accent }} !important;
+  --urlbar-box-background-color: {{ lighter_background }} !important;
+  --urlbar-box-background-color-hover: {{ mix lighter_background accent 20% }} !important;
+  --urlbar-box-text-color: {{ foreground }} !important;
+  --urlbarview-background-color-hover: {{ lighter_background }} !important;
+  --urlbarview-background-color-selected: {{ accent }} !important;
+  --urlbarview-text-color-selected: {{ selection_foreground }} !important;
+  --urlbarview-text-color-secondary: {{ dark_foreground }} !important;
+  --urlbarview-text-color-action: {{ blue }} !important;
+  --urlbarview-separator-color: {{ lighter_background }} !important;
+
+  /* menus, panels, sidebar */
+  --panel-background-color: {{ background }} !important;
+  --panel-text-color: {{ foreground }} !important;
+  --panel-border-color: {{ lighter_background }} !important;
   --panel-separator-color: {{ lighter_background }} !important;
   --sidebar-background-color: {{ dark_background }} !important;
   --sidebar-text-color: {{ foreground }} !important;
-  --urlbarView-highlight-background: {{ accent }} !important;
-  --urlbarView-highlight-color: {{ selection_foreground }} !important;
-  --button-hover-bgcolor: {{ lighter_background }} !important;
+  --sidebar-border-color: {{ lighter_background }} !important;
+  --tabpanel-background-color: {{ background }} !important;
 
-  /* accent */
+  /* buttons, accent */
+  --background-color-box: {{ dark_background }} !important;
+  --background-color-canvas: {{ background }} !important;
+  --text-color: {{ foreground }} !important;
+  --border-color: {{ lighter_background }} !important;
+  --button-background-color: {{ lighter_background }} !important;
+  --button-background-color-hover: {{ mix lighter_background accent 20% }} !important;
+  --button-background-color-active: {{ mix lighter_background accent 35% }} !important;
+  --button-text-color: {{ foreground }} !important;
   --color-accent-primary: {{ accent }} !important;
   --color-accent-primary-hover: {{ mix accent bright_foreground 15% }} !important;
   --color-accent-primary-active: {{ mix accent bright_foreground 30% }} !important;
   --color-accent-primary-selected: {{ accent }} !important;
+  --button-background-color-primary: {{ accent }} !important;
+  --button-background-color-primary-hover: {{ mix accent bright_foreground 15% }} !important;
+  --button-background-color-primary-active: {{ mix accent bright_foreground 30% }} !important;
   --button-text-color-primary: {{ selection_foreground }} !important;
+  --button-text-color-primary-hover: {{ selection_foreground }} !important;
+  --button-text-color-primary-active: {{ selection_foreground }} !important;
   --focus-outline-color: {{ accent }} !important;
-  --toolbar-field-focus-border-color: {{ accent }} !important;
-  --tab-attention-icon-color: {{ accent }} !important;
+  --tab-attention-dot-color: {{ accent }} !important;
+  --toolbarbutton-badge-background-color: {{ accent }} !important;
   --link-color: {{ blue }} !important;
 }
 #navigator-toolbox { background-color: {{ dark_background }} !important; }

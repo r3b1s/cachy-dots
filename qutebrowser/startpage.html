@@ -14,6 +14,12 @@
   body {
     background: #050007 url("../wallpapers/current") center center / cover no-repeat fixed;
   }
+  /* Vignette: the edges fade towards black, the centre is untouched. */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 45%, rgba(0, 0, 0, 0.35) 75%, rgba(0, 0, 0, 0.7) 100%);
+  }
 </style>
 </head>
 <body></body>

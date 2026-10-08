@@ -18,8 +18,34 @@
     --background-color-canvas: {{ background }} !important;
     --background-color-box: {{ dark_background }} !important;
     --text-color: {{ foreground }} !important;
+    --text-color-deemphasized: {{ dark_foreground }} !important;
+    --border-color: {{ lighter_background }} !important;
+    --button-background-color: {{ lighter_background }} !important;
+    --button-background-color-hover: {{ mix lighter_background accent 20% }} !important;
+    --button-background-color-active: {{ mix lighter_background accent 35% }} !important;
+    --button-text-color: {{ foreground }} !important;
+    --button-background-color-primary: {{ accent }} !important;
+    --button-background-color-primary-hover: {{ mix accent bright_foreground 15% }} !important;
+    --button-background-color-primary-active: {{ mix accent bright_foreground 30% }} !important;
+    --button-text-color-primary-hover: {{ selection_foreground }} !important;
+    --button-text-color-primary-active: {{ selection_foreground }} !important;
+    --table-background-color: {{ dark_background }} !important;
     --newtab-background-color: {{ background }} !important;
     --newtab-background-color-secondary: {{ dark_background }} !important;
     --newtab-text-primary-color: {{ foreground }} !important;
+    --border-color-deemphasized: {{ lighter_background }} !important;
+    --background-color-box-info: {{ dark_background }} !important;
+    --background-color-information: {{ lighter_background }} !important;
+  }
+  /* Promo and notice boxes (the "Make default" card) declare their own tokens
+   * on the element's shadow host, so they are overridden on the element. */
+  moz-promo, moz-message-bar {
+    --promo-background-color: {{ dark_background }} !important;
+    --promo-background-color-vibrant: {{ lighter_background }} !important;
+    --promo-border-color: {{ lighter_background }} !important;
+    --promo-border-color-vibrant: {{ lighter_background }} !important;
+    --promo-message-text-color-vibrant: {{ foreground }} !important;
+    --message-bar-background-color: {{ lighter_background }} !important;
+    --message-bar-text-color: {{ foreground }} !important;
   }
 }
