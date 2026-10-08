@@ -356,9 +356,14 @@ No quickshell, nothing else from omarchy's shell.
   applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`
   fetches one of omarchy's built-in themes (they live inside omarchy's repo, 279 MB in all, so a blobless
   sparse shallow clone into a temp dir checks out only `themes/<name>`); with no name it lists them.
-  `set`, `refresh` (re-render after editing a template), `list`, `current`, `remove`, and `menu` (rofi,
-  each row iconed with the theme's `preview.png`; `$mod+Ctrl+t`). `$mod+Ctrl+w` cycles the theme's
-  backgrounds.
+  `set`, `refresh` (re-render after editing a template), `list`, `current`, `remove`, and `menu`: the
+  theme switcher, an omarchy-style rofi grid of each theme's `preview.png` (`$mod+Shift+Ctrl+space`).
+  `x11-wallpaper menu` is the same grid for the current theme's backgrounds (`$mod+Ctrl+space`), and
+  `$mod+Ctrl+w` cycles them. Both grids show cached 480x270 PNG thumbnails from `bin/x11-thumb`
+  (`~/.cache/x11-thumb`, keyed by path and mtime): rofi decodes icons at full size, so 4K wallpapers would
+  crawl, and `.webp` needs a gdk-pixbuf loader that is not installed. Those two chords displaced the rofi
+  window switcher (now `$mod+Mod1+space`) and `focus mode_toggle` (now `$mod+Shift+Ctrl+Mod1+space`); the
+  latter had to move in `10-core.conf`, since i3 takes the first of two identical binds.
 - **Engine.** `theme/` mirrors omarchy's layout so `OMARCHY_PATH=theme/` runs omarchy's
   `omarchy-theme-color` (palette resolver: aliases, derived shades, light/dark `mode`) and
   `omarchy-theme-set-templates` (fills `{{ key }}`, `{{ key_strip }}`, `{{ key_rgb }}`,
@@ -382,7 +387,7 @@ No quickshell, nothing else from omarchy's shell.
   | App | Mechanism | Live? |
   | --- | --- | --- |
   | i3 windows, i3bar | `i3.conf.tpl` -> `$th_*` vars, included by `i3/config`; `01-colors.conf`, `15-bar.conf` | `i3-msg reload` |
-  | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical | SIGUSR2 (in-place restart) |
+  | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical (the network block shares volume's `orange`) | SIGUSR2 (in-place restart) |
   | rofi | `rofi.rasi.tpl`, `@import`ed by `rofi/config.rasi` | next open |
   | dunst | `dunst.conf.tpl` -> `~/.config/dunst/dunstrc.d/90-theme.conf` drop-in | `dunstctl reload` |
   | alacritty, kitty, btop | omarchy's own templates; alacritty `import`, kitty `include`, btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |

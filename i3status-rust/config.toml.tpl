@@ -51,6 +51,8 @@ warning_fg = "{{ bright_foreground }}"
 critical_bg = "{{ mix background accent 60% }}"
 critical_fg = "{{ bright_foreground }}"
 
+# Same hue as the volume block (the theme's orange): it sits apart from the
+# disk block beside it.
 [[block]]
 block = "net"
 format = " $icon {$signal_strength $ssid $frequency|Wired} via $device "
@@ -60,15 +62,15 @@ interval = 10
 start_separator = ""
 start_separator_bg = "{{ background }}"
 start_separator_fg = "{{ background }}"
-idle_bg = "{{ mix background cyan 55% }}"
-idle_fg = "{{ bright_foreground }}"
-info_bg = "{{ mix background cyan 55% }}"
+idle_bg = "{{ mix background orange 25% }}"
+idle_fg = "{{ foreground }}"
+info_bg = "{{ mix background orange 40% }}"
 info_fg = "{{ bright_foreground }}"
-good_bg = "{{ mix background cyan 55% }}"
+good_bg = "{{ mix background orange 40% }}"
 good_fg = "{{ bright_foreground }}"
-warning_bg = "{{ mix background cyan 55% }}"
+warning_bg = "{{ mix background orange 65% }}"
 warning_fg = "{{ bright_foreground }}"
-critical_bg = "{{ mix background cyan 55% }}"
+critical_bg = "{{ mix background orange 85% }}"
 critical_fg = "{{ bright_foreground }}"
 
 [[block]]

@@ -8,7 +8,7 @@
 #   x11-theme refresh             re-render the current theme (after editing a template)
 #   x11-theme list                installed themes, one per line
 #   x11-theme current             the applied theme's name
-#   x11-theme menu                pick a theme in rofi ($mod+Ctrl+t)
+#   x11-theme menu                pick a theme from a rofi grid ($mod+Shift+Ctrl+space)
 #   x11-theme remove <name>       delete an installed theme (not the current one)
 #
 # Themes use omarchy's format and paths, so any omarchy theme repo works and
@@ -349,23 +349,31 @@ cmd_remove() {
     echo "removed $name"
 }
 
-# rofi picker: each row shows the theme's preview.png (or first background).
+# The rofi layout both pickers use (this menu and `x11-wallpaper menu`): an
+# omarchy-style grid of 16:9 thumbnails, captioned underneath.
+GRID_THEME='window { width: 62em; } listview { columns: 3; lines: 2; spacing: 10px; flow: horizontal; fixed-height: true; fixed-columns: true; } element { orientation: vertical; padding: 8px; spacing: 6px; } element-icon { size: 16em; } element-text { horizontal-align: 0.5; }'
+
+# Theme switcher ($mod+Shift+Ctrl+space): each cell is the theme's preview.png
+# (or its first background), thumbnailed by x11-thumb.
 cmd_menu() {
-    local name icon dir current row label
+    local name icon dir current row label thumb
+    local -a names=()
     current=$(cat "$STATE/theme.name" 2>/dev/null || true)
-    row=$(cmd_list | while read -r name; do
+    mapfile -t names < <(cmd_list)
+    row=$(for name in "${names[@]}"; do
               icon=""
               for dir in "$USER_THEMES/$name" "$BUILTIN_THEMES/$name"; do
-                  [[ -f $dir/preview.png ]] && { icon=$dir/preview.png; break; }
-                  icon=$(find "$dir/backgrounds" -maxdepth 1 -type f 2>/dev/null | sort | head -1)
-                  [[ -n $icon ]] && break
+                  if [[ -f $dir/preview.png ]]; then icon=$dir/preview.png; break; fi
+                  icon=$(find -L "$dir/backgrounds" -maxdepth 1 -type f 2>/dev/null | sort | head -1)
+                  if [[ -n $icon ]]; then break; fi
               done
-              label=$name; [[ $name == "$current" ]] && label="$name  (current)"
-              if [[ -n $icon ]]; then printf '%s\0icon\037%s\n' "$label" "$icon"; else printf '%s\n' "$label"; fi
-          done | rofi -dmenu -i -show-icons -p theme \
-                     -theme-str 'element-icon { size: 4em; } element-text { vertical-align: 0.5; } listview { lines: 6; }') || exit 0
-    name=${row%%  (current)}
-    if [[ -n $name ]]; then cmd_set "$name"; fi
+              label=$name
+              if [[ $name == "$current" ]]; then label="$name ●"; fi
+              thumb=""
+              if [[ -n $icon ]]; then thumb=$("$REPO/bin/x11-thumb" "$icon" 2>/dev/null || true); fi
+              if [[ -n $thumb ]]; then printf '%s\0icon\037%s\n' "$label" "$thumb"; else printf '%s\n' "$label"; fi
+          done | rofi -dmenu -i -show-icons -format i -p theme -theme-str "$GRID_THEME") || exit 0
+    if [[ -n $row ]]; then cmd_set "${names[$row]}"; fi
 }
 
 case "${1:-}" in
@@ -376,6 +384,7 @@ case "${1:-}" in
     list)    cmd_list ;;
     current) cmd_current ;;
     menu)    cmd_menu ;;
+    grid-theme) printf '%s\n' "$GRID_THEME" ;;
     remove)  shift; cmd_remove "$@" ;;
     # install.sh re-merges /etc/ly/config.ini from its pristine copy, which
     # drops the colours; this puts the current theme's back.

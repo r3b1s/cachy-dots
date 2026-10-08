@@ -1,0 +1,19 @@
+#!/bin/sh
+# x11-thumb <image> — print the path of a cached 16:9 PNG thumbnail of <image>.
+#
+# For the rofi grids (x11-theme menu, x11-wallpaper menu): rofi decodes icons at
+# full size through gdk-pixbuf, so 4K wallpapers would make a grid crawl, and
+# .webp needs a pixbuf loader that is not installed. Cached by path and mtime in
+# ~/.cache/x11-thumb, so each image is converted once.
+set -eu
+img=$1
+[ -f "$img" ] || exit 1
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/x11-thumb"
+key=$(printf '%s %s' "$(readlink -f "$img")" "$(stat -Lc %Y "$img")" | md5sum | cut -c1-32)
+out="$dir/$key.png"
+if [ ! -s "$out" ]; then
+    mkdir -p "$dir"
+    magick "$img[0]" -thumbnail '480x270^' -gravity center -extent 480x270 "$out.tmp.png" 2>/dev/null \
+        && mv "$out.tmp.png" "$out" || { rm -f "$out.tmp.png"; exit 1; }
+fi
+printf '%s\n' "$out"

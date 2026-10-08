@@ -1,5 +1,5 @@
 #!/bin/sh
-# x11-wallpaper [random|next|current] — set the wallpaper from the active theme.
+# x11-wallpaper [random|next|current|menu|set <file>] — the active theme's wallpaper.
 #
 # Images come from the theme's backgrounds/ (staged by x11-theme into
 # ~/.local/state/omarchy/current/theme/backgrounds) plus your own extras for that
@@ -11,6 +11,8 @@
 #   next     the one after the current, in name order ($mod+Ctrl+w)
 #   current  repaint the current one (used by x11-theme after a switch only
 #            when it still belongs to the theme)
+#   menu     pick one from a rofi grid of thumbnails ($mod+Ctrl+space)
+#   set FILE that image
 #
 # Deliberately plain: just fill the root window. An earlier version also cleared
 # the root window first and passed --bg-size, both to work around a geometry
@@ -53,13 +55,29 @@ fi
 
 current=$(readlink "$state/background" 2>/dev/null || true)
 case "$mode" in
+    menu)
+        bin=$(dirname "$(readlink -f "$0")")
+        # One cell per image: its thumbnail, captioned with the file name. rofi's
+        # -format i returns the cell's index into $images.
+        row=$(printf '%s\n' "$images" | while IFS= read -r img; do
+                  thumb=$("$bin/x11-thumb" "$img" 2>/dev/null || true)
+                  label=$(basename "$img"); label=${label%.*}
+                  [ "$img" = "$current" ] && label="$label ●"
+                  printf '%s\0icon\037%s\n' "$label" "${thumb:-$img}"
+              done | rofi -dmenu -i -show-icons -format i -p wallpaper \
+                         -theme-str "$("$bin/x11-theme" grid-theme)") || exit 0
+        [ -n "$row" ] || exit 0
+        wallpaper=$(printf '%s\n' "$images" | sed -n "$((row + 1))p") ;;
+    set)
+        wallpaper=${2:?usage: x11-wallpaper set <file>}
+        [ -f "$wallpaper" ] || { echo "x11-wallpaper: no such file: $wallpaper" >&2; exit 1; } ;;
     random)  wallpaper=$(printf '%s\n' "$images" | shuf -n 1) ;;
     next)    wallpaper=$(printf '%s\n' "$images" | awk -v cur="$current" '
                  NR == 1 { first = $0 } found { print; done = 1; exit } $0 == cur { found = 1 }
                  END { if (!done) print first }') ;;
     current) if printf '%s\n' "$images" | grep -qxF -- "$current"; then wallpaper=$current
              else wallpaper=$(printf '%s\n' "$images" | head -n 1); fi ;;
-    *) echo "usage: x11-wallpaper [random|next|current]" >&2; exit 2 ;;
+    *) echo "usage: x11-wallpaper [random|next|current|menu|set <file>]" >&2; exit 2 ;;
 esac
 
 if command -v feh >/dev/null && feh --bg-fill "$wallpaper"; then
