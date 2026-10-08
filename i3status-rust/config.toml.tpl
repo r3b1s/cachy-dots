@@ -160,18 +160,19 @@ warning_fg = "{{ bright_foreground }}"
 critical_bg = "{{ mix background orange 85% }}"
 critical_fg = "{{ bright_foreground }}"
 
+# The clock is in the theme's foreground, the colour of the tray glyphs beside it.
 [[block]]
 block = "time"
 interval = 5
 format = " $icon $timestamp.datetime(f:'%a %d %b %R') "
 [block.theme_overrides]
 idle_bg = "{{ background }}"
-idle_fg = "{{ bright_foreground }}"
+idle_fg = "{{ foreground }}"
 info_bg = "{{ background }}"
-info_fg = "{{ bright_foreground }}"
+info_fg = "{{ foreground }}"
 good_bg = "{{ background }}"
-good_fg = "{{ bright_foreground }}"
+good_fg = "{{ foreground }}"
 warning_bg = "{{ background }}"
-warning_fg = "{{ bright_foreground }}"
+warning_fg = "{{ foreground }}"
 critical_bg = "{{ background }}"
-critical_fg = "{{ bright_foreground }}"
+critical_fg = "{{ foreground }}"
