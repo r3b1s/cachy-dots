@@ -13,7 +13,7 @@ key=$(printf '%s %s' "$(readlink -f "$img")" "$(stat -Lc %Y "$img")" | md5sum | 
 out="$dir/$key.png"
 if [ ! -s "$out" ]; then
     mkdir -p "$dir"
-    magick "$img[0]" -thumbnail '480x270^' -gravity center -extent 480x270 "$out.tmp.png" 2>/dev/null \
+    magick "${img}[0]" -thumbnail '480x270^' -gravity center -extent 480x270 "$out.tmp.png" 2>/dev/null \
         && mv "$out.tmp.png" "$out" || { rm -f "$out.tmp.png"; exit 1; }
 fi
 printf '%s\n' "$out"

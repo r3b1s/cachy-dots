@@ -262,13 +262,13 @@ apply_ly() {
 # the re-tinted tray icon). Without a display a running CopyQ is left alone, as
 # it could not be restarted.
 apply_copyq() {
-    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/copyq/copyq.conf" running=0 i tmp
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/copyq/copyq.conf" running=0 tmp
     [[ -f $CURRENT/copyq.ini ]] && command -v copyq >/dev/null || return 0
     if pgrep -x -u "$(id -u)" copyq >/dev/null; then
         [[ -n ${DISPLAY:-} ]] || return 0
         running=1
         copyq exit >/dev/null 2>&1 || true
-        for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -u "$(id -u)" copyq >/dev/null || break; sleep 0.3; done
+        for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -u "$(id -u)" copyq >/dev/null || break; sleep 0.3; done
     fi
     mkdir -p "$(dirname "$conf")"
     touch "$conf"

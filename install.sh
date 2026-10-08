@@ -169,8 +169,9 @@ check_cachy_repos() {
 
     local repos first_cachy first_arch
     repos=$(pacman-conf --repo-list 2>/dev/null || true)
-    first_cachy=$(printf '%s\n' "$repos" | grep -n '^cachyos' | head -1 | cut -d: -f1)
-    first_arch=$(printf '%s\n' "$repos" | grep -nxE 'core|extra' | head -1 | cut -d: -f1)
+    # A miss (no cachyos repos, as on vanilla Arch) is a result, not an error.
+    first_cachy=$(printf '%s\n' "$repos" | grep -n '^cachyos' | head -1 | cut -d: -f1 || true)
+    first_arch=$(printf '%s\n' "$repos" | grep -nxE 'core|extra' | head -1 | cut -d: -f1 || true)
 
     if [ -z "$first_cachy" ]; then
         warn "no [cachyos*] repos in $PACMAN_CONF: packages will come from plain Arch"
@@ -228,22 +229,34 @@ setup_chaotic_aur() {
     fi
 }
 
-# Two packages are taken from one specific repo, by qualified name, with
-# deliberately no fallback to any other:
-#   chaotic-aur/qutebrowser-git  no CachyOS repo builds it, and extra's plain
+# Pinned packages. Each entry lists the repos it may come from, best first:
+# the first one that has it is installed, by its qualified name, so pacman can
+# never pick the same package from another repo. Order follows AGENTS.md:
+# CachyOS's repos, then official Arch, then chaotic-aur. A pin with a single repo
+# has no fallback:
+#   chaotic-aur/qutebrowser-git  no CachyOS or official build; extra's plain
 #                                `qutebrowser` is not wanted (they conflict, so
 #                                an installed `qutebrowser` is removed first)
-#   cachyos/yay                  CachyOS's own build; never chaotic-aur's
-#   cachyos/vesktop-bin          Discord client (Vencord); CachyOS's build, not
-#                                chaotic-aur's vesktop / vesktop-git
 #   chaotic-aur/yaru-icon-theme  the icon themes omarchy themes name in icons.theme
 #                                (Yaru-red, Yaru-blue, ...); in no official repo
-#   cachyos/i3lock-color         the lock screen; i3lock with colour options,
-#                                which plain extra/i3lock lacks (they conflict,
-#                                so an installed `i3lock` is removed first)
-# If the repo is missing or unsynced, the package is skipped with a warning,
-# the rest still installs, and the run exits non-zero.
-PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color chaotic-aur/yaru-icon-theme cachyos/vesktop-bin)
+# With a fallback list:
+#   cachyos/yay                  CachyOS's build, else chaotic-aur's (never plain AUR)
+#   cachyos/i3lock-color         the lock screen; i3lock with colour options, which
+#                                plain extra/i3lock lacks (they conflict, so an
+#                                installed `i3lock` is removed first)
+#   cachyos/vesktop-bin          Discord client (Vencord), else chaotic-aur/vesktop
+# If no listed repo has a package, it is skipped with a warning, the rest still
+# installs, and the run exits non-zero.
+PINNED=(
+    chaotic-aur/qutebrowser-git
+    chaotic-aur/yaru-icon-theme
+    "cachyos/yay chaotic-aur/yay"
+    "cachyos/i3lock-color chaotic-aur/i3lock-color"
+    "cachyos/vesktop-bin chaotic-aur/vesktop"
+)
+# Plain package each pinned one conflicts with: the plain one is removed first
+# when the pin is chosen (--noconfirm would answer the conflict prompt with No).
+PINNED_REPLACES=(qutebrowser:qutebrowser-git i3lock:i3lock-color vesktop:vesktop-bin)
 
 # Everything goes into ONE pacman transaction: on CachyOS each transaction also
 # takes a pre/post snapper snapshot pair, so separate calls per package would
@@ -262,25 +275,33 @@ install_packages() {
     command -v pacman >/dev/null || { warn "pacman not found; skipping package install"; return; }
 
     say "Checking packages"
-    local missing=() p q need_refresh=0
+    local missing=() p c entry chosen installed need_refresh=0
     for p in "${PKGS[@]}"; do
         pacman -Qq "$p" >/dev/null 2>&1 || { missing+=("$p"); need_refresh=1; }
     done
-    for q in "${PINNED[@]}"; do
-        pacman -Qq "${q#*/}" >/dev/null 2>&1 || need_refresh=1
+    for entry in "${PINNED[@]}"; do
+        installed=0
+        for c in $entry; do pacman -Qq "${c#*/}" >/dev/null 2>&1 && installed=1; done
+        [ "$installed" = 1 ] || need_refresh=1
     done
     # Only when something is missing, so a re-run on a finished install does not
     # upgrade the whole system. The -Si checks below need a current database too.
     [ "$need_refresh" = 1 ] && refresh_databases
-    for q in "${PINNED[@]}"; do
-        pacman -Qq "${q#*/}" >/dev/null 2>&1 && continue
-        if ! pacman -Si "$q" >/dev/null 2>&1; then
-            warn "$q is unavailable (is the [${q%%/*}] repo enabled and synced?)."
-            warn "Not installing ${q#*/} from any other repo. Fix that and re-run."
+    for entry in "${PINNED[@]}"; do
+        installed=0
+        for c in $entry; do pacman -Qq "${c#*/}" >/dev/null 2>&1 && installed=1; done
+        [ "$installed" = 1 ] && continue
+        chosen=
+        for c in $entry; do
+            if pacman -Si "$c" >/dev/null 2>&1; then chosen=$c; break; fi
+        done
+        if [ -z "$chosen" ]; then
+            warn "none of these has the package: $entry (is the repo enabled and synced?)"
+            warn "not installing it from any other repo; fix that and re-run"
             FAILED=1
             continue
         fi
-        missing+=("$q")
+        missing+=("$chosen")
     done
 
     if [ "${#missing[@]}" -eq 0 ]; then
@@ -290,12 +311,12 @@ install_packages() {
 
     # Conflicting plain packages: --noconfirm answers pacman's "remove X?" with
     # its default, No, so they have to go first.
-    local pinned plain
-    for pinned in chaotic-aur/qutebrowser-git:qutebrowser cachyos/i3lock-color:i3lock; do
-        plain=${pinned#*:}
-        case " ${missing[*]} " in *" ${pinned%:*} "*) ;; *) continue ;; esac
+    local pair plain pkg
+    for pair in "${PINNED_REPLACES[@]}"; do
+        plain=${pair%%:*}; pkg=${pair#*:}
+        case " ${missing[*]} " in *"/$pkg "*|*"/$pkg") ;; *) continue ;; esac
         if [ "$(pacman -Qq "$plain" 2>/dev/null)" = "$plain" ]; then
-            warn "replacing $plain with ${pinned%:*}"
+            warn "replacing $plain with $pkg"
             run $SUDO pacman -Rns --noconfirm "$plain"
         fi
     done
@@ -768,7 +789,14 @@ setup_firewall() {
     $SUDO ufw default deny incoming >/dev/null
     $SUDO ufw default allow outgoing >/dev/null
     if ! $SUDO ufw status | grep -q '^Status: active'; then
-        $SUDO ufw --force enable >/dev/null && echo "ufw: enabled"
+        # Fails when the running kernel has lost its netfilter modules, which a
+        # kernel upgrade in this run causes until a reboot (checked at the end).
+        if $SUDO ufw --force enable >/dev/null; then
+            echo "ufw: enabled"
+        else
+            warn "ufw could not start; reboot into the new kernel, then run: sudo ufw enable"
+            FAILED=1
+        fi
     fi
     $SUDO systemctl enable --quiet ufw.service || warn "could not enable ufw.service"
     $SUDO ufw status | sed -n '1p'
@@ -1081,6 +1109,11 @@ if [ "$do_links" = 1 ]; then
 fi
 
 echo
+# A kernel upgraded by this run leaves the running one without modules; anything
+# netfilter-based (ufw, libvirt's NAT) stays broken until a reboot.
+if [ ! -d "/usr/lib/modules/$(uname -r)" ]; then
+    warn "reboot needed: kernel $(uname -r) is running but its modules are gone (it was upgraded)"
+fi
 if [ "$FAILED" = 1 ]; then
     warn "finished with errors (see the warnings above)"
     exit 1

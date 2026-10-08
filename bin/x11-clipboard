@@ -25,7 +25,7 @@ case "${1:-history}" in
         # logout), so history images never land on persistent disk here.
         thumbs="${XDG_RUNTIME_DIR:-/tmp}/x11-clipboard"
         rm -rf "$thumbs"
-        mkdir -p -m 700 "$thumbs"
+        install -d -m 700 "$thumbs"
 
         # One line per item, in history order: "<label>\t<image path or empty>".
         # Text is flattened to a single line; an item with no text is shown as

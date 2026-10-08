@@ -55,12 +55,12 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
 | Sync and notes | `rclone`, `obsidian` |
 | Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
-| Lock, nightlight | `cachyos/i3lock-color` + `xss-lock` + `xorg-xset` (the idle timer), `gammastep` |
+| Lock, nightlight | `i3lock-color` (`cachyos/`, else `chaotic-aur/`) + `xss-lock` + `xorg-xset` (the idle timer), `gammastep` |
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
 | Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
 | Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
 | Pentest | `zaproxy` (themed via `bin/zaproxy`) |
-| Pinned to one repo | `chaotic-aur/qutebrowser-git`, `cachyos/yay`, `cachyos/i3lock-color`, `chaotic-aur/yaru-icon-theme`, `cachyos/vesktop-bin` |
+| Pinned (see `PINNED` in `install.sh`) | `chaotic-aur/qutebrowser-git` and `chaotic-aur/yaru-icon-theme` (one repo each); `yay`, `i3lock-color` and `vesktop` (`cachyos/` first, then `chaotic-aur/`) |
 
 Notes on particular entries:
 
@@ -68,13 +68,19 @@ Notes on particular entries:
   `pacman -Si chaotic-aur/qutebrowser-git`, and if that fails it warns, finishes the rest, and exits
   non-zero rather than substituting extra's `qutebrowser`. If a conflicting `qutebrowser` is installed it is
   removed first.
-- **`yay` comes from Cachy's own `[cachyos]` repo**, installed by its qualified name `cachyos/yay` so pacman
-  cannot take chaotic-aur's build. Same rules: no fallback, warn, finish, exit non-zero. An already-installed
-  `yay` is left alone. (`[cachyos]` also has `paru`.)
+- **`yay` comes from Cachy's own `[cachyos]` repo** when it is there, else `chaotic-aur/yay` (vanilla Arch).
+  Each pin is installed by its qualified name, so pacman cannot take another repo's build. If no listed repo
+  has it, the run warns, finishes the rest, and exits non-zero. An already-installed `yay` is left alone.
+  (`[cachyos]` also has `paru`.)
 - **Package source priority:** a Cachy repo, then the official Arch repos, then chaotic-aur, and never the
-  plain AUR when chaotic-aur has the package. `i3lock-color` is in Cachy's own `[cachyos]` repo, so it is
-  pinned there (on vanilla Arch it would be `chaotic-aur/i3lock-color`). It conflicts with `extra/i3lock`,
-  which is removed first, like `qutebrowser` for `qutebrowser-git`.
+  plain AUR when chaotic-aur has the package. `i3lock-color` is `cachyos/i3lock-color`, else
+  `chaotic-aur/i3lock-color`. It conflicts with `extra/i3lock`, which is removed first, like `qutebrowser` for
+  `qutebrowser-git` (`PINNED_REPLACES` in `install.sh` lists these pairs).
+- **Vanilla Arch was tested** on a nested VM (`opt/arch-cloud-vm.sh`, the latest arch-boxes image): the
+  installer runs there, the pins fall back to chaotic-aur, and the i3 session starts on Xvfb with the bar,
+  wallpaper and theme switching working. A full upgrade can install a new kernel whose modules the running
+  kernel no longer has: until a reboot, ufw cannot load its rules, so `setup_firewall` warns instead of
+  stopping, and the run ends with a "reboot needed" warning.
 - **No `fish` or `xonsh`.** CachyOS itself ships fish as the default login shell; it stays installed, but
   nothing here configures it (see "Shell").
 - **`nix` is installed, nothing more.** `install.sh` enables `nix-daemon.socket` and adds the user to
@@ -446,7 +452,7 @@ No quickshell, nothing else from omarchy's shell.
 - **ZAP's splash screen** keeps its white banner and blue progress bar: the banner is a bitmap in the jar
   (`/resource/zap-splash-screen.png`) and the bar is ZAP's own `SplashScreen$CustomProgressBarUI` with
   colours in code. Neither goes through the look and feel; only patching ZAP would change them.
-- **Vesktop** (`cachyos/vesktop-bin`, pinned) uses quattro-dots' files verbatim:
+- **Vesktop** (`cachyos/vesktop-bin`, else `chaotic-aur/vesktop`) uses quattro-dots' files verbatim:
   `vesktop/palette.css.tpl` (linked into `theme/default/themed/` as `quattro-vesktop.palette.css.tpl`, the
   name the hook expects), `vesktop/discord.css`, and `hooks/theme-set.d/vesktop`, linked into
   `~/.config/omarchy/hooks/theme-set.d/`. The hook writes the stylesheet into Vencord's themes folder (a
