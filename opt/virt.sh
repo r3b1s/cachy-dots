@@ -51,11 +51,6 @@ TARGET_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 # virsh against the system daemons. Read-only queries run too, even in a dry run.
 vsys() { $SUDO virsh -c qemu:///system "$@"; }
 
-if pacman -Qq qemu-full >/dev/null 2>&1; then
-    warn "qemu-full is installed and conflicts with qemu-desktop; remove it first (sudo pacman -Rns qemu-full)."
-    exit 1
-fi
-
 PKGS=(libvirt qemu-desktop virt-manager virt-viewer dnsmasq edk2-ovmf swtpm)
 missing=()
 for p in "${PKGS[@]}"; do

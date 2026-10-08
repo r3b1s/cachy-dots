@@ -489,8 +489,8 @@ No quickshell, nothing else from omarchy's shell.
   `DEFAULT_FORWARD_POLICY="DROP"` would drop forwarded TCP from `labbr0`, so `ufw route allow in/out on labbr0` is
   added. Checked on the VM with a network namespace on `labbr0`: with the route rules removed, the forward policy
   dropped the SYN packets, and with them present it dropped none. ICMP passes either way, because ufw's default
-  rules accept echo-request in FORWARD, so a ping test proves nothing here. `qemu-full` conflicts with
-  `qemu-desktop`, so the script stops if it is installed.
+  rules accept echo-request in FORWARD, so a ping test proves nothing here. `qemu-full` depends on
+  `qemu-desktop` and does not conflict with it, so the script installs whichever is already there.
 - **Firewall:** `setup_firewall` keeps ufw at deny-incoming/allow-outgoing, enabled, allowing SSH first
   when sshd is enabled (rate-limited if it adds the rule). Open a port for CTF listeners by hand.
 - **Obsidian:** `hooks/theme-set.d/obsidian` (from omarchy) writes the rendered `obsidian.css` into every
