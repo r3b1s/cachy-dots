@@ -746,15 +746,16 @@ setup_sshd() {
 # exists (i3 includes its colours from there, i3bar runs its rendered config).
 # First run: pinkrot, cloned from its repo for the backgrounds and previews; with
 # no network, the built-in copy of its colors.toml (theme/themes/pinkrot).
-# Later runs re-render the current theme, picking up any template changes.
+# Later runs pull the installed theme repos (fast-forward only) and re-render
+# the current theme, picking up both upstream theme changes and template edits.
 PINKROT_REPO=https://github.com/r3b1s/omarchy-pinkrot-theme
 
 setup_theme() {
     local theme="$REPO/bin/x11-theme"
     if [ "$dry" = 1 ]; then echo "+ x11-theme (apply or refresh)"; return; fi
     if [ -f "$HOME/.local/state/omarchy/current/theme.name" ]; then
-        say "Re-rendering the current theme"
-        "$theme" refresh || { warn "x11-theme refresh failed"; FAILED=1; }
+        say "Updating the installed themes and re-rendering the current one"
+        "$theme" update || warn "a theme could not be updated (see above); the current one was still re-rendered"
     else
         say "Applying the default theme (pinkrot)"
         "$theme" install "$PINKROT_REPO" \

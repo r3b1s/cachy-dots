@@ -380,7 +380,9 @@ No quickshell, nothing else from omarchy's shell.
 - **Built-in pinkrot.** `theme/themes/pinkrot/colors.toml` is the omarchy-pinkrot palette, so a theme can be
   applied offline. `install.sh` (`setup_theme`) installs the full theme from
   `r3b1s/omarchy-pinkrot-theme` on first run (backgrounds, previews) and falls back to that; later runs
-  `x11-theme refresh`. A theme must always be applied: i3 includes `i3.conf` and i3bar runs the rendered
+  `x11-theme update`, which fast-forwards every theme installed from git (reporting, never resetting, one
+  with local changes) and re-renders the current theme. So a fresh install gets whatever is pushed to that
+  repo, and a re-run picks up later pushes. A theme must always be applied: i3 includes `i3.conf` and i3bar runs the rendered
   status config from the state directory (i3 only warns about a missing include; i3status-rs shows an error).
 - **What follows the theme, and how:**
 

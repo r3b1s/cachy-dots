@@ -6,6 +6,7 @@
 #                                 apply it; without a name, list them
 #   x11-theme set <name>          apply an installed (or built-in) theme
 #   x11-theme refresh             re-render the current theme (after editing a template)
+#   x11-theme update              pull every theme installed from git, then refresh
 #   x11-theme list                installed themes, one per line
 #   x11-theme current             the applied theme's name
 #   x11-theme menu                pick a theme from a rofi grid ($mod+Shift+Ctrl+space)
@@ -387,6 +388,25 @@ cmd_list() {
     { ls -1 "$USER_THEMES" 2>/dev/null; ls -1 "$BUILTIN_THEMES" 2>/dev/null; } | grep -v '\.tmp$' | sort -u
 }
 
+# Fast-forward only: a theme repo with local edits (or rewritten history) is
+# reported and left as it is, never reset. install-omarchy copies have no .git;
+# re-run install-omarchy to refresh one of those.
+cmd_update() {
+    local dir name failed=0
+    for dir in "$USER_THEMES"/*/; do
+        dir=${dir%/}; name=${dir##*/}
+        [[ -d $dir/.git && ! -L $dir ]] || continue
+        if git -C "$dir" pull --quiet --ff-only 2>/dev/null; then
+            echo "updated $name ($(git -C "$dir" log -1 --format=%h))"
+        else
+            echo "x11-theme: could not fast-forward '$name' (local changes?); left as is" >&2
+            failed=1
+        fi
+    done
+    if [[ -f $STATE/theme.name ]]; then cmd_refresh; fi
+    return $failed
+}
+
 cmd_current() { cat "$STATE/theme.name" 2>/dev/null || die "no theme applied"; }
 
 cmd_refresh() { cmd_set "$(cmd_current)"; }
@@ -432,6 +452,7 @@ case "${1:-}" in
     install-omarchy) shift; cmd_install_omarchy "$@" ;;
     set)     shift; cmd_set "$@" ;;
     refresh) cmd_refresh ;;
+    update)  cmd_update ;;
     list)    cmd_list ;;
     current) cmd_current ;;
     menu)    cmd_menu ;;
@@ -440,5 +461,5 @@ case "${1:-}" in
     # install.sh re-merges /etc/ly/config.ini from its pristine copy, which
     # drops the colours; this puts the current theme's back.
     apply-ly) apply_ly ;;
-    *) sed -n '2,12p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
