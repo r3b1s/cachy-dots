@@ -130,16 +130,30 @@ apply_mode() {
 }
 
 # The icon theme GTK is told to use (settings.ini) is always "x11-theme", a small
-# generated one:
-#   * it inherits the icon theme the omarchy theme names in icons.theme (pinkrot:
-#     Yaru-red, tokyo-night: Yaru-magenta), when that is installed, so folder and
-#     file icons follow the theme as they do on omarchy; then Adwaita, hicolor;
-#   * it carries the tray's NetworkManager glyphs, recoloured to the theme's
-#     foreground from the package's symbolic icons. nm-applet asks for the plain
-#     (non -symbolic) names, so both are written.
+# generated one. It inherits the icon theme the omarchy theme names in
+# icons.theme (pinkrot: Yaru-red, tokyo-night: Yaru-magenta), when installed, so
+# folder and file icons follow the theme as on omarchy; then Adwaita, hicolor.
+#
+# On top of that it carries the tray icons, all drawn the same way so the i3bar
+# tray reads as one set: a monochrome symbolic glyph in the theme's foreground,
+# at full strength. They are ordinary symbolic SVGs (NetworkManager's,
+# Adwaita's) with their fixed grey recoloured, since the tray (XEmbed) and Qt
+# never apply GTK's runtime recolouring of symbolic icons.
+#   nm-applet   its nm-*-symbolic glyphs, under both names (it asks for the plain
+#               ones). Those are drawn at 0.35 opacity, which made the wired glyph
+#               dim; it is lifted to full, except in nm-signal-*, where the faint
+#               bars are the unlit part of the signal strength.
+#   CopyQ       asks the icon theme for "copyq": Adwaita's edit-cut (scissors)
+#   blueman     blueman-tray/-active/-disabled: Adwaita's bluetooth glyphs
+#   Vesktop     not an icon theme user (Electron hands the tray a bitmap); see
+#               tint_vesktop below
+tint_svg() { # <src> <dest> <colour>
+    sed -E "s/#(474747|2e3436|bebebe|222222)/$3/gI" "$1" > "$2"
+}
+
 tint_icons() {
-    local src=/usr/share/icons/hicolor/scalable/apps
-    local dest="$HOME/.local/share/icons/x11-theme" fg f base inherits=Adwaita,hicolor named=""
+    local src=/usr/share/icons/hicolor/scalable/apps sym=/usr/share/icons/Adwaita/symbolic
+    local dest="$HOME/.local/share/icons/x11-theme" fg f base out pair inherits=Adwaita,hicolor named=""
     [[ -d $src ]] || return 0
     fg=$(color foreground) || return 0
     if [[ -f $CURRENT/icons.theme ]]; then
@@ -150,22 +164,46 @@ tint_icons() {
     fi
     rm -rf "$dest"
     mkdir -p "$dest/scalable/apps"
+    out="$dest/scalable/apps"
     for f in "$src"/nm-*-symbolic.svg; do
         [[ -e $f ]] || continue
         base=$(basename "$f" -symbolic.svg)
-        sed -e "s/fill=\"#474747\"/fill=\"$fg\"/" -e "s/fill=\"#bebebe\"/fill=\"$fg\"/" "$f" > "$dest/scalable/apps/$base.svg"
-        cp "$dest/scalable/apps/$base.svg" "$dest/scalable/apps/$base-symbolic.svg"
+        tint_svg "$f" "$out/$base.svg" "$fg"
+        if [[ $base != nm-signal-* ]]; then
+            sed -i 's/opacity="0.35"/opacity="1"/g' "$out/$base.svg"
+        fi
+        cp "$out/$base.svg" "$out/$base-symbolic.svg"
     done
-    # CopyQ's tray icon: it asks the icon theme for "copyq" before its built-in
-    # green scissors. Handles in the accent, blades in the foreground, outlines
-    # in the background.
-    local copyq=/usr/share/icons/hicolor/scalable/apps/copyq.svg accent bg
-    if [[ -f $copyq ]] && accent=$(color accent) && bg=$(color background); then
-        sed -e "s/#7fca9b/$accent/g" -e "s/#e6e6e6/$fg/g" -e "s/#ffffff/$fg/g" -e "s/#000000/$bg/g" \
-            "$copyq" > "$dest/scalable/apps/copyq.svg"
-    fi
-    printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with NetworkManager glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nMinSize=8\nMaxSize=512\nType=Scalable\n' "$inherits" > "$dest/index.theme"
+    for pair in copyq:actions/edit-cut blueman-tray:status/bluetooth-active \
+                blueman-active:status/bluetooth-active blueman-disabled:status/bluetooth-disabled; do
+        f="$sym/${pair#*:}-symbolic.svg"
+        [[ -f $f ]] || continue
+        tint_svg "$f" "$out/${pair%%:*}.svg" "$fg"
+        cp "$out/${pair%%:*}.svg" "$out/${pair%%:*}-symbolic.svg"
+    done
+    printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with the tray glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nMinSize=8\nMaxSize=512\nType=Scalable\n' "$inherits" > "$dest/index.theme"
     gtk-update-icon-cache -q -t -f "$dest" 2>/dev/null || true
+}
+
+# Vesktop's tray icon: it uses ~/.config/vesktop/userAssets/{tray,trayUnread}
+# when present (its "custom tray icon" assets) instead of its bundled PNGs. Both
+# become Adwaita's headset glyph in the theme's foreground, as PNGs (Electron's
+# tray takes bitmaps); the unread one carries a dot in the accent. Vesktop picks
+# them up at its next start, or when the unread state next changes.
+tint_vesktop() {
+    local dir="${XDG_CONFIG_HOME:-$HOME/.config}/vesktop" glyph=/usr/share/icons/Adwaita/symbolic/devices/audio-headset-symbolic.svg
+    local fg accent tmp
+    [[ -d $dir && -f $glyph ]] && command -v resvg >/dev/null || return 0
+    fg=$(color foreground) && accent=$(color accent) || return 0
+    mkdir -p "$dir/userAssets"
+    tmp=$(mktemp -d)
+    tint_svg "$glyph" "$tmp/tray.svg" "$fg"
+    sed "s|</svg>|<circle cx=\"13\" cy=\"3\" r=\"3\" fill=\"$accent\"/></svg>|" "$tmp/tray.svg" > "$tmp/trayUnread.svg"
+    if resvg -w 64 -h 64 "$tmp/tray.svg" "$tmp/tray.png" && resvg -w 64 -h 64 "$tmp/trayUnread.svg" "$tmp/trayUnread.png"; then
+        mv -f "$tmp/tray.png" "$dir/userAssets/tray"
+        mv -f "$tmp/trayUnread.png" "$dir/userAssets/trayUnread"
+    fi
+    rm -rf "$tmp"
 }
 
 # Chromium's toolbar colour comes from the BrowserThemeColor policy, a root-owned
@@ -214,6 +252,17 @@ apply_copyq() {
     fi
 }
 
+# nm-applet only reads its icons at start, so it is restarted to pick up the
+# re-tinted glyphs. It holds no state (NetworkManager does), and is started
+# again through i3 so it keeps the session's environment.
+restart_nm_applet() {
+    local pid
+    pid=$(pgrep -x -u "$(id -u)" nm-applet) || return 0
+    [[ -n ${DISPLAY:-} ]] || return 0
+    kill $pid 2>/dev/null || return 0
+    i3-msg -q 'exec --no-startup-id nm-applet' 2>/dev/null || true
+}
+
 reload_apps() {
     local i3sock
     # i3 re-reads the included i3.conf; the reload restarts i3bar and with it
@@ -241,6 +290,7 @@ reload_apps() {
     if [[ -n ${DISPLAY:-} ]]; then
         "$REPO/bin/x11-wallpaper" current >/dev/null 2>&1 || true
     fi
+    restart_nm_applet
 }
 
 run_hooks() {
@@ -265,6 +315,7 @@ apply() {
 
     apply_mode
     tint_icons
+    tint_vesktop
     apply_chromium
     apply_ly
     apply_copyq

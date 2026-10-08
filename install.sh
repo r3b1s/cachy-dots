@@ -201,6 +201,8 @@ setup_chaotic_aur() {
 #                                `qutebrowser` is not wanted (they conflict, so
 #                                an installed `qutebrowser` is removed first)
 #   cachyos/yay                  CachyOS's own build; never chaotic-aur's
+#   cachyos/vesktop-bin          Discord client (Vencord); CachyOS's build, not
+#                                chaotic-aur's vesktop / vesktop-git
 #   chaotic-aur/yaru-icon-theme  the icon themes omarchy themes name in icons.theme
 #                                (Yaru-red, Yaru-blue, ...); in no official repo
 #   cachyos/i3lock-color         the lock screen; i3lock with colour options,
@@ -208,7 +210,7 @@ setup_chaotic_aur() {
 #                                so an installed `i3lock` is removed first)
 # If the repo is missing or unsynced, the package is skipped with a warning,
 # the rest still installs, and the run exits non-zero.
-PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color chaotic-aur/yaru-icon-theme)
+PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color chaotic-aur/yaru-icon-theme cachyos/vesktop-bin)
 
 # Everything goes into ONE pacman transaction: on CachyOS each transaction also
 # takes a pre/post snapper snapshot pair, so separate calls per package would
