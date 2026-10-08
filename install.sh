@@ -151,6 +151,18 @@ if command -v systemd-detect-virt >/dev/null && systemd-detect-virt -q --vm; the
     )
 fi
 
+# Host virtualisation, on bare metal only (setup_virt): a VM would be nested.
+if [ "$IS_VM" = 0 ]; then
+    PKGS+=(
+        libvirt                      # the daemons, and the default NAT network's definition
+        qemu-desktop                 # QEMU for the desktop (qemu-full ships every target)
+        virt-manager virt-viewer     # GUI and the viewer it uses
+        dnsmasq                      # DHCP and DNS for the default NAT network
+        edk2-ovmf                    # UEFI firmware for guests
+        swtpm                        # TPM emulation (Windows 11 guests)
+    )
+fi
+
 # Set when something required could not be installed; reported at the end.
 FAILED=0
 
@@ -774,6 +786,83 @@ setup_firewall() {
     $SUDO ufw status | sed -n '1p'
 }
 
+# Host virtualisation (bare metal only). Two connections are available, and
+# virt-manager lists both:
+#
+#   qemu:///session  the user's own daemon. No root and no group: libvirt starts
+#                    virtqemud --session on demand, so nothing is enabled for it.
+#                    Guests get user-mode networking only: no raw packets, no
+#                    ICMP, and the host reaches a guest only through port forwards.
+#   qemu:///system   the root daemons, socket-activated. The NAT network (virbr0)
+#                    lives here, so guests get raw packets and route out through
+#                    the host's tun0 (HTB, THM). Access is by the libvirt group,
+#                    and that group is root-equivalent: it can start any VM with
+#                    any host device attached. Only the install user is added.
+#
+# Modular daemons, not libvirtd.service: each one is started by its socket when
+# first used, so an idle host runs none of them.
+setup_virt() {
+    [ "$IS_VM" = 0 ] || return 0
+    command -v virsh >/dev/null || return 0
+    say "Virtualisation (libvirt): system sockets, default NAT network and pool, $TARGET_USER in libvirt"
+    if [ "$dry" = 1 ]; then echo "+ libvirt: socket group, sockets, default network and pool, ufw route rules, group"; return; fi
+
+    # The packaged configs have the socket group commented out, which leaves the
+    # sockets root-only. Set it on the daemons the system connection uses.
+    local conf restart=()
+    for conf in virtqemud virtnetworkd virtstoraged; do
+        if $SUDO grep -q '^#unix_sock_group = "libvirt"' "/etc/libvirt/$conf.conf"; then
+            $SUDO sed -i 's/^#unix_sock_group = "libvirt"/unix_sock_group = "libvirt"/' "/etc/libvirt/$conf.conf"
+            restart+=("$conf.service")
+        fi
+        $SUDO grep -q '^unix_sock_group = "libvirt"' "/etc/libvirt/$conf.conf" \
+            || warn "/etc/libvirt/$conf.conf does not set unix_sock_group = \"libvirt\""
+    done
+    [ "${#restart[@]}" -gt 0 ] && $SUDO systemctl try-restart "${restart[@]}" >/dev/null
+
+    $SUDO systemctl enable --quiet --now virtqemud.socket virtnetworkd.socket virtstoraged.socket \
+        || warn "could not enable the libvirt sockets"
+
+    # The package ships the default network's definition but does not define,
+    # autostart or start it, and it creates no storage pool. Do each once.
+    local virsh_sys="$SUDO virsh -c qemu:///system"
+    if ! $virsh_sys net-info default >/dev/null 2>&1; then
+        $virsh_sys net-define /etc/libvirt/qemu/networks/default.xml >/dev/null \
+            || warn "could not define the default network"
+    fi
+    $virsh_sys net-autostart default >/dev/null 2>&1 || true
+    if [ "$($virsh_sys net-info default 2>/dev/null | awk '/^Active:/ { print $2 }')" != yes ]; then
+        $virsh_sys net-start default >/dev/null \
+            || warn "could not start the default network (its subnet 192.168.122.0/24 may clash with an interface; run: sudo virsh net-start default)"
+    fi
+
+    if ! $virsh_sys pool-info default >/dev/null 2>&1; then
+        $virsh_sys pool-define-as default dir --target /var/lib/libvirt/images >/dev/null \
+            && $virsh_sys pool-build default >/dev/null \
+            || warn "could not define the default storage pool"
+    fi
+    $virsh_sys pool-autostart default >/dev/null 2>&1 || true
+    if [ "$($virsh_sys pool-info default 2>/dev/null | awk '/^State:/ { print $2 }')" != running ]; then
+        $virsh_sys pool-start default >/dev/null 2>&1 || warn "could not start the default storage pool"
+    fi
+
+    # ufw drops forwarded packets by default (DEFAULT_FORWARD_POLICY="DROP"), so
+    # guests on the NAT network could reach the host but not the internet. These
+    # route rules let them out and let replies back in; they touch nothing else.
+    if command -v ufw >/dev/null; then
+        $SUDO ufw route allow in on virbr0 >/dev/null || warn "could not allow forwarding in on virbr0"
+        $SUDO ufw route allow out on virbr0 >/dev/null || warn "could not allow forwarding out on virbr0"
+    fi
+
+    if getent group libvirt >/dev/null; then
+        if ! id -nG "$TARGET_USER" | tr ' ' '\n' | grep -qx libvirt; then
+            $SUDO usermod -aG libvirt "$TARGET_USER" && echo "libvirt: $TARGET_USER added to the libvirt group (log out and back in)"
+        fi
+    else
+        warn "no libvirt group; the system connection will stay root-only"
+    fi
+}
+
 # Touchpad: tap to click and friends (xorg/30-touchpad.conf). A root file, so a
 # copy; it matches nothing where there is no touchpad.
 setup_touchpad() {
@@ -1070,6 +1159,7 @@ if [ "$do_packages" = 1 ]; then
     setup_chromium
     setup_sshd
     setup_firewall
+    setup_virt
     setup_touchpad
     check_keyring_pam
 fi

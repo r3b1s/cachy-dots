@@ -474,6 +474,23 @@ No quickshell, nothing else from omarchy's shell.
 - **Laptop:** `xorg/30-touchpad.conf` (tap to click, disable while typing) copied to
   `/etc/X11/xorg.conf.d/`; power profile switched from the `$mod+Escape` menu (power-profiles-daemon).
   Lid behaviour is logind's default (suspend; ignore when docked). No compositor, by choice.
+- **Virtualisation (`setup_virt`, bare metal only):** libvirt, qemu-desktop, virt-manager, dnsmasq, edk2-ovmf and
+  swtpm are installed only when `IS_VM=0`. Two connections exist and virt-manager lists both:
+  - `qemu:///session` runs as the user, with no root and no group. libvirt starts `virtqemud --session` on demand
+    (no unit ships for it, and none is enabled). Guests get user-mode networking only: no raw packets, no ICMP,
+    and the host reaches a guest only through port forwards.
+  - `qemu:///system` runs the root daemons, socket-activated: `virtqemud`, `virtnetworkd` and `virtstoraged`.
+    The NAT network (`virbr0`) and the `default` storage pool live here, so guests get raw packets and route out
+    through the host's `tun0` (HTB, THM). Access is by the `libvirt` group, which is root-equivalent: it can start
+    any VM with any host device attached. Only the install user is added.
+  The packaged `unix_sock_group` is commented out, which leaves the sockets root-only, so the installer uncomments
+  it for those three daemons. The default network is defined and autostarted, which the package does not do, and
+  the default pool is created because libvirt creates none. ufw's `DEFAULT_FORWARD_POLICY="DROP"` would drop
+  forwarded TCP from `virbr0`, so `ufw route allow in/out on virbr0` is added. Checked on the VM with a network
+  namespace attached to a bridge named `virbr0`: TCP to a forward destination was dropped with the rules removed
+  and forwarded with them present. ICMP passes either way, because ufw's default rules accept echo-request in
+  FORWARD, so a ping test proves nothing here. A `default` network whose subnet clashes with a host interface
+  (the test VM is itself on 192.168.122.0/24) fails to start; the installer warns and carries on.
 - **Firewall:** `setup_firewall` keeps ufw at deny-incoming/allow-outgoing, enabled, allowing SSH first
   when sshd is enabled (rate-limited if it adds the rule). Open a port for CTF listeners by hand.
 - **Obsidian:** `hooks/theme-set.d/obsidian` (from omarchy) writes the rendered `obsidian.css` into every
