@@ -168,12 +168,16 @@ exists yet, never overwriting a user-picked theme. Takes effect on next launch.
 ## sshd
 
 Different from athena-dots, where sshd must stay disabled: CachyOS enables sshd, and on a headless VM it is
-the way in, so `setup_sshd()` leaves the service's state alone. It first ensures the `athena0` ed25519 key is
-in `~/.ssh/authorized_keys` (700/600), then installs `ssh/sshd_config.d/10-cachy-safe.conf` to
-`/etc/ssh/sshd_config.d/` (pubkey yes, passwords/interactive no, root no). When that file changed it is
-validated with `sshd -t` (and removed again if rejected) and a running sshd is reloaded, so **password SSH
-logins stop working after the first install**: have a key in `authorized_keys` before running it. The drop-in
-wins because Arch's `sshd_config` Includes `sshd_config.d/*.conf` at its top and sshd keeps the first value.
+the way in, so `setup_sshd()` leaves the service's state alone. It installs
+`ssh/sshd_config.d/10-cachy-safe.conf` to `/etc/ssh/sshd_config.d/` (pubkey yes, passwords and interactive
+off, root no). When that file changed it is validated with `sshd -t` (and removed again if rejected) and a
+running sshd is reloaded. The drop-in wins because Arch's `sshd_config` Includes `sshd_config.d/*.conf` at its
+top and sshd keeps the first value.
+
+`install.sh` never writes to `authorized_keys`. The drop-in is installed only when `~/.ssh/authorized_keys`
+already holds a public key, because it turns password logins off: without that check, a host with no key would
+be locked out. Add your key first, then run the installer. An earlier version of this step added a hard-coded
+key; it is gone, so no key from this repo ends up on any machine.
 
 **Vimium's options cannot be installed by policy.** Its settings live in the extension's own browser
 storage, and the only import path is the Restore control on `chrome-extension://<id>/options.html`. No
