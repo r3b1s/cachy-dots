@@ -235,7 +235,7 @@ after, and `:colorscheme` reports `pinkrot` again.
   everything after a `;` as a new command, so a bare `$bin/x11-wallpaper` is rejected at runtime with
   "Expected one of these tokens: ... 'exec' ...". Note `i3 -C` validates the config file but **not** the
   command body of a `bindsym`, so it accepts that mistake silently and the bind does nothing.
-- `install.sh` checks the Cachy repos, adds chaotic-aur, installs missing packages (pacman), switches the
+- `install.sh` checks the Cachy repos, adds chaotic-aur, refreshes the package databases with a full `pacman -Syu` when anything is missing, installs the missing packages (pacman; a failure is retried once after another sync, then reported without stopping the run), switches the
   login shell to bash, starts `spice-vdagentd.socket`, symlinks the dots, then validates with `i3 -C`. It is
   the source of truth for the package list; keep it in sync with this file.
 - GTK ignores `org.gnome.desktop.interface` for the theme and icon theme: it reads XSETTINGS, which needs a

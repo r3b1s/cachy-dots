@@ -248,14 +248,30 @@ PINNED=(chaotic-aur/qutebrowser-git cachyos/yay cachyos/i3lock-color chaotic-aur
 # Everything goes into ONE pacman transaction: on CachyOS each transaction also
 # takes a pre/post snapper snapshot pair, so separate calls per package would
 # litter the snapshot list.
+# Arch's rule: never -S against a stale sync database (a partial upgrade). The
+# database is a snapshot of the mirror from the last sync. Once the mirror
+# replaces a package (CachyOS rebuilding qt6-* from 6.11.2 to 6.12.0, say), the
+# old file is gone and pacman fails with "failed retrieving file ... 6.11.2".
+# So sync first, as a full -Syu: an -Sy alone is the partial upgrade.
+refresh_databases() {
+    say "Refreshing package databases (pacman -Syu)"
+    run $SUDO pacman -Syu --noconfirm || { warn "pacman -Syu failed"; FAILED=1; }
+}
+
 install_packages() {
     command -v pacman >/dev/null || { warn "pacman not found; skipping package install"; return; }
 
     say "Checking packages"
-    local missing=() p q
+    local missing=() p q need_refresh=0
     for p in "${PKGS[@]}"; do
-        pacman -Qq "$p" >/dev/null 2>&1 || missing+=("$p")
+        pacman -Qq "$p" >/dev/null 2>&1 || { missing+=("$p"); need_refresh=1; }
     done
+    for q in "${PINNED[@]}"; do
+        pacman -Qq "${q#*/}" >/dev/null 2>&1 || need_refresh=1
+    done
+    # Only when something is missing, so a re-run on a finished install does not
+    # upgrade the whole system. The -Si checks below need a current database too.
+    [ "$need_refresh" = 1 ] && refresh_databases
     for q in "${PINNED[@]}"; do
         pacman -Qq "${q#*/}" >/dev/null 2>&1 && continue
         if ! pacman -Si "$q" >/dev/null 2>&1; then
@@ -285,7 +301,17 @@ install_packages() {
     done
 
     say "Installing: ${missing[*]}"
-    run $SUDO pacman -S --needed --noconfirm "${missing[@]}"
+    # A failure is reported, not fatal: the rest of the install (Qt sync, theme,
+    # links) still runs and the summary at the end says what is missing.
+    if ! run $SUDO pacman -S --needed --noconfirm "${missing[@]}"; then
+        warn "pacman could not install everything; syncing and retrying once"
+        refresh_databases
+        if ! run $SUDO pacman -S --needed --noconfirm "${missing[@]}"; then
+            warn "still not installed: ${missing[*]}"
+            warn "a mirror may be behind; re-run install.sh later"
+            FAILED=1
+        fi
+    fi
 }
 
 # Keep the Qt 6 stack on one minor version.
@@ -332,6 +358,7 @@ sync_qt_stack() {
 
     if [ "${#behind[@]}" -gt 0 ]; then
         say "Qt modules behind qt6-base $base_min (CachyOS mid-rebuild); taking from extra: ${behind[*]}"
+        refresh_databases
         run $SUDO pacman -S --noconfirm "${behind[@]}" || { warn "could not sync the Qt stack"; FAILED=1; }
     fi
 
