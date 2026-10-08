@@ -8,8 +8,8 @@
 
 mode = "dark"
 
-accent = "#d40d40"
-selection = "#d40d40"
+accent = "#c2335c"
+selection = "#c2335c"
 selection_foreground = "#190710"
 muted = "#6e3345"
 
@@ -48,7 +48,7 @@ bright_blue = "#ff8fb5"
 bright_magenta = "#ff6f96"
 
 # Hyprland / omarchy-shell window borders: crimson into bruise.
-hyprland_active_border = "#d40d40 #c07ab8 45deg"
+hyprland_active_border = "#c2335c #c07ab8 45deg"
 hyprland_inactive_border = "rgba(3a1420aa)"
 
 # Notes on the naming, so the palette reads as intended:
