@@ -160,6 +160,27 @@ warning_fg = "{{ bright_foreground }}"
 critical_bg = "{{ mix background orange 85% }}"
 critical_fg = "{{ bright_foreground }}"
 
+# Battery, laptops only: missing_format is empty, so on a machine with no
+# battery the block takes no space (the same trick as the VPN block).
+[[block]]
+block = "battery"
+driver = "sysfs"
+format = " $icon $percentage{ $time|} "
+charging_format = " $icon $percentage{ $time|} "
+missing_format = ""
+interval = 30
+[block.theme_overrides]
+idle_bg = "{{ mix background green 25% }}"
+idle_fg = "{{ foreground }}"
+info_bg = "{{ mix background green 40% }}"
+info_fg = "{{ bright_foreground }}"
+good_bg = "{{ mix background green 40% }}"
+good_fg = "{{ bright_foreground }}"
+warning_bg = "{{ mix background green 65% }}"
+warning_fg = "{{ bright_foreground }}"
+critical_bg = "{{ mix background green 85% }}"
+critical_fg = "{{ bright_foreground }}"
+
 # The clock is in the theme's foreground, the colour of the tray glyphs beside it.
 [[block]]
 block = "time"

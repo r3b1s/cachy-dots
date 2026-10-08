@@ -388,7 +388,7 @@ No quickshell, nothing else from omarchy's shell.
   | App | Mechanism | Live? |
   | --- | --- | --- |
   | i3 windows, i3bar | `i3.conf.tpl` -> `$th_*` vars, included by `i3/config`; `01-colors.conf`, `15-bar.conf` | `i3-msg reload` |
-  | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical (the network block shares volume's `orange`) | SIGUSR2 (in-place restart) |
+  | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical (the network block shares volume's `orange`; the battery block (sysfs, green) is hidden on machines with no battery, via `missing_format = ""`) | SIGUSR2 (in-place restart) |
   | rofi | `rofi.rasi.tpl`, `@import`ed by `rofi/config.rasi` | next open |
   | dunst | `dunst.conf.tpl` -> `~/.config/dunst/dunstrc.d/90-theme.conf` drop-in | `dunstctl reload` |
   | alacritty, kitty, btop | omarchy's own templates; alacritty `import`, kitty `include`, btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |
