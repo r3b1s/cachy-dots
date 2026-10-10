@@ -60,10 +60,17 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
 | Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
 | Pentest | `zaproxy` (themed via `bin/zaproxy`) |
+| Dictation | `aur/voxtype-bin` (see "Voxtype"), `xdotool` (pastes the transcript, and warps the pointer for `bin/x11-focus`) |
 | Pinned (see `PINNED` in `install.sh`) | `chaotic-aur/qutebrowser-git` and `chaotic-aur/yaru-icon-theme` (one repo each); `yay`, `i3lock-color` and `vesktop` (`cachyos/` first, then `chaotic-aur/`) |
 
 Notes on particular entries:
 
+- **The AUR is used for exactly one package, `voxtype-bin`** (`AUR_PKGS` in `install.sh`, built by `yay`, which
+  is pinned from Cachy or chaotic-aur). `install_aur()` takes it from a pacman repo when one has it (so a
+  later chaotic-aur or Cachy build wins), and only otherwise runs `yay` as the invoking user (makepkg
+  refuses root). The AUR package is maintained by voxtype's authors; its two signing keys (`validpgpkeys`
+  in the PKGBUILD) are imported best effort first. `brave-origin-bin` is the other AUR/Cachy package, but it
+  is installed on demand by `bin/x11-default-browser`, not by `install.sh`.
 - **`qutebrowser-git` is chaotic-aur only**, with no fallback. `install.sh` checks
   `pacman -Si chaotic-aur/qutebrowser-git`, and if that fails it warns, finishes the rest, and exits
   non-zero rather than substituting extra's `qutebrowser`. If a conflicting `qutebrowser` is installed it is
@@ -83,8 +90,13 @@ Notes on particular entries:
   stopping, and the run ends with a "reboot needed" warning.
 - **No `fish` or `xonsh`.** CachyOS itself ships fish as the default login shell; it stays installed, but
   nothing here configures it (see "Shell").
-- **`nix` is installed, nothing more.** `install.sh` enables `nix-daemon.socket` and adds the user to
-  `nix-users` when that group exists. No channels, no flakes config: project-specific environments only.
+- **`nix` is for project-specific environments** (`nix-shell`, `nix develop`). `enable_nix()` in `install.sh`
+  enables `nix-daemon.socket` **and** `nix-daemon.service` (so the daemon is up at boot, not only on demand),
+  adds the user to `nix-users` when that group exists, and keeps one managed `# >>> cachy-dots >>>` block at
+  the end of `/etc/nix/nix.conf`: `extra-experimental-features = nix-command flakes` and
+  `extra-trusted-users = <user>`. The `extra-` forms append to whatever the packaged file or a hand edit sets
+  instead of replacing it (checked with `nix config show` on nix 2.35); the block is rewritten on re-runs, the
+  rest of the file is never touched, and a running daemon is restarted when the block changed. No channels.
 - **`libnotify` is load-bearing**, not a convenience: `dunst` lists it as an optdep for `dunstify`, and every
   OSD in `bin/` calls `dunstify`.
 - **`xorg-server` and `xorg-xinit` are explicit** because `i3-wm` does not depend on either. They are what
@@ -205,6 +217,30 @@ available under `b`; add it under its own keyword if wanted.
 qutebrowser requires a `DEFAULT` search engine and the options file has none, so `DEFAULT` is Brave, the
 same URL as `b`.
 
+`startpage.html` shows the desktop wallpaper (`../wallpapers/current`) under a dark overlay: the whole image
+is dimmed (35% black at the centre) and darkens towards the edges (88% at the corners), so the page cannot be
+mistaken for the desktop it shares its image with. (It used to be a vignette over an undimmed centre.)
+
+## Voxtype
+
+Push-to-talk dictation. `voxtype/config.toml` is quattro-dots' config ported from Hyprland to X11, linked to
+`~/.config/voxtype/config.toml` (`voxtype setup model` edits it in place, so changes land in the repo).
+
+- **Install:** `aur/voxtype-bin` (see "packages"), then `voxtype setup --download` fetches the `base.en`
+  model the config names, once (`setup_voxtype()`; needs network, a failure only warns).
+- **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf`, guarded by `command -v`. The packaged
+  `voxtype.service` is wanted by `graphical-session.target`, which a bare i3 session never reaches.
+- **Toggle:** `$mod+d` -> `bin/x11-voxtype toggle` (`voxtype record toggle`, plus a dunst notification
+  in place of omarchy-osd); the `sup_d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, as in
+  quattro-dots, so the `input` group is not needed.
+- **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
+  `post_output_command` is `bin/x11-voxtype paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
+  pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. quattro-dots'
+  Hyprland submap that swallowed the keyboard while text was typed has no port; `--clearmodifiers` covers a
+  still-held `$mod`.
+- **Not tested on a live session** when it was written: voxtype was not installed on the machine the repo was
+  edited on. The output driver chain was read from voxtype's `src/output/mod.rs`, not run.
+
 ## Neovim
 
 `nvim/` is a LazyVim tree ported from the Omarchy host (`init.lua`, `lua/config/lazy.lua`,
@@ -280,12 +316,22 @@ after, and `:colorscheme` reports `pinkrot` again.
   the theme drop-in goes beside it in `dunstrc.d/`), qutebrowser (`config.py`, `omarchy_theme.py`,
   `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
   `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
-  (`satty/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
+  (`satty/config.toml`), voxtype (`voxtype/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
   (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
   `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` is
   linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`. The ly theme is merged
   into `/etc/ly/config.ini` instead
   of linked, and the GTK icon theme is generated into `~/.local/share/icons/`.
+- **`sync.sh`** (repo root) brings an installed system up to date after a `git pull` or an edit, without
+  installing anything, enabling a service or touching the network: it sources `install.sh` for its functions
+  (`install.sh` does not run its main flow when sourced, and `link()` stays silent for links that are already
+  right) and runs `install_links` (new links, repointed ones, backups of real files in the way), removes links
+  into the repo whose file is gone, `setup_gtk`, the root copies that only write when they differ
+  (`setup_theme_helper`, `install_ly_theme`, `setup_firefox`, `setup_chromium`, `setup_touchpad`, the nix.conf
+  block, which restarts `nix-daemon.service` only if it changed), `x11-theme refresh`, `setup_default_apps`
+  and `i3 -C`, then lists packages the repo wants that are missing and points at `install.sh`. Flags: `-n`,
+  `--no-root` (skip the `/etc` and `/usr/local` copies, no sudo), `--themes` (`x11-theme update`, which pulls).
+  New things that `install.sh` does beyond these (services, firewall, voxtype model, AUR builds) stay its job.
 - See "Shell" below for `shell/` and the login shell.
 - mise is activated in `shell/integrations` (with `set +h`, or bash caches binary paths ahead of the
   shims). No global or project mise config is managed by this repo; put one in `mise/config.toml` if wanted.
@@ -343,6 +389,25 @@ These were left out while the dots only targeted disposable VMs; they are for da
   directory, so on a VM it is enabled but never starts.
 - **File managers:** nautilus on `$mod+e`, yazi in a terminal on `$mod+Shift+e`. yazi's image previews in
   alacritty would need `ueberzugpp`; not installed.
+- **Pointer follows focus.** `$mod+hjkl` and `$mod+arrows` run `bin/x11-focus <dir>` instead of `focus <dir>`:
+  it focuses, then warps the pointer (`xdotool mousemove`) to the centre of the window that took the focus.
+  Nothing moves when the focus did not change (an edge of the workspace), so the pointer is not yanked by a
+  key that did nothing. Only these binds warp; focusing by mouse, workspace switches and `focus parent/child`
+  do not. i3's own `mouse_warping` only warps between outputs.
+- **Microphone mute.** `XF86AudioMicMute` and `$mod+Shift+m` run `x11-volume mic-mute` (`pactl
+  set-source-mute @DEFAULT_SOURCE@ toggle`, with a dunst OSD). The bar has a second `sound` block with
+  `device_kind = "source"` after the volume one; muted it shows the crossed-out microphone icon and "muted"
+  (the level is absent while muted), live it shows the level. Left-clicking the block toggles it too.
+- **Default browser.** `$mod+Escape` -> "Default Browser" opens `bin/x11-default-browser menu`:
+  qutebrowser (the default), firefox, chromium, brave-origin. `set` runs `xdg-settings` and `xdg-mime`
+  for web links and HTML, and records the choice in `~/.config/cachy-dots/default-browser`, which
+  `setup_default_apps()` honours so a re-run of `install.sh` does not put qutebrowser back. brave-origin is
+  installed when missing: `cachyos/brave-origin-bin` when a Cachy repo has it (`pacman -Si cachyos/...`),
+  else `aur/brave-origin-bin` through yay. Installing needs sudo, so from rofi (no tty) the script reopens
+  itself in alacritty. `$mod+b` launches the default browser (`x11-default-browser launch`) and
+  `$mod+Shift+Ctrl+b` the same in private browsing (`--target private-window`, `--private-window`,
+  `--incognito`); `$mod+Shift+b`, `$mod+Ctrl+b` and `$mod+Mod1+b` launch qutebrowser, firefox and chromium
+  whatever the default is. `$mod+u` (the browser workspace) is always qutebrowser.
 - **Telemetry opt-outs: `env/telemetry.conf`.** One `KEY=VALUE` file (the strict subset that both
   environment.d(5) and `sh` accept), merged from quattro-dots' `shell/envs` and its environment.d file. It is
   linked to `~/.config/environment.d/telemetry.conf` for systemd --user (read when the user manager starts,
@@ -489,11 +554,21 @@ No quickshell, nothing else from omarchy's shell.
     group. Its guests get user-mode networking only: no raw packets, no ICMP, and the host reaches a guest only
     through port forwards. That rules out CTF work that needs raw packets or routing through `tun0`.
   The packaged `unix_sock_group` is commented out, which leaves the sockets root-only, so the script sets it for
-  the three daemons. The default network is deliberately left undefined; `labbr0` is the lab network. ufw's
-  `DEFAULT_FORWARD_POLICY="DROP"` would drop forwarded TCP from `labbr0`, so `ufw route allow in/out on labbr0` is
-  added. Checked on the VM with a network namespace on `labbr0`: with the route rules removed, the forward policy
-  dropped the SYN packets, and with them present it dropped none. ICMP passes either way, because ufw's default
-  rules accept echo-request in FORWARD, so a ping test proves nothing here. `qemu-full` depends on
+  the three daemons. The default network is deliberately left undefined; `labbr0` is the lab network. The
+  firewall is libvirt's nftables backend (pinned in `/etc/libvirt/network.conf`) for the NAT, plus ufw rules from
+  `opt/lab-firewall.sh`, **only while ufw is active**: a packet must be accepted by every base chain on its hook
+  and ufw's drop wins over libvirt's own tables, which is why ufw rules are needed at all. The script is sourced
+  by `virt.sh` and `arch-cloud-vm.sh` and runs on its own (`-n` to dry-run). Input: DHCP (67/udp, any
+  destination, as it is a broadcast) and DNS (53 to 10.40.40.1) in on `labbr0`; nothing else from a guest
+  reaches the host. Forward, only when `/etc/default/ufw` has `DEFAULT_FORWARD_POLICY="DROP"`: `labbr0` -> `tun0`
+  (HTB/THM VPN) allowed first, then RFC1918, link-local and 100.64/10 (CGNAT, Tailscale) denied, then
+  `labbr0` -> anywhere else allowed, so the lab reaches the internet and the VPN but not the LAN; nothing outside
+  can start a connection to a guest (host to guest works: it is OUTPUT). The old unrestricted
+  `route allow in/out on labbr0` rules are deleted. ufw stores its rules in `/etc/ufw/*.rules` and they name the
+  interface, so they survive reboot and `ufw reload`; if ufw was off when the script ran, run it again. The
+  earlier version of this section was checked on the VM with a network namespace on `labbr0`; **these rules were
+  written without a ufw to run them against** (ufw needs root), so run `opt/lab-firewall.sh -n` first and test
+  from a guest. ICMP is no test of FORWARD: ufw's default rules accept echo-request there. `qemu-full` depends on
   `qemu-desktop` and does not conflict with it, so the script installs whichever is already there.
 - **Firewall:** `setup_firewall` keeps ufw at deny-incoming/allow-outgoing, enabled, allowing SSH first
   when sshd is enabled (rate-limited if it adds the rule). Open a port for CTF listeners by hand.
