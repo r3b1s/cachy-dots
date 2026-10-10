@@ -2,7 +2,8 @@
 # cachy-dots installer for CachyOS (Arch-based).
 #
 #   1. checks the CachyOS repos, adds chaotic-aur (for qutebrowser-git only)
-#   2. installs any missing packages (pacman; sudo is used when not root)
+#   2. installs any missing packages (pacman; sudo is used when not root),
+#      and the few that only the AUR has (voxtype-bin, through yay)
 #   3. enables the guest-agent services, makes bash the login shell
 #   4. symlinks the dots into ~/.config and ~/.local/bin
 #   5. validates the i3 config
@@ -13,20 +14,24 @@
 # Usage: ./install.sh [--packages-only | --links-only] [-n|--dry-run]
 set -euo pipefail
 
-REPO=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+REPO=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-do_packages=1
-do_links=1
-dry=0
-for arg in "$@"; do
-    case "$arg" in
-        --packages-only) do_links=0 ;;
-        --links-only)    do_packages=0 ;;
-        -n|--dry-run)    dry=1 ;;
-        -h|--help)       sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) echo "unknown option: $arg" >&2; exit 2 ;;
-    esac
-done
+# sync.sh sources this file for its functions: then it has already set these, and
+# the arguments and the main flow below are not ours (see the end of the file).
+do_packages=${do_packages:-1}
+do_links=${do_links:-1}
+dry=${dry:-0}
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    for arg in "$@"; do
+        case "$arg" in
+            --packages-only) do_links=0 ;;
+            --links-only)    do_packages=0 ;;
+            -n|--dry-run)    dry=1 ;;
+            -h|--help)       sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+            *) echo "unknown option: $arg" >&2; exit 2 ;;
+        esac
+    done
+fi
 
 say()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -72,6 +77,7 @@ PKGS+=(
     maim xclip xcolor                # screenshots, clipboard, colour picker
     feh                              # wallpaper, set by bin/x11-wallpaper
     numlockx
+    xdotool                          # pointer warp (bin/x11-focus) and dictation paste (bin/x11-voxtype)
     libnotify                        # dunstify links against it (dunst's optdep); the OSDs use it
     curl                             # fetches the seeded wallpaper
     rofimoji                         # emoji picker, bound in i3/conf.d/30-apps.conf
@@ -333,6 +339,59 @@ install_packages() {
             FAILED=1
         fi
     fi
+}
+
+# AUR packages: the few that no pacman repo carries. A repo build always wins:
+# when pacman can see the package in an enabled repo (Cachy, Arch, chaotic-aur)
+# it is installed from there like any other; yay builds it only otherwise.
+#   voxtype-bin  push-to-talk dictation (voxtype/, bin/x11-voxtype). The AUR
+#                package is kept by voxtype's own authors.
+# makepkg refuses to run as root, so yay runs as the invoking user (yay itself
+# is pinned above and installed first).
+AUR_PKGS=(voxtype-bin)
+# Signing keys the AUR packages above verify their sources with (from their
+# PKGBUILDs: validpgpkeys), imported best effort before the build.
+AUR_KEYS=(E79F5BAF8CD51A806AA27DBB7DA2709247D75BC6 9CCF7915B750CAE8B095ED1AA3FC9F33FD209279)
+
+# Runs a command as the invoking user: yay and gpg must not run as root.
+as_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        run sudo -u "$TARGET_USER" "$@"
+    else
+        run "$@"
+    fi
+}
+
+install_aur() {
+    command -v pacman >/dev/null || return 0
+    local pkg missing=() key
+    for pkg in "${AUR_PKGS[@]}"; do
+        pacman -Qq "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+    done
+    [ "${#missing[@]}" -gt 0 ] || return 0
+
+    say "AUR packages: ${missing[*]}"
+    for pkg in "${missing[@]}"; do
+        if pacman -Si "$pkg" >/dev/null 2>&1; then
+            # Some enabled repo has it after all.
+            run $SUDO pacman -S --needed --noconfirm "$pkg" \
+                || { warn "could not install $pkg"; FAILED=1; }
+            continue
+        fi
+        if [ "$TARGET_USER" = root ]; then
+            warn "not building $pkg as root (makepkg refuses); run install.sh as your user"
+            FAILED=1; continue
+        fi
+        if ! command -v yay >/dev/null && [ "$dry" = 0 ]; then
+            warn "no yay, so $pkg cannot be built from the AUR"
+            FAILED=1; continue
+        fi
+        for key in "${AUR_KEYS[@]}"; do
+            as_user gpg --quiet --keyserver hkps://keyserver.ubuntu.com --recv-keys "$key" >/dev/null 2>&1 || true
+        done
+        as_user yay -S --needed --noconfirm --answerclean None --answerdiff None "$pkg" \
+            || { warn "could not build $pkg from the AUR"; FAILED=1; }
+    done
 }
 
 # Keep the Qt 6 stack on one minor version.
@@ -711,20 +770,61 @@ setup_dark_theme() {
     fi
 }
 
-# nix is for project-specific environments only: the daemon is enabled so
-# `nix-shell` / `nix develop` work for the user, and nothing else is configured
-# (no channels, no flakes settings).
+# nix is for project-specific environments only (`nix-shell`, `nix develop`):
+# no channels and no flake registry changes. What is set up:
+#   - the daemon runs as a system service: nix-daemon.socket for activation and
+#     nix-daemon.service enabled, so it is up at boot rather than only on demand
+#   - /etc/nix/nix.conf enables the nix-command and flakes experimental features
+#     and makes the user a trusted user (may pass build settings, e.g. substituters)
+# Both go into one managed block of extra-* settings, which append to whatever the
+# packaged file or a hand edit already says, rather than replace it. Re-running
+# rewrites the block; the rest of the file is never touched.
+NIX_CONF=/etc/nix/nix.conf
+
+setup_nix_conf() {
+    local user=$1 open="# >>> cachy-dots >>>" close="# <<< cachy-dots <<<"
+    local block tmp
+    block=$(printf '%s\nextra-experimental-features = nix-command flakes\nextra-trusted-users = %s\n%s\n' \
+        "$open" "$user" "$close")
+
+    if [ "$dry" = 1 ]; then
+        echo "+ write to $NIX_CONF:"; printf '%s\n' "$block" | sed 's/^/+   /'
+        return 0
+    fi
+    tmp=$(mktemp)
+    # The file without any earlier managed block, then the block.
+    { [ ! -f "$NIX_CONF" ] || awk -v o="$open" -v c="$close" '$0 == o { skip = 1; next } $0 == c { skip = 0; next } !skip' "$NIX_CONF"
+      printf '%s\n' "$block"; } > "$tmp"
+    if [ -f "$NIX_CONF" ] && cmp -s "$tmp" "$NIX_CONF"; then
+        rm -f "$tmp"; return 1
+    fi
+    $SUDO install -Dm644 "$tmp" "$NIX_CONF"
+    rm -f "$tmp"
+    echo "nix.conf: nix-command and flakes enabled, $user trusted"
+}
+
 enable_nix() {
     pacman -Qq nix >/dev/null 2>&1 || return 0
     command -v systemctl >/dev/null || return 0
 
+    local user="${SUDO_USER:-${USER:-}}" changed=0
+    if [ -n "$user" ] && [ "$user" != root ]; then
+        setup_nix_conf "$user" && changed=1 || true
+    else
+        warn "no non-root user to make a trusted nix user; leaving trusted-users alone"
+    fi
+
     say "Enabling nix-daemon"
-    run $SUDO systemctl enable --now nix-daemon.socket \
-        || warn "could not enable nix-daemon.socket"
+    # A running daemon reads nix.conf only at start.
+    if [ "$changed" = 1 ] && systemctl is-active --quiet nix-daemon.service; then
+        run $SUDO systemctl restart nix-daemon.service \
+            || warn "could not restart nix-daemon.service"
+    fi
+    run $SUDO systemctl enable --now nix-daemon.socket nix-daemon.service \
+        || warn "could not enable nix-daemon"
 
     # Multi-user nix: membership of nix-users (when the package ships it) is
     # what lets a normal user talk to the daemon. Applies at next login.
-    local user="${SUDO_USER:-${USER:-}}"
     if [ -n "$user" ] && [ "$user" != root ] && getent group nix-users >/dev/null; then
         if ! id -nG "$user" | tr ' ' '\n' | grep -qx nix-users; then
             run $SUDO usermod -aG nix-users "$user"
@@ -855,6 +955,8 @@ setup_theme() {
 
 link() {
     local src="$1" dst="$2"
+    # Already right: say nothing, so a re-run (sync.sh) shows only what changed.
+    [ "$(readlink "$dst" 2>/dev/null)" = "$src" ] && return 0
     run mkdir -p "$(dirname "$dst")"
     if [ -e "$dst" ] && [ ! -L "$dst" ]; then
         local backup
@@ -950,7 +1052,8 @@ install_links() {
         "btop/btop.conf:btop/btop.conf" \
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
-        "starship/starship.toml:starship.toml"
+        "starship/starship.toml:starship.toml" \
+        "voxtype/config.toml:voxtype/config.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
     done
@@ -1001,9 +1104,17 @@ DEFAULT_APPS=(
 setup_default_apps() {
     command -v xdg-mime >/dev/null || return 0
     say "Default applications"
-    local pair app
+    # The $mod+Escape > "Default Browser" menu (bin/x11-default-browser) records
+    # its pick here; keep it rather than putting qutebrowser back on every run.
+    local pair app browser=org.qutebrowser.qutebrowser.desktop chosen
+    chosen=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/default-browser" 2>/dev/null || true)
+    if [ -n "$chosen" ] && [ -f "/usr/share/applications/$chosen" ]; then
+        browser=$chosen
+        echo "default browser: $browser (chosen from the menu)"
+    fi
     for pair in "${DEFAULT_APPS[@]}"; do
         app=${pair%%:*}
+        [ "$app" = org.qutebrowser.qutebrowser.desktop ] && app=$browser
         if [ ! -f "/usr/share/applications/$app" ]; then
             warn "no $app installed; leaving its file types alone"
             continue
@@ -1013,8 +1124,21 @@ setup_default_apps() {
         echo "default: $app"
     done
     if command -v xdg-settings >/dev/null; then
-        run xdg-settings set default-web-browser org.qutebrowser.qutebrowser.desktop 2>/dev/null || true
+        run xdg-settings set default-web-browser "$browser" 2>/dev/null || true
     fi
+}
+
+# Voxtype needs a speech model before its daemon (05-autostart.conf) can do
+# anything. The config names base.en, which is what `voxtype setup --download`
+# fetches. Needs network; a failure is only a warning, since it can be re-run.
+setup_voxtype() {
+    command -v voxtype >/dev/null || return 0
+    if ls "${XDG_DATA_HOME:-$HOME/.local/share}"/voxtype/models/*.bin >/dev/null 2>&1; then
+        return 0
+    fi
+    say "Voxtype: downloading the speech model (base.en)"
+    as_user voxtype setup --download \
+        || warn "voxtype model download failed; run: voxtype setup --download"
 }
 
 validate_i3() {
@@ -1025,39 +1149,46 @@ validate_i3() {
     fi
 }
 
-if [ "$do_packages" = 1 ]; then
-    check_cachy_repos
-    setup_chaotic_aur
-    install_packages
-    sync_qt_stack
-    setup_login_shell
-    setup_theme_helper
-    install_ly_theme
-    enable_services
-    enable_nix
-    setup_dark_theme
-    setup_gtk
-    setup_firefox
-    setup_chromium
-    setup_firewall
-    setup_touchpad
-    check_keyring_pam
-fi
-if [ "$do_links" = 1 ]; then
-    install_links
-    setup_theme
-    setup_default_apps
-    validate_i3
-fi
+main() {
+    if [ "$do_packages" = 1 ]; then
+        check_cachy_repos
+        setup_chaotic_aur
+        install_packages
+        install_aur
+        sync_qt_stack
+        setup_login_shell
+        setup_theme_helper
+        install_ly_theme
+        enable_services
+        enable_nix
+        setup_dark_theme
+        setup_gtk
+        setup_firefox
+        setup_chromium
+        setup_firewall
+        setup_touchpad
+        check_keyring_pam
+    fi
+    if [ "$do_links" = 1 ]; then
+        install_links
+        setup_theme
+        setup_default_apps
+        setup_voxtype
+        validate_i3
+    fi
 
-echo
-# A kernel upgraded by this run leaves the running one without modules; anything
-# netfilter-based (ufw, libvirt's NAT) stays broken until a reboot.
-if [ ! -d "/usr/lib/modules/$(uname -r)" ]; then
-    warn "reboot needed: kernel $(uname -r) is running but its modules are gone (it was upgraded)"
-fi
-if [ "$FAILED" = 1 ]; then
-    warn "finished with errors (see the warnings above)"
-    exit 1
-fi
-echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."
+    echo
+    # A kernel upgraded by this run leaves the running one without modules; anything
+    # netfilter-based (ufw, libvirt's NAT) stays broken until a reboot.
+    if [ ! -d "/usr/lib/modules/$(uname -r)" ]; then
+        warn "reboot needed: kernel $(uname -r) is running but its modules are gone (it was upgraded)"
+    fi
+    if [ "$FAILED" = 1 ]; then
+        warn "finished with errors (see the warnings above)"
+        exit 1
+    fi
+    echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."
+}
+
+# Not when sourced (sync.sh).
+[ "${BASH_SOURCE[0]}" != "$0" ] || main
