@@ -1,0 +1,28 @@
+#!/bin/sh
+# x11-focus left|down|up|right
+#
+# `focus <direction>`, then the pointer follows: it is warped to the centre of
+# the window that took the focus (i3 only warps between outputs). Nothing moves
+# when the focus did not change, e.g. at the edge of the workspace, so the
+# pointer is not yanked around by a key that did nothing.
+set -eu
+
+case "${1:-}" in
+    left|down|up|right) ;;
+    *) echo "usage: x11-focus left|down|up|right" >&2; exit 1 ;;
+esac
+
+# id and absolute rectangle of the focused container
+focused() {
+    i3-msg -t get_tree | jq -r '
+        [recurse(.nodes[]?, .floating_nodes[]?) | select(.focused)][0]
+        | "\(.id) \(.rect.x) \(.rect.y) \(.rect.width) \(.rect.height)"'
+}
+
+before=$(focused | cut -d' ' -f1)
+i3-msg -q focus "$1"
+set -- $(focused)
+
+[ "$1" != "$before" ] || exit 0
+command -v xdotool >/dev/null || exit 0
+exec xdotool mousemove $(($2 + $4 / 2)) $(($3 + $5 / 2))

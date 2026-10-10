@@ -160,6 +160,26 @@ warning_fg = "{{ bright_foreground }}"
 critical_bg = "{{ mix background orange 85% }}"
 critical_fg = "{{ bright_foreground }}"
 
+# Microphone: the default source, next to the volume block. Muted, the icon turns
+# into the crossed-out microphone and "muted" replaces the level (the level is
+# absent while muted). Left click toggles it, as does $mod+Shift+m
+# (bin/x11-volume mic-mute).
+[[block]]
+block = "sound"
+device_kind = "source"
+format = " $icon{ $volume| muted} "
+[block.theme_overrides]
+idle_bg = "{{ mix background orange 25% }}"
+idle_fg = "{{ foreground }}"
+info_bg = "{{ mix background orange 40% }}"
+info_fg = "{{ bright_foreground }}"
+good_bg = "{{ mix background orange 40% }}"
+good_fg = "{{ bright_foreground }}"
+warning_bg = "{{ mix background orange 65% }}"
+warning_fg = "{{ bright_foreground }}"
+critical_bg = "{{ mix background orange 85% }}"
+critical_fg = "{{ bright_foreground }}"
+
 # Battery, laptops only: missing_format is empty, so on a machine with no
 # battery the block takes no space (the same trick as the VPN block).
 [[block]]
