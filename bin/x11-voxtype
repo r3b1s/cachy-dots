@@ -1,0 +1,30 @@
+#!/bin/sh
+# x11-voxtype toggle | paste
+#
+#   toggle  start or stop a dictation (`voxtype record toggle`) and say which in a
+#           dunst notification. quattro-dots showed omarchy-osd here.
+#   paste   voxtype's post_output_command (voxtype/config.toml). The text is
+#           already in the CLIPBOARD (voxtype's xclip driver); copy it to PRIMARY
+#           as well, since terminals paste one and GTK the other, and send
+#           Shift+Insert, which pastes whichever the focused app reads.
+set -eu
+
+state_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/voxtype/state"
+
+case "${1:-}" in
+    toggle)
+        command -v voxtype >/dev/null || { dunstify -a x11-voxtype -u critical "voxtype is not installed"; exit 1; }
+        prev=$(cat "$state_file" 2>/dev/null || echo idle)
+        voxtype record toggle
+        case "$prev" in
+            idle) dunstify -a x11-voxtype -u low -r 9992 "Dictation" "recording..." ;;
+            *)    dunstify -a x11-voxtype -u low -r 9992 "Dictation" "transcribing..." ;;
+        esac
+        ;;
+    paste)
+        xclip -selection clipboard -o 2>/dev/null | xclip -selection primary -i 2>/dev/null || true
+        dunstify -C 9992 2>/dev/null || true
+        exec xdotool key --clearmodifiers shift+Insert
+        ;;
+    *) echo "usage: x11-voxtype toggle|paste" >&2; exit 1 ;;
+esac

@@ -1,0 +1,212 @@
+# Voxtype Configuration
+#
+# From r3b1s/quattro-dots (Hyprland), ported to i3/X11. Linked to
+# ~/.config/voxtype/config.toml by install.sh; `voxtype setup model` edits it in
+# place, so those changes show up in the repo.
+#
+# Dictation: $mod+d (i3/conf.d/30-apps.conf) runs bin/x11-voxtype toggle.
+# The daemon is started by i3 (05-autostart.conf), not by voxtype.service, which
+# hangs off graphical-session.target, and a bare i3 session never reaches it.
+#
+# Location: ~/.config/voxtype/config.toml
+# All settings can be overridden via CLI flags
+#
+# State file for external integrations and toggle commands.
+# Use "auto" for default location ($XDG_RUNTIME_DIR/voxtype/state),
+# a custom path, or "disabled" to turn off. The daemon writes state
+# ("idle", "recording", "transcribing") to this file whenever it changes.
+# Required for `voxtype record toggle` and `voxtype status` commands.
+state_file = "auto"
+
+[hotkey]
+# Hotkey is configured in i3 ($mod+d). The built-in one needs the `input` group.
+enabled = false
+
+[audio]
+# Audio input device ("default" uses system default)
+# List devices with: pactl list sources short
+device = "default"
+
+# Sample rate in Hz (whisper expects 16000)
+sample_rate = 16000
+
+# Maximum recording duration in seconds (safety limit)
+max_duration_secs = 120
+
+# Pause MPRIS media players during recording
+pause_media = true
+
+[audio.feedback]
+# Enable audio feedback sounds (beeps when recording starts/stops)
+enabled = true
+#
+# Sound theme: "default", "subtle", "mechanical", or path to custom theme directory
+theme = "subtle"
+#
+# Volume level (0.0 to 1.0)
+volume = 0.33
+
+[whisper]
+# Model to use for transcription
+# Options: tiny, tiny.en, base, base.en, small, small.en, medium, medium.en, large-v3, large-v3-turbo
+# .en models are English-only but faster and more accurate for English
+# large-v3-turbo is faster than large-v3 with minimal accuracy loss (recommended for GPU)
+# Or provide absolute path to a custom .bin model file
+model = "base.en"
+
+# Language for transcription
+# Use "en" for English, "auto" for auto-detection
+# See: https://github.com/openai/whisper#available-models-and-languages
+language = "en"
+
+# Translate non-English speech to English
+translate = false
+
+# Number of CPU threads for inference (omit for auto-detection)
+# threads = 4
+
+# When enabled, audio is split into chunks and transcribed in parallel with continued recording, reducing perceived latency on slower machines.
+eager_processing = false
+eager_chunk_secs = 10.0
+eager_overlap_secs = 1.5
+
+# GPU memory isolation mode. When enabled, transcription runs in a subprocess that exits after each recording, fully releasing GPU memory between transcriptions.
+gpu_isolation = true
+
+# Optimizes Whisper's context window size for short recordings. When enabled, clips under 22.5 seconds use a smaller context window proportional to their length, speeding up transcription. Also sets no_context=true to prevent phrase repetition.
+context_window_optimization = true
+
+# Provides context to Whisper to improve transcription accuracy for domain-specific vocabulary. The prompt hints at terminology, proper nouns, or formatting conventions that Whisper should expect in the audio.
+initial_prompt = "Lots of software engineering tools, concepts, & disciplines. Networking too. Voxtype, i3, CachyOS, Arch Linux, Quickshell, tiling window managers, programming languages, golang, security, systemd, Linux, Proxmox, Ludus, VM, virtual machines, VMs (plural), journalctl, systemctl, kubectl, CLIs, command line, terminal, cloud-init, shell environments, cybersecurity, machine learning, artificial intelligence, AI, terminal multiplexers, tmux, VPN, VPNs (plural), VPC, VPCs (plural), VPS, VPSs (plural). Other IT & computer science related concepts."
+
+[output]
+# Primary output mode: "type" or "clipboard"
+# - type: Simulates keyboard input at cursor position (requires ydotool or dotool)
+# - file: Outputs text to a file
+#   - file_path: target file path
+#   - file_mode: "overwrite" or "append" (default is "overwrite")
+# - clipboard: Copies text to clipboard (wl-copy on Wayland, xclip on X11)
+# - paste: Copies text to clipboard and pastes to cursor position
+#   - paste_keys = "super+v" # keys to emulate for paste action
+#
+# mode = "paste"
+# paste_keys = "super+v"
+
+mode = "clipboard"
+
+# Fall back to clipboard if typing fails
+fallback_to_clipboard = true
+
+# Delay between typed characters in milliseconds
+# 0 = fastest possible, increase if characters are dropped
+type_delay_ms = 2
+
+# Delay in milliseconds before typing starts. This allows the virtual keyboard to initialize and helps prevent the first character from being dropped on some compositors. Try 100-200ms if you experience issues.
+pre_type_delay_ms = 250
+
+# Convert newlines in transcribed text to Shift+Enter instead of regular Enter. This is useful for applications where pressing Enter submits the message or form, but you want to insert line breaks within your text.
+shift_enter_newlines = true
+
+# Prefix wtype output with a Shift key press and release. This is a workaround for apps (notably Discord) that drop the first CJK character when wtype types text. The Shift press/release has no visible effect on the output but prevents the first character from being swallowed. Only affects the wtype output driver. Has no effect when using dotool, ydotool, or clipboard modes.
+wtype_shift_prefix = true
+
+
+# Pre/Post Output Commands
+# X11 has no wtype, so the text goes to the clipboard (xclip) and the post command
+# pastes it with xdotool: bin/x11-voxtype paste mirrors it into the PRIMARY
+# selection too (alacritty's Shift+Insert pastes PRIMARY, GTK's pastes CLIPBOARD),
+# then sends Shift+Insert. The Hyprland setup also swapped to a submap that
+# swallowed the keyboard while the text was typed; --clearmodifiers in the paste
+# covers the one case that mattered, a still-held $mod.
+pre_output_command = ""
+post_output_command = "bash ~/.local/bin/x11-voxtype paste"
+
+# Post-processing command (optional)
+# Pipe transcribed text through an external command for cleanup before output.
+# The command receives text on stdin and outputs processed text on stdout.
+# Useful for LLM-based text cleanup, grammar correction, filler word removal.
+# On any failure (timeout, error), falls back to original transcription.
+#
+# [output.post_process]
+# command = "ollama run llama3.2:1b 'Clean up this dictation. Fix grammar, remove filler words. Output only the cleaned text:'"
+# timeout_ms = 30000  # 30 second timeout (generous for LLM)
+
+[output.notification]
+# Show notification when recording starts (hotkey pressed)
+on_recording_start = false
+
+# Show notification when recording stops (transcription beginning)
+on_recording_stop = false
+
+# Show notification with transcribed text after transcription completes
+on_transcription = false
+
+
+[text]
+# Text processing options (word replacements, spoken punctuation)
+
+# Enable spoken punctuation conversion (e.g., say "period" to get ".")
+spoken_punctuation = true
+
+# Filler Words
+# When true (the default), strips common filler words ("uh", "um", "er", ...) from each transcription before output. Matching is case-insensitive and respects word boundaries, so words like "umbrella" or "summer" are not affected. Surrounding commas, semicolons, and double spaces are cleaned up so the result reads naturally. Set to false to disable.
+filter_filler_words = true
+#
+# Words removed by the filler-word filter. The default list is conservative and includes only single-syllable disfluencies. Override it to add your own (for example "like" or "you know"), or to disable specific entries by replacing the list.
+# - Default: ["uh", "um", "er", "ah", "eh", "hmm", "hm", "mm", "mhm"]
+filler_words = ["uh", "um", "er", "ah", "eh", "hmm", "hm", "mm", "mhm"]
+
+
+# Custom word replacements (case-insensitive)
+[text.replacements]
+"hyperwhisper" = "hyprwhspr"
+"hyperland" = "hyprland"
+"lutis" = "ludus"
+"lootis" = "ludus"
+"vox type" = "voxtype"
+"oh marchy" = "Omarchy"
+"oh marky" = "Omarchy"
+"omarchi" = "Omarchy"
+"omachi" = "Omarchy"
+"umarchi" = "Omarchy"
+"cloudernet" = "cloud-init"
+"cloud in it" = "cloud-init"
+"cloudnet" = "cloud-init"
+"edora" = "Fedora"
+"vadora" = "Fedora"
+"forgeo" = "forgejo"
+"PyHarnus" = "pi harness"
+"chemoed" = "chmod"
+"parts its" = "parses"
+"simlined" = "symlinked"
+"sim-lined" = "symlinked"
+"sim linked" = "symlinked"
+"technidium" = "technitium"
+"iavailability" = "high availability"
+"proxomox" = "proxmox"
+"cloud code" = "claude code"
+"Cloud Code" = "claude code"
+"DMUX" = "tmux"
+"dmux" = "tmux"
+"T-Mucks" = "tmux"
+
+# Non-standard Punctuation
+# "TAC" = "-"
+# "tac" = "-"
+# "tack" = "-"
+# "tak" = "-"
+# "tacc" = "-"
+
+
+[vad]
+# Voice Activity Detection configuration. When enabled, VAD filters silence-only recordings before transcription, preventing Whisper hallucinations when processing silence.
+# - Valid backends: "auto" (default), "energy" (works with any engine, no model download required), and "whisper" (Silero VAD via whisper-rs. More accurate speech detection, but requires downloading the VAD model with `voxtype setup vad`)
+
+enabled = true
+backend = "auto"
+
+# vad threshold -> 0.0 - 1.0
+# - Lower values are very sensitive.
+# - Higher values require louder, clearer speech.
+#
+# threshold = 0.3
