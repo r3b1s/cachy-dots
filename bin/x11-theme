@@ -292,6 +292,17 @@ restart_nm_applet() {
     i3-msg -q 'exec --no-startup-id nm-applet' 2>/dev/null || true
 }
 
+# blueman-applet draws its tray icon through blueman-tray, a separate process
+# that outlives it, and keeps the icon it loaded at start. Both are restarted,
+# the applet through i3 so it keeps the session's environment, and it respawns
+# the tray itself. Only when an adapter exists, as at login (05-autostart.conf).
+restart_blueman() {
+    pgrep -x -u "$(id -u)" blueman-applet >/dev/null || return 0
+    [[ -n ${DISPLAY:-} ]] || return 0
+    pkill -x -u "$(id -u)" blueman-applet 2>/dev/null; pkill -x -u "$(id -u)" blueman-tray 2>/dev/null || true
+    i3-msg -q 'exec --no-startup-id blueman-applet' 2>/dev/null || true
+}
+
 reload_apps() {
     local i3sock
     # i3 re-reads the included i3.conf; the reload restarts i3bar and with it
@@ -320,6 +331,7 @@ reload_apps() {
         "$REPO/bin/x11-wallpaper" current >/dev/null 2>&1 || true
     fi
     restart_nm_applet
+    restart_blueman
 }
 
 run_hooks() {

@@ -13,4 +13,6 @@ set $th_accent    {{ accent }}
 set $th_accent_dim {{ mix background accent 45% }}
 set $th_urgent    {{ red }}
 set $th_urgent_bg {{ mix background red 40% }}
-set $th_indicator {{ bright_red }}
+# i3 paints this on the edge where the next split would open; it is the accent so
+# the focused border stays one colour (bright_red left a red bottom edge on kanagawa).
+set $th_indicator {{ accent }}
