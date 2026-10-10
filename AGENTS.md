@@ -449,7 +449,11 @@ These were left out while the dots only targeted disposable VMs; they are for da
 - **Microphone mute.** `XF86AudioMicMute` and `$mod+Shift+m` run `x11-volume mic-mute` (`pactl
   set-source-mute @DEFAULT_SOURCE@ toggle`, with a dunst OSD). The bar has a second `sound` block with
   `device_kind = "source"` after the volume one; muted it shows the crossed-out microphone icon and "muted"
-  (the level is absent while muted), live it shows the level. Left-clicking the block toggles it too.
+  (the level is absent while muted), live it shows the level. Right-clicking the block toggles it too.
+- **Audio devices from the bar.** Left-clicking the volume block opens `pavucontrol --tab=3` (Output Devices)
+  and the microphone block `pavucontrol --tab=4` (Input Devices), to pick the default device and set levels;
+  the blocks keep their own right click (mute) and wheel (volume). `pavucontrol` is in `PKGS` (it was only
+  installed by hand before) and its window floats. It talks to PipeWire through `pipewire-pulse`.
 - **Default browser.** `$mod+Escape` -> "Default Browser" opens `bin/x11-default-browser menu`:
   qutebrowser (the default), firefox, chromium, brave-origin. `set` runs `xdg-settings` and `xdg-mime`
   for web links and HTML, and records the choice in `~/.config/cachy-dots/default-browser`, which

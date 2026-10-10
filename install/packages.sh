@@ -52,6 +52,7 @@ PKGS+=(
     xdg-desktop-portal-gtk           # its backend; the one that implements Settings
     adwaita-icon-theme               # the base icon theme pinkrot inherits from
     pipewire-pulse                   # pactl, used by x11-volume
+    pavucontrol                      # mixer and default-device picker; the bar's volume blocks open it
     ttf-jetbrains-mono-nerd          # font used by the terminals / i3 / bar
     starship                         # shell prompt (config in starship/)
     tmux                             # terminal multiplexer (config in tmux/)

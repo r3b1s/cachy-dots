@@ -145,9 +145,15 @@ warning_fg = "{{ bright_foreground }}"
 critical_bg = "{{ mix background red 85% }}"
 critical_fg = "{{ bright_foreground }}"
 
+# Left click opens pavucontrol on its Output Devices tab, to pick the default
+# output and set levels; right click mutes and the wheel changes the volume
+# (the block's own defaults).
 [[block]]
 block = "sound"
 format = " $icon $volume "
+[[block.click]]
+button = "left"
+cmd = "pavucontrol --tab=3"
 [block.theme_overrides]
 idle_bg = "{{ mix background orange 25% }}"
 idle_fg = "{{ foreground }}"
@@ -162,12 +168,16 @@ critical_fg = "{{ bright_foreground }}"
 
 # Microphone: the default source, next to the volume block. Muted, the icon turns
 # into the crossed-out microphone and "muted" replaces the level (the level is
-# absent while muted). Left click toggles it, as does $mod+Shift+m
-# (bin/x11-volume mic-mute).
+# absent while muted). Right click toggles it, as does $mod+Shift+m
+# (bin/x11-volume mic-mute); left click opens pavucontrol on its Input Devices
+# tab, to pick the default input.
 [[block]]
 block = "sound"
 device_kind = "source"
 format = " $icon{ $volume| muted} "
+[[block.click]]
+button = "left"
+cmd = "pavucontrol --tab=4"
 [block.theme_overrides]
 idle_bg = "{{ mix background orange 25% }}"
 idle_fg = "{{ foreground }}"
