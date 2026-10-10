@@ -313,11 +313,21 @@ skip themselves, since each is guarded by `pacman -Qq` or `command -v` (the Fire
 bluetooth, power-profiles-daemon, nix, voxtype). The workstation skips only `vm-scripts` and still adds the guest agents
 only when `systemd-detect-virt` says VM. The **vm** profile (`install_vm.sh`, `install/profile-vm.sh`, the only
 place its list is kept) forces the guest agents and leaves out: rclone,
+`xss-lock` and `i3lock-color` (no locker, see below),
 blueman/bluez/bluez-utils, brightnessctl, power-profiles-daemon, gammastep, autorandr/arandr,
 tesseract-data-eng, vesktop, voxtype-bin, and the touchpad config. Firefox, Chromium, Obsidian, ZAP, nix and
 yay stay in (their policies, the nix.conf block and the daemon are set up as on the workstation). That list is a first guess; edit the
 file. Each run writes the profile to `~/.config/cachy-dots/profile`, and `sync.sh` reads it (or `PROFILE=`),
 so a VM is synced as a VM.
+
+**A guest never sleeps.** The vm profile sets `PROFILE_NO_SLEEP=1`, which runs `setup_no_sleep()` (install and
+`sync.sh`): `systemd/10-cachy-dots-awake.conf` into `/etc/systemd/logind.conf.d/` (`IdleAction=ignore`, lid and
+suspend/hibernate keys ignored; the power key is left alone; read at logind's next start, so after a reboot),
+`sleep`, `suspend`, `hibernate`, `hybrid-sleep` and `suspend-then-hibernate` targets masked, and
+`xorg/20-no-blanking.conf` into `/etc/X11/xorg.conf.d/` (`BlankTime`, `StandbyTime`, `SuspendTime`, `OffTime` all 0).
+With no locker either, nothing but a person ends the i3 session. ly autologin is still not enabled, so a reboot
+lands at the login prompt. A VM installed before this still has `xss-lock`; the step warns and names the
+`pacman -Rns` that removes it (removing packages is not its job).
 
 **VM scripts.** `opt/arch-cloud-vm.sh` makes the bare cloud-image VM (no display); its fork
 `opt/arch-cloud-vm-dots.sh` adds a SPICE display and installs the dots. The shared steps (checks, verified
@@ -466,8 +476,27 @@ These were left out while the dots only targeted disposable VMs; they are for da
   `~/Pictures/Screenshots`, Escape discards; keys 1-6 pick the pinkrot palette.
 - **Lock: i3lock-color + xss-lock.** `bin/x11-lock` (`$mod+Ctrl+Escape`, and "lock" in the `$mod+Escape`
   menu) runs i3lock-color blurred, with a ring and clock in the theme's colours, and refuses to stack a second locker.
-  `xss-lock --transfer-sleep-lock` locks before suspend, holding suspend until the locker is up (which is why
-  `x11-lock` execs `i3lock --nofork`), and when the X screensaver fires: `xset s 600 600`, 10 idle minutes.
+  It tells you (dunst) when i3lock is not installed, and the power menu then leaves "lock" out, as it leaves out
+  "suspend" when `suspend.target` is masked. `bin/x11-idle init` (plain `exec` in `05-autostart.conf`) sets
+  `xset s 600 600 +dpms` and runs `xss-lock --transfer-sleep-lock` in the foreground: it locks before suspend,
+  holding suspend until the locker is up (which is why `x11-lock` execs `i3lock --nofork`), and when the X
+  screensaver fires, 10 idle minutes. Where `xss-lock` is not installed (the vm profile) `init` runs
+  `xset s off s noblank -dpms` instead, so nothing locks and the display never blanks.
+- **Idle inhibit: `$mod+Ctrl+i`** runs `bin/x11-idle toggle`. On, it switches the X screensaver and DPMS off and holds
+  a logind inhibitor lock (`systemd-inhibit --what=idle:sleep --mode=block sleep infinity`, in its own session so
+  its pid is also the process group to kill; the pid is in `$XDG_RUNTIME_DIR/x11-idle.pid`, which dies with the
+  login session). With the screensaver off, xss-lock sees no idle event, so nothing locks; the inhibitor stops
+  automatic suspend, hibernation and logind's idle action. It does **not** inhibit `handle-lid-switch` (logind
+  ignores sleep inhibitors for the lid anyway), and a deliberate suspend, poweroff or lock from the power menu
+  still works. A `shutdown` lock was left out on purpose: in `block` mode it would refuse the menu's own
+  poweroff. Off, it restores the timers (`xset s 600 600 +dpms`, or off again without xss-lock). The cup is a
+  `dzen2` pill (`-p`, orange with the background colour as text, `JetBrainsMono Nerd Font:size=11`) centred on the
+  first visible i3bar, whose geometry comes from `xdotool getwindowgeometry`: i3bar draws its status line only at
+  the right edge, so no i3status-rs block could sit in the middle. dzen2 windows are override-redirect, i.e.
+  unmanaged by i3, so it overlays the bar's empty space; clicking it runs `x11-idle off`. It sits at the geometry
+  the bar had when inhibit was switched on (toggle again after a resolution change). Checked with a stub
+  `systemd-inhibit` and `xset` (the sandbox the script was written in has no system bus, X or dzen2); **the
+  placement and the glyph rendering have not been seen on a screen.**
 - **Nightlight.** `bin/x11-nightlight` (`$mod+Ctrl+n`) toggles `gammastep -m randr -O 4000` (one-shot: it sets
   the gamma ramps and exits, X keeps them, so no daemon runs). `NIGHTLIGHT_TEMP` changes the warmth. The
   virtio GPU on the test VM supports gamma ramps (`xrandr --verbose` shows `Gamma: 1.0:1.3:1.6` when on).
