@@ -263,6 +263,58 @@ One trap in the colours file itself: it set `vim.g.colors_name` before `highligh
 resets `g:colors_name`, so it read back as nil even though the colours applied. The assignment now comes
 after, and `:colorscheme` reports `pinkrot` again.
 
+## Installer layout and profiles
+
+`install.sh` and `install_vm.sh` are thin entry scripts: each names its profile (`PROFILE=workstation|vm`),
+sources `install/lib.sh`, and runs `parse_args` and `install_main`. The functions that used to be one file
+now live in `install/`, by purpose (the function names, and the `install.sh` references in this file, are
+unchanged; read them as "in `install/`"):
+
+| Module | Holds |
+| --- | --- |
+| `common.sh` | `say`/`warn`/`run`, `SUDO`, `TARGET_USER`, `FAILED`, `as_user`, `parse_args`, profile handling (`want`, `apply_profile`) |
+| `packages.sh` | `PKGS`, `PINNED`, `PINNED_REPLACES`, `AUR_PKGS`, the guest-agent packages |
+| `repos.sh` | `check_cachy_repos`, `setup_chaotic_aur` |
+| `pacman.sh` | `install_packages`, `install_aur`, `sync_qt_stack` |
+| `system.sh` | login shell, ly overlay, nix, services, firewall, touchpad, keyring check, `validate_i3` |
+| `browsers.sh` | Firefox and Chromium policies, `setup_default_apps` |
+| `theme.sh` | root helpers, GTK, dark mode, `setup_theme` |
+| `links.sh` | `link`, `install_links`, the bashrc block, the nvim tree |
+| `voxtype.sh` | the speech model |
+| `flow.sh` | `install_main`: the steps in order, and `record_profile` |
+| `profile-<name>.sh` | what a profile leaves out |
+
+The split was checked to change nothing for the workstation: sourcing the old single file and the new
+modules gave identical function bodies and package arrays (`declare -f`/`declare -p` diff, apart from the new
+helpers and `main` becoming `install_main`).
+
+**Profiles.** The lists in `packages.sh` stay complete; `apply_profile()` removes what the profile names:
+`PROFILE_SKIP_PKGS`, `PROFILE_SKIP_PINNED` (by package name, either repo's), `PROFILE_SKIP_AUR`, and
+`PROFILE_SKIP_FEATURES` (checked with `want <feature>`; today only `touchpad`). Steps whose package is gone
+skip themselves, since each is guarded by `pacman -Qq` or `command -v` (the Firefox and Chromium policies,
+bluetooth, power-profiles-daemon, nix, voxtype). The workstation skips nothing and still adds the guest agents
+only when `systemd-detect-virt` says VM. The **vm** profile (`install_vm.sh`, `install/profile-vm.sh`, the only
+place its list is kept) forces the guest agents and leaves out: rclone,
+blueman/bluez/bluez-utils, brightnessctl, power-profiles-daemon, gammastep, autorandr/arandr,
+tesseract-data-eng, vesktop, voxtype-bin, and the touchpad config. Firefox, Chromium, Obsidian, ZAP, nix and
+yay stay in (their policies, the nix.conf block and the daemon are set up as on the workstation). That list is a first guess; edit the
+file. Each run writes the profile to `~/.config/cachy-dots/profile`, and `sync.sh` reads it (or `PROFILE=`),
+so a VM is synced as a VM.
+
+**Tested** on a fresh Arch cloud-image VM, `dots-test`, made with
+`opt/arch-cloud-vm.sh --name dots-test --user arch --memory 6144 --vcpus 4 --disk 30G --nopasswd`
+(`--nopasswd` is cloud-init's `NOPASSWD:ALL`, so the VM can be driven over ssh; there is no one to type a
+password). Its libvirt snapshot `provisioned` (internal, taken shut off, right after cloud-init finished)
+is the clean state: `virsh -c qemu:///system snapshot-revert dots-test provisioned`, start it, copy the repo
+over (`tar` through ssh: the image has no rsync) and run the installer. Results: `install_vm.sh` completes on
+vanilla Arch (it exits 1 only for the known ufw warning, since the upgraded kernel's modules are not loaded
+until a reboot); after the reboot `ly@tty1` is active and `i3 -C` passes; none of the skipped packages (as the list stood then, which also skipped firefox, chromium, obsidian,
+zaproxy and nix) is installed (tesseract itself still comes in as a dependency of zathura's mupdf); `sync.sh` follows the
+recorded profile; and `install.sh -n` on the same VM plans exactly the packages the vm profile left out.
+The test also found that vanilla Arch has no `git`, which `x11-theme install` needs: it is now in `PKGS`.
+One more fix from it: `setup_firewall`'s final `ufw status | sed` was unguarded and, under `pipefail`, ended the
+whole run when ufw could not start.
+
 ## Layout and install
 
 - `i3/` — `config` + numbered `conf.d/` modules (see header of `i3/config`).
@@ -323,9 +375,9 @@ after, and `:colorscheme` reports `pinkrot` again.
   into `/etc/ly/config.ini` instead
   of linked, and the GTK icon theme is generated into `~/.local/share/icons/`.
 - **`sync.sh`** (repo root) brings an installed system up to date after a `git pull` or an edit, without
-  installing anything, enabling a service or touching the network: it sources `install.sh` for its functions
-  (`install.sh` does not run its main flow when sourced, and `link()` stays silent for links that are already
-  right) and runs `install_links` (new links, repointed ones, backups of real files in the way), removes links
+  installing anything, enabling a service or touching the network: it sources `install/lib.sh` for the functions
+  (nothing runs on sourcing; `link()` stays silent for links that are already right), takes the profile from
+  `~/.config/cachy-dots/profile`, and runs `install_links` (new links, repointed ones, backups of real files in the way), removes links
   into the repo whose file is gone, `setup_gtk`, the root copies that only write when they differ
   (`setup_theme_helper`, `install_ly_theme`, `setup_firefox`, `setup_chromium`, `setup_touchpad`, the nix.conf
   block, which restarts `nix-daemon.service` only if it changed), `x11-theme refresh`, `setup_default_apps`
