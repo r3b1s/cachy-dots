@@ -1,0 +1,117 @@
+#!/bin/sh
+# x11-idle [init|toggle|on|off|status] — idle and sleep handling for the session.
+#
+#   init     (i3 starts it once) set the X idle timers and, where xss-lock is
+#            installed, run it in the foreground: it locks before suspend and
+#            after 10 idle minutes. Without xss-lock (the vm profile) the screen
+#            saver and DPMS are switched off instead, so the display never blanks.
+#   toggle   idle inhibit on/off ($mod+Ctrl+i). On: the X screen saver and DPMS
+#            go off, and a logind inhibitor lock (idle:sleep) blocks automatic
+#            suspend, hibernation and idle actions. xss-lock then never sees an
+#            idle event, so nothing locks. It does not touch lid-switch handling:
+#            closing a laptop lid still does what logind is set to do, and so
+#            do a deliberate suspend, poweroff and lock from the power menu.
+#   status   "on" or "off".
+#
+# While inhibiting, a small coffee-cup pill (dzen2) sits in the middle of the i3bar,
+# over its empty space: i3bar only draws the status line at the right edge, so
+# nothing it can show would be centred. It is an unmanaged (override-redirect)
+# window placed from the bar's own geometry; clicking it switches inhibit off.
+#
+# The state is the inhibitor process (`sleep infinity` under systemd-inhibit),
+# whose pid is in $XDG_RUNTIME_DIR; it goes with the login session.
+set -eu
+
+state="${XDG_RUNTIME_DIR:-/tmp}/x11-idle.pid"
+cup_state="${XDG_RUNTIME_DIR:-/tmp}/x11-idle-cup.pid"
+glyph=$(printf '\363\260\205\266')   # nf-md-coffee, U+F0176
+self=$(readlink -f "$0")
+
+notify() { dunstify -a cachy-dots -r 9985 "$@" 2>/dev/null || true; }
+
+# The cup: a dzen2 pill centred on the first visible i3bar, in the theme's warning
+# colours (orange, text in the background colour), as the bar's own warning blocks.
+show_cup() {
+    hide_cup
+    command -v dzen2 >/dev/null || return 0
+    win=$(xdotool search --onlyvisible --class i3bar 2>/dev/null | head -n 1) || true
+    [ -n "$win" ] || return 0
+    eval "$(xdotool getwindowgeometry --shell "$win")"   # X, Y, WIDTH, HEIGHT
+    width=$((HEIGHT * 2))
+    x=$((X + (WIDTH - width) / 2))
+    repo=$(dirname "$(dirname "$self")")
+    colors="$HOME/.local/state/omarchy/current/theme/colors.toml"
+    bg=$("$repo/theme/bin/omarchy-theme-color" --file "$colors" orange 2>/dev/null) || bg='#d08770'
+    fg=$("$repo/theme/bin/omarchy-theme-color" --file "$colors" background 2>/dev/null) || fg='#101010'
+    printf '%s\n' "$glyph" | dzen2 -p -x "$x" -y "$Y" -w "$width" -h "$HEIGHT" -ta c \
+        -bg "$bg" -fg "$fg" -fn 'JetBrainsMono Nerd Font:size=11' \
+        -e "button1=exec:$self off" >/dev/null 2>&1 &
+    echo $! > "$cup_state"
+}
+hide_cup() {
+    [ -f "$cup_state" ] || return 0
+    kill "$(cat "$cup_state")" 2>/dev/null || true
+    rm -f "$cup_state"
+}
+
+# The inhibitor's pid (also its process group) when it is alive, else nothing,
+# and a stale file is dropped. Whether systemd-inhibit execs the command or
+# forks it, the leader is systemd-inhibit or `sleep`.
+inhibitor() {
+    [ -f "$state" ] || return 1
+    pid=$(cat "$state")
+    case "$(cat "/proc/$pid/comm" 2>/dev/null)" in
+        systemd-inhibit|sleep) echo "$pid" ;;
+        *) rm -f "$state"; return 1 ;;
+    esac
+}
+
+# X timers for the state the session should be in when nothing is inhibiting:
+# lock after 10 idle minutes where xss-lock runs, never blank where it does not.
+apply_timers() {
+    if command -v xss-lock >/dev/null; then
+        xset s 600 600 +dpms
+    else
+        xset s off s noblank -dpms
+    fi
+}
+
+on() {
+    inhibitor >/dev/null && return 0
+    xset s off s noblank -dpms
+    # Own session, so the pid written by the inner shell is the group to kill.
+    setsid sh -c 'echo $$ > "$1"; exec systemd-inhibit --what=idle:sleep \
+        --who=x11-idle --why="idle inhibit toggled on (x11-idle)" --mode=block \
+        sleep infinity' sh "$state" >/dev/null 2>&1 &
+    # Wait for the pid file, so a quick second toggle sees the state.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$state" ] && break; sleep 0.05; done
+    show_cup
+    notify "Idle inhibit on" "no auto-lock, display blanking or sleep"
+}
+
+off() {
+    if pid=$(inhibitor); then
+        kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+        rm -f "$state"
+    fi
+    hide_cup
+    apply_timers
+    notify "Idle inhibit off"
+}
+
+case "${1:-toggle}" in
+    init)
+        rm -f "$state" "$cup_state"
+        apply_timers
+        if command -v xss-lock >/dev/null; then
+            exec xss-lock --transfer-sleep-lock -- "$(dirname "$0")/x11-lock"
+        fi
+        ;;
+    toggle) if inhibitor >/dev/null; then off; else on; fi ;;
+    on)     on ;;
+    off)    off ;;
+    status)
+        if inhibitor >/dev/null; then echo on; else echo off; fi
+        ;;
+    *) echo "usage: x11-idle [init|toggle|on|off|status]" >&2; exit 2 ;;
+esac

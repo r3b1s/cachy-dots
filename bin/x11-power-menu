@@ -9,7 +9,15 @@ if command -v powerprofilesctl >/dev/null && current=$(powerprofilesctl get 2>/d
     profile="power profile: $current"
 fi
 
-choice=$({ printf 'lock\nsuspend\nlogout\nreboot\npoweroff\nDefault Browser\n'; [ -z "$profile" ] || printf '%s\n' "$profile"; } \
+# lock and suspend are offered only where they work: the vm profile has no locker
+# and masks the sleep targets.
+entries=""
+command -v i3lock >/dev/null && entries="lock
+"
+[ "$(systemctl is-enabled suspend.target 2>/dev/null)" = masked ] || entries="${entries}suspend
+"
+
+choice=$({ printf '%slogout\nreboot\npoweroff\nDefault Browser\n' "$entries"; [ -z "$profile" ] || printf '%s\n' "$profile"; } \
          | rofi -dmenu -i -p 'system') || exit 0
 
 case "$choice" in

@@ -8,6 +8,12 @@
 # actually locked.
 set -eu
 
+# The vm profile installs no locker; say so instead of doing nothing.
+command -v i3lock >/dev/null || {
+    dunstify -a cachy-dots "Lock" "i3lock is not installed on this machine" 2>/dev/null || true
+    exit 1
+}
+
 # Never stack a second locker on top of a running one.
 pgrep -x -u "$(id -u)" i3lock >/dev/null && exit 0
 
