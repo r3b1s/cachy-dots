@@ -114,7 +114,7 @@ IS_VM=0
 if [ "${PROFILE_FORCE_VM:-0}" = 1 ] || { command -v systemd-detect-virt >/dev/null && systemd-detect-virt -q --vm; }; then
     IS_VM=1
     PKGS+=(
-        spice-vdagent                # shared clipboard + display resize (SPICE)
+        spice-vdagent                # shared clipboard (SPICE); resize is bin/x11-autoresize
         qemu-guest-agent             # host <-> guest control channel
     )
 fi

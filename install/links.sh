@@ -144,6 +144,12 @@ install_links() {
     for script in "$REPO"/bin/*; do
         link "$script" "$HOME/.local/bin/$(basename "$script")"
     done
+    # Scripts that only make sense in a guest (vm/): the vm profile only.
+    if want vm-scripts; then
+        for script in "$REPO"/vm/*; do
+            link "$script" "$HOME/.local/bin/$(basename "$script")"
+        done
+    fi
 
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) ;;

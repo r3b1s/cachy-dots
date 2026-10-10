@@ -1,0 +1,37 @@
+#!/bin/bash
+# x11-autoresize — follow the host window size in a VM. Started once by i3.
+#
+# With a virtio GPU (no QXL), QEMU hands the guest the host window size as the
+# monitor's preferred mode (EDID), and spice-vdagent plays no part in it. Xorg
+# only *lists* the new mode (xrandr marks it `+`); nothing switches to it, so the
+# desktop stays at the old size until the next login. i3 sends an `output` event
+# on its IPC socket for every such change, which is the hook used here.
+#
+# While the window is dragged the events come in bursts; one is acted on after
+# 0.4 s of quiet. Switching to the preferred mode raises another event, which
+# finds the mode already in place and does nothing.
+#
+# VM profile only: install_vm.sh links this into ~/.local/bin (install.sh does not),
+# and i3 starts it only when it is there. The check below is a second guard.
+systemd-detect-virt -q --vm || exit 0
+repo=$(dirname "$(dirname "$(readlink -f "$0")")")
+
+apply() {
+    local out
+    out=$(xrandr --query | awk '/ connected/ { print $1; exit }')
+    [ -n "$out" ] || return 0
+    # The mode in use is `*`, the preferred one `+`; already the same: done.
+    xrandr --query | awk '/^ +[0-9]+x[0-9]+/ && /\*/ && /\+/ { ok = 1 } END { exit !ok }' && return 0
+    xrandr --output "$out" --auto || return 0
+    # feh painted the old size; the root pixmap would be tiled or cropped.
+    "$repo/bin/x11-wallpaper" current
+}
+
+while xrandr --query >/dev/null 2>&1; do
+    apply
+    i3-msg -t subscribe -m '["output"]' 2>/dev/null | while read -r _; do
+        while read -r -t 0.4 _; do :; done
+        apply
+    done
+    sleep 1   # i3 restarted, or is not up yet
+done
