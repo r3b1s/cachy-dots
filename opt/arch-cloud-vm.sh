@@ -13,7 +13,10 @@
 #
 # The image has no users of its own; cloud-init creates the user below.
 # Usage: opt/arch-cloud-vm.sh [--name NAME] [--user USER] [--memory MiB] [--vcpus N]
-#                             [--disk SIZE] [--replace]
+#                             [--disk SIZE] [--replace] [--nopasswd]
+#
+# --nopasswd gives the user passwordless sudo (cloud-init `NOPASSWD:ALL`), for a
+# throwaway test VM driven over ssh, where nobody can type the sudo password.
 set -euo pipefail
 
 BASE_URL=https://fastly.mirror.pkgbuild.com/images/latest
@@ -48,6 +51,7 @@ MEMORY=4096
 VCPUS=2
 DISK=20G
 REPLACE=0
+SUDO_RULE='ALL=(ALL) ALL'
 
 die()  { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 say()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
@@ -60,7 +64,8 @@ while [ $# -gt 0 ]; do
         --vcpus)   VCPUS=$2; shift ;;
         --disk)    DISK=$2; shift ;;
         --replace) REPLACE=1 ;;
-        -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --nopasswd) SUDO_RULE='ALL=(ALL) NOPASSWD:ALL' ;;
+        -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown option: $1" ;;
     esac
     shift
@@ -168,7 +173,7 @@ hostname: $NAME
 users:
   - name: $USER_NAME
     groups: [wheel]
-    sudo: ALL=(ALL) ALL
+    sudo: $SUDO_RULE
     shell: /bin/bash
     lock_passwd: false
     passwd: '$HASH'
