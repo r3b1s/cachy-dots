@@ -12,9 +12,11 @@
 #                    no ICMP, and the host reaches a guest only through port forwards.
 #
 # The packaged configs leave the socket group commented out, which makes the
-# sockets root-only, so it is set here. ufw's default forward policy drops
-# forwarded traffic, so labbr0 gets `ufw route` rules, or its guests cannot leave
-# the host. The default network is not defined: labbr0 is the lab network.
+# sockets root-only, so it is set here, and libvirt's firewall backend is pinned
+# to nftables (what it picks by itself when nft is there). The NAT is libvirt's;
+# ufw rules (DHCP/DNS in, and forwarding when ufw drops it) are added by
+# opt/lab-firewall.sh, and only while ufw is active. The default network is not
+# defined: labbr0 is the lab network.
 #
 # Usage: opt/virt.sh [-n|--dry-run]
 set -euo pipefail
@@ -35,7 +37,7 @@ dry=0
 for arg in "$@"; do
     case "$arg" in
         -n|--dry-run) dry=1 ;;
-        -h|--help)    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -76,6 +78,14 @@ if [ "${#restart[@]}" -gt 0 ]; then
 fi
 run $SUDO systemctl enable --now virtqemud.socket virtnetworkd.socket virtstoraged.socket
 
+say "Firewall backend: nftables"
+if $SUDO grep -q '^#firewall_backend = "nftables"' /etc/libvirt/network.conf 2>/dev/null; then
+    run $SUDO sed -i 's/^#firewall_backend = "nftables"/firewall_backend = "nftables"/' /etc/libvirt/network.conf
+    # Takes effect when the network daemon restarts; networks are re-created on
+    # the new backend by itself, so this only needs doing when it changed.
+    run $SUDO systemctl try-restart virtnetworkd.service
+fi
+
 say "Network $LAB_NET (10.40.40.0/24)"
 if ! vsys net-info "$LAB_NET" >/dev/null 2>&1; then
     xml=$(mktemp)
@@ -98,11 +108,10 @@ if [ "$(vsys pool-info default 2>/dev/null | awk '/^State:/ { print $2 }')" != r
     run vsys pool-start default
 fi
 
-if command -v ufw >/dev/null; then
-    say "ufw: forward $LAB_NET traffic"
-    run $SUDO ufw route allow in on "$LAB_NET"
-    run $SUDO ufw route allow out on "$LAB_NET"
-fi
+# Host firewall for the lab network (only does anything while ufw is active).
+# shellcheck source=opt/lab-firewall.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lab-firewall.sh"
+lab_firewall
 
 if getent group libvirt >/dev/null; then
     if ! id -nG "$TARGET_USER" | tr ' ' '\n' | grep -qx libvirt; then
