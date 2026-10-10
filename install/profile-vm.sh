@@ -8,6 +8,12 @@ PROFILE_DESC="vm: a lean desktop for a guest"
 # systemd-detect-virt says VM, since this profile is for one.
 PROFILE_FORCE_VM=1
 
+# A guest never sleeps, hibernates, auto-locks or blanks its display: setup_no_sleep
+# (logind drop-in, masked sleep targets, X without blanking), and no locker below.
+# The i3 session stays up until someone ends it; bin/x11-idle init switches the X
+# screen saver and DPMS off at login when xss-lock is not installed.
+PROFILE_NO_SLEEP=1
+
 # Packages left out, with why.
 PROFILE_SKIP_PKGS=(
     # An application a test guest does not need.
@@ -16,6 +22,7 @@ PROFILE_SKIP_PKGS=(
     blueman bluez bluez-utils        # bluetooth
     brightnessctl                    # backlight keys
     power-profiles-daemon
+    xss-lock                         # auto-lock on idle and before suspend: a guest has neither
     gammastep                        # nightlight
     autorandr arandr                 # monitor profiles; bin/x11-display pins the mode with x11-monitor in a VM
     tesseract-data-eng               # OCR for $mod+Print (tesseract itself comes with zathura's mupdf)
@@ -24,6 +31,7 @@ PROFILE_SKIP_PKGS=(
 # Pinned packages left out (by package name, either repo's).
 PROFILE_SKIP_PINNED=(
     vesktop-bin vesktop              # Discord
+    i3lock-color                     # the screen locker (x11-lock, $mod+Ctrl+Escape, the power menu)
 )
 
 # AUR packages left out.

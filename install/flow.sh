@@ -34,6 +34,7 @@ install_main() {
         setup_chromium
         setup_firewall
         want touchpad && setup_touchpad
+        [ "${PROFILE_NO_SLEEP:-0}" = 1 ] && setup_no_sleep
         check_keyring_pam
     fi
     if [ "$do_links" = 1 ]; then

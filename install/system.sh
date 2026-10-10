@@ -245,6 +245,35 @@ setup_touchpad() {
     fi
 }
 
+# A guest that never sleeps (PROFILE_NO_SLEEP, the vm profile): no suspend,
+# hibernation, idle action or lid handling in logind, the sleep targets masked so
+# nothing can reach them (not even a stray `systemctl suspend`), and X told never to
+# blank or power the display off. The session stays up until someone ends it.
+# logind reads its drop-in at its next start (a reboot); the rest applies at once or
+# at the next X start. Not part of the workstation, where sleep is wanted.
+setup_no_sleep() {
+    local logind_src="$REPO/systemd/10-cachy-dots-awake.conf" logind_dst=/etc/systemd/logind.conf.d/10-cachy-dots-awake.conf
+    local xorg_src="$REPO/xorg/20-no-blanking.conf" xorg_dst=/etc/X11/xorg.conf.d/20-no-blanking.conf
+    local units=(sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target)
+    say "No sleep, hibernation or display blanking"
+    if [ -r "$logind_src" ] && ! cmp -s "$logind_src" "$logind_dst" 2>/dev/null; then
+        run $SUDO install -D -o root -g root -m 644 "$logind_src" "$logind_dst"
+        [ "$dry" = 1 ] || echo "logind: $logind_dst (read at the next boot)"
+    fi
+    if [ -r "$xorg_src" ] && ! cmp -s "$xorg_src" "$xorg_dst" 2>/dev/null; then
+        run $SUDO install -D -o root -g root -m 644 "$xorg_src" "$xorg_dst"
+        [ "$dry" = 1 ] || echo "X: $xorg_dst (applies at the next X start)"
+    fi
+    if command -v systemctl >/dev/null; then
+        run $SUDO systemctl mask --quiet "${units[@]}" || warn "could not mask the sleep targets"
+    fi
+    # Left in place when an earlier run installed them (removing packages is not this
+    # step's job), but x11-idle would then still lock after 10 idle minutes.
+    if pacman -Qq xss-lock >/dev/null 2>&1; then
+        warn "xss-lock is installed and will auto-lock this session; remove it: sudo pacman -Rns xss-lock i3lock-color"
+    fi
+}
+
 # The keyring (Wi-Fi passwords for nm-applet, Chromium and Vesktop secrets) is
 # unlocked at login by pam_gnome_keyring in ly's own PAM file, which the ly
 # package ships with those lines. Only checked: if a future package drops them,

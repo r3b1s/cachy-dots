@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The workstation profile (install.sh): everything, on bare metal or in a VM.
 PROFILE_DESC="workstation: the full install"
+PROFILE_NO_SLEEP=0                   # sleep, lid handling and idle locking stay on
 PROFILE_SKIP_PKGS=()
 PROFILE_SKIP_PINNED=()
 PROFILE_SKIP_AUR=()

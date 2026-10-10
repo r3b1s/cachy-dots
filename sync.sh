@@ -99,6 +99,7 @@ if [ "$root" = 1 ]; then
     setup_firefox
     setup_chromium
     want touchpad && setup_touchpad
+    [ "${PROFILE_NO_SLEEP:-0}" = 1 ] && setup_no_sleep
     if pacman -Qq nix >/dev/null 2>&1 && [ "$TARGET_USER" != root ]; then
         # Restart the daemon only if the block changed; it reads nix.conf at start.
         if setup_nix_conf "$TARGET_USER" && [ "$dry" = 0 ] && systemctl is-active --quiet nix-daemon.service; then
