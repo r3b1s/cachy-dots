@@ -16,13 +16,22 @@ case "${1:-}" in
         command -v voxtype >/dev/null || { dunstify -a x11-voxtype -u critical "voxtype is not installed"; exit 1; }
         prev=$(cat "$state_file" 2>/dev/null || echo idle)
         voxtype record toggle
+        # Both expire by themselves, so none can outstay a dictation. "transcribing"
+        # in particular can be posted after a fast transcript has already been
+        # pasted and `paste` has closed id 9992, which left it up for good.
         case "$prev" in
-            idle) dunstify -a x11-voxtype -u low -r 9992 "Dictation" "recording..." ;;
-            *)    dunstify -a x11-voxtype -u low -r 9992 "Dictation" "transcribing..." ;;
+            idle) dunstify -a x11-voxtype -u low -r 9992 -t 125000 "Dictation" "recording..." ;;
+            *)    dunstify -a x11-voxtype -u low -r 9992 -t 8000 "Dictation" "transcribing..." ;;
         esac
         ;;
     paste)
-        xclip -selection clipboard -o 2>/dev/null | xclip -selection primary -i 2>/dev/null || true
+        # xclip -i forks a daemon that owns the selection and keeps the stdout and
+        # stderr it inherited open until something else takes PRIMARY. voxtype
+        # waits for this hook's pipes to close, so with them inherited it never
+        # finished: no end-of-dictation sound, the notification left up, and the
+        # next toggle refused. Hence every descriptor of the daemon is redirected.
+        xclip -selection clipboard -o 2>/dev/null \
+            | xclip -selection primary -i >/dev/null 2>&1 || true
         dunstify -C 9992 2>/dev/null || true
         exec xdotool key --clearmodifiers shift+Insert
         ;;
