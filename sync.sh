@@ -22,7 +22,7 @@
 #   --themes       also `git pull` the installed theme repos (needs network)
 set -euo pipefail
 
-do_packages=0   # install.sh's functions are used; its package phase is not
+do_packages=0   # the installer's functions are used; its package phase is not
 do_links=1
 dry=0
 root=1
@@ -37,9 +37,14 @@ for arg in "$@"; do
     esac
 done
 
-# Functions and package lists only; install.sh does not run its main flow when sourced.
-# shellcheck source=install.sh
-. "$(dirname "${BASH_SOURCE[0]}")/install.sh"
+# The profile the system was installed with (install.sh or install_vm.sh recorded it).
+if [ -z "${PROFILE:-}" ]; then
+    PROFILE=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/profile" 2>/dev/null || echo workstation)
+fi
+# The installer's modules: functions and package lists only, nothing runs.
+# shellcheck source=install/lib.sh
+. "$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/install/lib.sh"
+apply_profile
 
 [ "$TARGET_USER" != root ] || { warn "run sync.sh as your own user, not root"; exit 1; }
 
@@ -93,7 +98,7 @@ if [ "$root" = 1 ]; then
     install_ly_theme
     setup_firefox
     setup_chromium
-    setup_touchpad
+    want touchpad && setup_touchpad
     if pacman -Qq nix >/dev/null 2>&1 && [ "$TARGET_USER" != root ]; then
         # Restart the daemon only if the block changed; it reads nix.conf at start.
         if setup_nix_conf "$TARGET_USER" && [ "$dry" = 0 ] && systemctl is-active --quiet nix-daemon.service; then
