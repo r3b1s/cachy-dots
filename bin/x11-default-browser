@@ -1,0 +1,136 @@
+#!/bin/sh
+# x11-default-browser menu | set <browser> | current | launch [--private]
+#
+# The "Default Browser" entry of the $mod+Escape menu (bin/x11-power-menu).
+# Browsers: qutebrowser, firefox, chromium, brave-origin.
+#
+#   set      makes it the default for web links and HTML (xdg-settings + xdg-mime),
+#            and records the choice in ~/.config/cachy-dots/default-browser so a
+#            re-run of install.sh keeps it instead of putting qutebrowser back.
+#            brave-origin is installed first when it is missing: cachyos/brave-origin-bin
+#            where a Cachy repo has it, else aur/brave-origin-bin through yay.
+#            Installing needs sudo, so with no terminal (from rofi) this reopens
+#            itself in alacritty.
+#   menu     rofi list of the above, the current one marked.
+#   current  prints the name.
+#   launch   starts the default browser (a new window), in private browsing with
+#            --private. $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf).
+#
+# $mod+Shift+b, $mod+Ctrl+b and $mod+Mod1+b launch qutebrowser, firefox and
+# chromium directly, whatever the default is. $mod+u (the browser workspace) is
+# always qutebrowser.
+set -eu
+
+state_dir="${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots"
+marker="$state_dir/default-browser"
+BROWSERS="qutebrowser firefox chromium brave-origin"
+
+pkg_of() {
+    case "$1" in
+        qutebrowser)  echo qutebrowser-git ;;
+        brave-origin) echo brave-origin-bin ;;
+        *)            echo "$1" ;;
+    esac
+}
+
+# The .desktop file id of an installed browser; empty when it is not installed.
+desktop_of() {
+    case "$1" in
+        qutebrowser) f=org.qutebrowser.qutebrowser.desktop ;;
+        firefox)     f=firefox.desktop ;;
+        chromium)    f=chromium.desktop ;;
+        brave-origin)
+            # The file's name is the package's choice: ask pacman for it.
+            f=$(pacman -Qlq brave-origin-bin 2>/dev/null | sed -n 's|^/usr/share/applications/\(.*\.desktop\)$|\1|p' | head -n1)
+            ;;
+        *) return 1 ;;
+    esac
+    [ -n "$f" ] && [ -f "/usr/share/applications/$f" ] && echo "$f"
+}
+
+name_of_desktop() {
+    for b in $BROWSERS; do
+        [ "$(desktop_of "$b" 2>/dev/null || true)" = "$1" ] && { echo "$b"; return; }
+    done
+    echo "${1%.desktop}"
+}
+
+current() {
+    d=$(xdg-settings get default-web-browser 2>/dev/null || true)
+    [ -n "$d" ] && name_of_desktop "$d" || echo none
+}
+
+notify() { dunstify -a x11-default-browser -r 9993 "Default browser" "$1" 2>/dev/null || echo "$1"; }
+
+install_brave() {
+    if pacman -Si cachyos/brave-origin-bin >/dev/null 2>&1; then
+        sudo pacman -S --needed cachyos/brave-origin-bin
+    elif command -v yay >/dev/null; then
+        yay -S --needed brave-origin-bin
+    else
+        echo "no cachyos/brave-origin-bin and no yay for aur/brave-origin-bin" >&2
+        return 1
+    fi
+}
+
+set_default() {
+    b=$1
+    case " $BROWSERS " in *" $b "*) ;; *) echo "unknown browser: $b" >&2; exit 1 ;; esac
+
+    if ! desktop_of "$b" >/dev/null; then
+        if [ ! -t 0 ]; then
+            # No terminal for sudo's prompt: run the same command in one.
+            exec alacritty --title "install $b" -e sh -c \
+                "$0 set $b || { echo; printf 'failed; press enter'; read -r _; }"
+        fi
+        case "$b" in
+            brave-origin) install_brave || exit 1 ;;
+            *) echo "$b is not installed; run install.sh" >&2; exit 1 ;;
+        esac
+    fi
+    d=$(desktop_of "$b") || { notify "$b has no desktop entry"; exit 1; }
+
+    xdg-settings set default-web-browser "$d"
+    xdg-mime default "$d" x-scheme-handler/http x-scheme-handler/https text/html application/xhtml+xml
+    mkdir -p "$state_dir"
+    echo "$d" > "$marker"
+    notify "$b"
+}
+
+# The command line for a browser, new window; private browsing when $2 is set.
+launch() {
+    b=$1 private=${2:-}
+    case "$b" in
+        qutebrowser) set -- qutebrowser ${private:+--target private-window} ;;
+        firefox)     set -- firefox ${private:+--private-window} ;;
+        chromium)    set -- chromium ${private:+--incognito} ;;
+        brave-origin)
+            d=$(desktop_of brave-origin)
+            c=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "/usr/share/applications/$d" | head -n1)
+            set -- "${c:-brave-origin}" ${private:+--incognito} ;;
+        *) notify "no launcher for $b"; exit 1 ;;
+    esac
+    exec "$@"
+}
+
+case "${1:-}" in
+    launch)
+        b=$(current)
+        [ "$b" != none ] || b=qutebrowser
+        case "${2:-}" in
+            --private) launch "$b" 1 ;;
+            "")        launch "$b" ;;
+            *) echo "usage: x11-default-browser launch [--private]" >&2; exit 1 ;;
+        esac ;;
+    current) current ;;
+    set)     [ -n "${2:-}" ] || { echo "usage: x11-default-browser set <browser>" >&2; exit 1; }
+             set_default "$2" ;;
+    menu)
+        cur=$(current)
+        pick=$(for b in $BROWSERS; do
+                   if [ "$b" = "$cur" ]; then echo "$b (default)"; else echo "$b"; fi
+               done | rofi -dmenu -i -p 'default browser') || exit 0
+        set_default "${pick%% *}"
+        ;;
+    *) echo "usage: x11-default-browser menu | set <browser> | current | launch [--private]" >&2; exit 1 ;;
+esac

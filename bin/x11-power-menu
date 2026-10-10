@@ -1,6 +1,7 @@
 #!/bin/sh
-# System menu via rofi: lock / suspend / logout / reboot / poweroff, and the
-# power profile (power-profiles-daemon) when the machine offers one.
+# System menu via rofi: lock / suspend / logout / reboot / poweroff, the default
+# browser (bin/x11-default-browser), and the power profile (power-profiles-daemon)
+# when the machine offers one.
 set -eu
 
 profile=""
@@ -8,7 +9,7 @@ if command -v powerprofilesctl >/dev/null && current=$(powerprofilesctl get 2>/d
     profile="power profile: $current"
 fi
 
-choice=$({ printf 'lock\nsuspend\nlogout\nreboot\npoweroff\n'; [ -z "$profile" ] || printf '%s\n' "$profile"; } \
+choice=$({ printf 'lock\nsuspend\nlogout\nreboot\npoweroff\nDefault Browser\n'; [ -z "$profile" ] || printf '%s\n' "$profile"; } \
          | rofi -dmenu -i -p 'system') || exit 0
 
 case "$choice" in
@@ -18,6 +19,7 @@ case "$choice" in
     logout)   exec i3-msg exit ;;
     reboot)   exec systemctl reboot ;;
     poweroff) exec systemctl poweroff ;;
+    "Default Browser") exec "$(dirname "$0")/x11-default-browser" menu ;;
     "power profile:"*)
         pick=$(powerprofilesctl list | sed -n 's/^[ *]*\([a-z-]*\):$/\1/p' | rofi -dmenu -i -p 'power profile') || exit 0
         powerprofilesctl set "$pick" && dunstify -a cachy-dots -r 9986 "Power profile" "$pick" ;;
