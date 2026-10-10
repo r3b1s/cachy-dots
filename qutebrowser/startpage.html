@@ -5,7 +5,7 @@
 <meta name="color-scheme" content="dark">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>start</title>
-<!-- Nothing but the desktop background. bin/x11-wallpaper keeps the current
+<!-- Nothing but the desktop background, dimmed. bin/x11-wallpaper keeps the current
      feh image pointed at by ../wallpapers/current (i.e. ~/.config/wallpapers,
      which install.sh seeds); feh's own ~/.fehbg is a shell script, not
      something a browser can render, so it cannot be used here. -->
@@ -14,11 +14,13 @@
   body {
     background: #050007 url("../wallpapers/current") center center / cover no-repeat fixed;
   }
-  /* Vignette: the edges fade towards black, the centre is untouched. */
+  /* Dimmed, so the page is told apart from the desktop it shares its image with:
+     the whole picture is darkened a little, and more towards the edges. */
   body::after {
     content: ""; position: fixed; inset: 0; pointer-events: none;
     background: radial-gradient(ellipse at center,
-      transparent 45%, rgba(0, 0, 0, 0.35) 75%, rgba(0, 0, 0, 0.7) 100%);
+      rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.45) 40%,
+      rgba(0, 0, 0, 0.7) 75%, rgba(0, 0, 0, 0.88) 100%);
   }
 </style>
 </head>
