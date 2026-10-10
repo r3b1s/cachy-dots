@@ -127,10 +127,28 @@ when ly will not come up. Do not run a bare `startx` without naming i3: Arch's
 
 `i3-wm` does not depend on `xorg-server`, which is why the X packages are in the list explicitly.
 
-The display is SPICE (virt-manager's graphical console), paired with `spice-vdagent` for clipboard and
-resize; the test VM's GPU is virtio (`Virtio 1.0 GPU`, `/dev/dri/card1`), driven by xorg-server's built-in
+The display is SPICE (virt-manager's graphical console), paired with `spice-vdagent` for the clipboard
+(not for resize, see below); the test VM's GPU is virtio (`Virtio 1.0 GPU`, `/dev/dri/card1`), driven by xorg-server's built-in
 `modesetting` driver. `spice-vdagentd.socket` and `qemu-guest-agent` are static units that udev starts when
 their virtio ports appear, so `enable_services()` only starts the socket (no reboot needed) and enables nothing.
+
+**Resizing with the host window** is done by `vm/x11-autoresize` (plain `exec` in `05-autostart.conf`),
+not by spice-vdagent. With a virtio GPU and no QXL, QEMU reports the host window size as the monitor's
+*preferred mode* (EDID); `xrandr` lists it with a `+`, and the vdagent never receives a monitors-config message
+(checked with `spice-vdagentd -d -d` while the clipboard worked in both directions, on 2026-10-10). Xorg lists
+the new mode but nothing switches to it, which is why a fresh login came up at the right size and a live resize
+did nothing. The script subscribes to i3's IPC `output` event (`i3-msg -t subscribe -m '["output"]'`, fired on
+every such change, so no polling and no extra package), waits for 0.4 s of quiet, runs `xrandr --output X
+--auto` unless the used mode is already the preferred one, then repaints the wallpaper with
+`x11-wallpaper current`. The "already in place" check is what stops the event raised by the switch itself
+from looping. It restarts its subscription after an i3 restart. A debugging trap: the daemon only opens the
+virtio port for an agent in the *active login session*, so an agent started over ssh is ignored
+(`Session for pid N: 16` against `Active session: c4`); start test agents with `i3-msg exec`.
+Tested on a live VM by resizing the virt-viewer window.
+It is **vm profile only**: `install_links` links `vm/*` into `~/.local/bin` only when `want vm-scripts`, which the
+workstation profile turns off (`PROFILE_SKIP_FEATURES`), and the i3 line is
+`sh -c 'command -v x11-autoresize >/dev/null && exec x11-autoresize'`, so it does nothing where the script is
+absent (the repo's usual `command -v` idiom; an `include` of a missing file would warn instead).
 
 The resolution is pinned to 1920x1080 by `bin/x11-monitor`, run from `05-autostart.conf`'s `exec_always`.
 A headless VM otherwise comes up at whatever size the last SPICE client asked for. If the GPU offers
@@ -290,9 +308,9 @@ helpers and `main` becoming `install_main`).
 
 **Profiles.** The lists in `packages.sh` stay complete; `apply_profile()` removes what the profile names:
 `PROFILE_SKIP_PKGS`, `PROFILE_SKIP_PINNED` (by package name, either repo's), `PROFILE_SKIP_AUR`, and
-`PROFILE_SKIP_FEATURES` (checked with `want <feature>`; today only `touchpad`). Steps whose package is gone
+`PROFILE_SKIP_FEATURES` (checked with `want <feature>`; today `touchpad`, and `vm-scripts`, which the workstation skips: `vm/*` is linked only by the vm profile). Steps whose package is gone
 skip themselves, since each is guarded by `pacman -Qq` or `command -v` (the Firefox and Chromium policies,
-bluetooth, power-profiles-daemon, nix, voxtype). The workstation skips nothing and still adds the guest agents
+bluetooth, power-profiles-daemon, nix, voxtype). The workstation skips only `vm-scripts` and still adds the guest agents
 only when `systemd-detect-virt` says VM. The **vm** profile (`install_vm.sh`, `install/profile-vm.sh`, the only
 place its list is kept) forces the guest agents and leaves out: rclone,
 blueman/bluez/bluez-utils, brightnessctl, power-profiles-daemon, gammastep, autorandr/arandr,
@@ -300,6 +318,23 @@ tesseract-data-eng, vesktop, voxtype-bin, and the touchpad config. Firefox, Chro
 yay stay in (their policies, the nix.conf block and the daemon are set up as on the workstation). That list is a first guess; edit the
 file. Each run writes the profile to `~/.config/cachy-dots/profile`, and `sync.sh` reads it (or `PROFILE=`),
 so a VM is synced as a VM.
+
+**VM scripts.** `opt/arch-cloud-vm.sh` makes the bare cloud-image VM (no display); its fork
+`opt/arch-cloud-vm-dots.sh` adds a SPICE display and installs the dots. The shared steps (checks, verified
+image, overlay, key and password, seed, domain, report) live in `opt/arch-cloud-vm-lib.sh`, which both source;
+a script sets its defaults, parses its own flags, hands the rest to `acv_option`, and runs `acv_check`,
+`acv_image`, `acv_credentials`, `acv_seed`, `acv_domain`, `acv_report`. The fork injects extra cloud-config
+(`ACV_USERDATA_EXTRA`) and extra devices (`ACV_DEVICES_EXTRA`) through two variables. Both take `--ssh-key PUBKEY`
+(a `.pub` path or the key itself) to put that key in `authorized_keys` instead of generating
+`~/.ssh/arch-cloud-<name>-ed25519`; it is validated with `ssh-keygen -l` before anything is created. The fork's
+display is a virtio GPU with the vdagent and guest-agent channels and a USB tablet; its cloud-init first-boot job
+(`/usr/local/sbin/dots-provision`, log `/var/log/dots-provision.log`, exit status
+`/var/lib/dots-provision.status`) runs `pacman -Syu git`, clones this repo into `~/Dotfiles/cachy-dots` and runs
+`./install_vm.sh` as the user, with sudo passwordless only until it finishes. **Run end to end** on 2026-10-10
+(`--name dots-vm-test --ssh-key <pub>`): the clone and install ran, the status file read 1 only because of the
+known ufw/reboot warning (cloud-init therefore reports `error`), and after a reboot `ly@tty1` was active,
+`i3 -C` passed, the sudoers drop-in was gone, and `/dev/virtio-ports` had both channels. `virsh domdisplay` says
+"No graphical display found" because the SPICE listen is `none` (virt-manager connects over its socket).
 
 **Tested** on a fresh Arch cloud-image VM, `dots-test`, made with
 `opt/arch-cloud-vm.sh --name dots-test --user arch --memory 6144 --vcpus 4 --disk 30G --nopasswd`
