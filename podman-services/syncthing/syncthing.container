@@ -25,6 +25,10 @@ Volume=%h/.local/share/syncthing-container:/var/syncthing
 # The one synced directory, at the same path inside as on the host, so the
 # folder path in the GUI is the real one (e.g. /home/<you>/Sync).
 Volume=%h/Sync:%h/Sync
+# The image sets HOME=/var/syncthing, which made "~/Sync" in the GUI land in
+# the state mount above. With the host's HOME, ~ means the same in both places.
+# The state still goes to /var/syncthing/config: STHOMEDIR sets it, not HOME.
+Environment=HOME=%h
 Environment=STNODEFAULTFOLDER=1
 
 # Sync only over NetBird. No host network: pasta binds outbound IPv4 sockets to
