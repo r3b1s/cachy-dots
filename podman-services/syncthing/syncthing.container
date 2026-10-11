@@ -1,0 +1,57 @@
+# Rootless Syncthing (official image), as a Quadlet unit.
+# A template: ./install.sh fills in @NETBIRD_IP@ and writes the result to
+# ~/.config/containers/systemd/syncthing.container.
+# GUI: http://127.0.0.1:8384 (set a GUI password on first start).
+
+[Unit]
+Description=Syncthing (rootless podman)
+
+[Container]
+ContainerName=syncthing
+Image=docker.io/syncthing/syncthing:2
+AutoUpdate=registry
+# Device name shown to peers; %H is this machine's hostname.
+HostName=%H
+
+# The host UID is the container UID, and keep-id adds a passwd entry with the
+# host user's name. The entrypoint sees a non-root UID and execs syncthing
+# directly: no setcap, chown or su-exec.
+UserNS=keep-id
+
+# Syncthing's own state (config.xml, keys, index database), not synced files.
+# Mounted over the image's VOLUME, so podman makes no anonymous volume owned by
+# a subuid.
+Volume=%h/.local/share/syncthing-container:/var/syncthing
+# The one synced directory, at the same path inside as on the host, so the
+# folder path in the GUI is the real one (e.g. /home/<you>/Sync).
+Volume=%h/Sync:%h/Sync
+Environment=STNODEFAULTFOLDER=1
+
+# Sync only over NetBird. No host network: pasta binds outbound IPv4 sockets to
+# wt0 and gives the container no IPv6 (-4; NetBird is IPv4 only, and IPv6
+# would bypass wt0), so it cannot reach anything outside the mesh, and 22000 is
+# published on this host's NetBird address only. The GUI is on loopback only.
+# @NETBIRD_IP@ is this host's wt0 address, asked for by ./install.sh; NetBird
+# keeps a peer's address until the peer is deleted. Nothing is published on
+# 21027: local discovery is a LAN broadcast and cannot cross pasta.
+Network=pasta:-4,--outbound-if4,wt0
+PublishPort=127.0.0.1:8384:8384
+PublishPort=@NETBIRD_IP@:22000:22000/tcp
+PublishPort=@NETBIRD_IP@:22000:22000/udp
+
+# The image's root is read-only; config.xml (GUI changes) and the synced folder
+# are on the bind mounts, which stay writable. The non-root entrypoint path
+# needs no capabilities.
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p %h/.local/share/syncthing-container %h/Sync
+# A user unit cannot order itself after the system's netbird.service, so a
+# start before wt0 is up fails to bind and is retried.
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
