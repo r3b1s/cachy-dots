@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# install-appimage: move an AppImage into ~/Applications, make it executable
+# and add a desktop entry for it.
+# Usage: install-appimage /path/to/App-1.2.3-amd64.AppImage
+set -euo pipefail
+
+usage() {
+  echo "Usage: ${0##*/} /path/to/App.AppImage" >&2
+  exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+src=$1
+
+[[ -f $src ]] || { echo "Not a file: $src" >&2; exit 1; }
+case ${src,,} in
+  *.appimage) ;;
+  *) echo "Not an .AppImage file: $src" >&2; exit 1 ;;
+esac
+
+# 1. ~/Applications, created with 755 only if it does not exist yet
+apps_dir="$HOME/Applications"
+if [[ ! -d $apps_dir ]]; then
+  install -d -m 755 "$apps_dir"
+  echo "Created $apps_dir"
+fi
+
+# 2. Move the AppImage in (refuse to overwrite anything already there)
+dest="$apps_dir/$(basename -- "$src")"
+if [[ $(realpath -- "$src") != "$(realpath -m -- "$dest")" ]]; then
+  if [[ -e $dest ]]; then
+    echo "Already exists: $dest (move or rename it first)" >&2
+    exit 1
+  fi
+  mv -- "$src" "$dest"
+fi
+echo "Installed $dest"
+
+# 3. Executable by the current user
+chmod u+x -- "$dest"
+
+# 4. Desktop entry, derived from the file name:
+#    OpenClaw-2026.10.1-amd64.AppImage -> "OpenClaw"
+file_name=$(basename -- "$dest")
+base=${file_name%.*}
+name=$(printf '%s' "$base" \
+  | sed -E 's/-[0-9][0-9A-Za-z._]*(-[A-Za-z0-9_]+)?$//; s/[-_]+/ /g')
+[[ -n $name ]] || name=$base
+
+slug=$(printf '%s' "$name" \
+  | tr '[:upper:] ' '[:lower:]-' \
+  | tr -cs 'a-z0-9-' '-' \
+  | sed -E 's/^-+//; s/-+$//')
+[[ -n $slug ]] || slug=appimage-$(printf '%s' "$base" | md5sum | cut -c1-8)
+
+# Escape the path for a quoted Exec= value (\ " ` $ and %)
+exec_path=$(printf '%s' "$dest" | sed -e 's/[\\"`$]/\\&/g' -e 's/%/%%/g')
+
+desktop_dir="$HOME/.local/share/applications"
+install -d -m 755 "$desktop_dir"
+desktop_file="$desktop_dir/$slug.desktop"
+
+cat >"$desktop_file" <<EOF
+[Desktop Entry]
+Type=Application
+Name=$name
+Comment=$name (AppImage)
+Exec="$exec_path" %U
+TryExec=$dest
+Icon=application-x-executable
+Terminal=false
+Categories=Utility;
+EOF
+chmod 644 "$desktop_file"
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$desktop_dir" || true
+fi
+
+echo "Desktop entry: $desktop_file"
