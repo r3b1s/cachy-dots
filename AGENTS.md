@@ -17,8 +17,8 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
   `cachyos-extra-v3`/`cachyos-core-v3`; the rest (`autotiling`, `rofimoji`, `starship`, `obsidian`,
   `ttf-jetbrains-mono-nerd`, …) has no Cachy build and comes from `extra`. When a dependency has several
   providers, `--noconfirm` takes provider 1, which pacman lists in repo order, so the Cachy one.
-- **chaotic-aur is added for `qutebrowser-git` only** (and `blesh-git` if opted in, see "Shell"). No Cachy
-  repo builds `qutebrowser-git`. `setup_chaotic_aur()` follows the chaotic-aur docs (key, then
+- **chaotic-aur is added for `qutebrowser-git`** (and `blesh-git` and `kanata` if opted in, see "Shell" and
+  "kanata (opt-in)"). No Cachy repo builds `qutebrowser-git`. `setup_chaotic_aur()` follows the chaotic-aur docs (key, then
   `chaotic-keyring` + `chaotic-mirrorlist` from its CDN) and appends `[chaotic-aur]` at the **end** of
   `pacman.conf`, below the Cachy and Arch repos, so it can never shadow their builds. A freshly added repo has
   no sync database, and the only supported way to get one is a full `pacman -Syu`, so that is what runs (a
@@ -258,6 +258,34 @@ Push-to-talk dictation. `voxtype/config.toml` is quattro-dots' config ported fro
   still-held `$mod`.
 - **Not tested on a live session** when it was written: voxtype was not installed on the machine the repo was
   edited on. The output driver chain was read from voxtype's `src/output/mod.rs`, not run.
+
+## kanata (opt-in)
+
+`opt/kanata/install.sh` is not part of `install.sh`. It makes kanata a system service that runs as its own
+user, and installs the keyboard config in `opt/kanata/enthium.kbd`. That file is a verbatim copy of
+`r3b1s/kanata-enthium` at commit `4a4fd03`, tracked here. The installer never clones that repo, and the upstream
+`.claude/`, `openspec/` and `qubes/` are not copied. To update the layout, copy the file again and re-run the script.
+
+- **Package.** kanata is `chaotic-aur/kanata`, installed by pacman. There is no cargo build, so `rust` is not
+  installed. The name is qualified, so no other repo's build is taken, and the script stops and points at
+  `install.sh` when chaotic-aur is missing. The package puts the binary at `/usr/bin/kanata` (root-owned, managed by
+  pacman) and ships `/usr/lib/systemd/system/kanata.service`. The first install runs a full `pacman -Syu`. A later
+  run leaves the package alone, and a system upgrade updates it.
+- **Permissions.** `/usr/bin/kanata` is owned by pacman (root, 0755), and the config `/etc/kanata/enthium.kbd` is root:root
+  0644, so the service user cannot rewrite either one. The service user `kanata` (`/etc/sysusers.d/kanata.conf`) is in
+  the `input` group (keyboard nodes) and the `uinput` group (`/etc/udev/rules.d/99-kanata-uinput.rules`, mode 0660).
+  `/etc/modules-load.d/kanata.conf` loads `uinput` at boot.
+- **Unit.** `/etc/systemd/system/kanata.service` (root:root 0644) overrides the packaged unit of the same name. It runs
+  as `kanata` with no capabilities, a read-only system, `DevicePolicy=closed` (only `char-input` and `/dev/uinput`), and `Restart=on-failure`. `ExecStartPre`
+  runs `kanata --check`, so a rejected config never grabs a keyboard. Hardening is unverified on a live
+  machine, because the installer has not been run here.
+- **Activation.** Every file is replaced by a rename, so the service never reads a half-written file. The package
+  is installed first, so the config check runs with the installed kanata. A rejected config leaves the live config
+  and service as they were. The service is enabled but not started, because starting grabs the keyboards. A re-run
+  restarts it only when it is already active and the package, config or unit changed. A `pacman -Syu` that upgrades
+  kanata does not restart it, so restart `kanata.service` yourself to run the new binary.
+- **Keyboards.** kanata grabs every keyboard it finds unless `enthium.kbd` sets `linux-dev`. The config is not
+  designed for every keyboard, so check `sudo kanata --list` first.
 
 ## Neovim
 
