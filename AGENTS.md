@@ -632,6 +632,12 @@ No quickshell, nothing else from omarchy's shell.
   `~/.config/vesktop/userAssets/{tray,trayUnread}` (its custom-tray-icon assets, extensionless PNGs) over
   its bundled ones: both become Adwaita's `audio-headset` glyph rendered to 64px PNG with `resvg`, the
   unread one with an accent dot. It re-reads them only at start or when the unread state changes.
+- **The VPN badge.** While a VPN is up, nm-applet draws `nm-vpn-*-lock` over the wired/wifi glyph at full
+  size; tinted the same colour they merged into one blob that looked like overlapping tray icons, so
+  `tint_icons` renders the lock as a half-size accent badge in the lower right. Found 2026-10-11 on a live
+  session (the glyph compared against the composited SVGs). Not the cause: the tray slot size. i3bar gives each
+  icon `height - 2*tray_padding` (19px at the default 23px bar) and Qt clients ask for 22x22, so `height 26` was
+  tried; it changed nothing and made the icons bigger, so the bar is back at its default height.
 - **ZAP's splash screen** keeps its white banner and blue progress bar: the banner is a bitmap in the jar
   (`/resource/zap-splash-screen.png`) and the bar is ZAP's own `SplashScreen$CustomProgressBarUI` with
   colours in code. Neither goes through the look and feel; only patching ZAP would change them.

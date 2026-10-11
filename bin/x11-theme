@@ -154,9 +154,10 @@ tint_svg() { # <src> <dest> <colour>
 
 tint_icons() {
     local src=/usr/share/icons/hicolor/scalable/apps sym=/usr/share/icons/Adwaita/symbolic
-    local dest="$HOME/.local/share/icons/x11-theme" fg f base out pair inherits=Adwaita,hicolor named=""
+    local dest="$HOME/.local/share/icons/x11-theme" fg accent f base out pair inherits=Adwaita,hicolor named=""
     [[ -d $src ]] || return 0
     fg=$(color foreground) || return 0
+    accent=$(color accent) || accent=
     if [[ -f $CURRENT/icons.theme ]]; then
         named=$(tr -d '[:space:]' < "$CURRENT/icons.theme")
         if [[ $named =~ ^[A-Za-z0-9._+-]+$ && -d /usr/share/icons/$named ]]; then
@@ -172,6 +173,12 @@ tint_icons() {
         tint_svg "$f" "$out/$base.svg" "$fg"
         if [[ $base != nm-signal-* ]]; then
             sed -i 's/opacity="0.35"/opacity="1"/g' "$out/$base.svg"
+        fi
+        # nm-applet draws the VPN padlock over the device glyph, full size. Both
+        # in the foreground colour they merged into one unreadable blob, so the
+        # lock becomes a half-size badge in the accent, in the lower right.
+        if [[ $base == nm-vpn-*-lock && -n $accent ]]; then
+            sed -i -E "s/$fg/$accent/gI; s|(<svg[^>]*>)|\1<g transform=\"translate(7 7) scale(.56)\">|; s|</svg>|</g></svg>|" "$out/$base.svg"
         fi
         cp "$out/$base.svg" "$out/$base-symbolic.svg"
     done
