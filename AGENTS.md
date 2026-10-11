@@ -523,7 +523,8 @@ These were left out while the dots only targeted disposable VMs; they are for da
   for web links and HTML, and records the choice in `~/.config/cachy-dots/default-browser`, which
   `setup_default_apps()` honours so a re-run of `install.sh` does not put qutebrowser back. brave-origin is
   installed when missing: `cachyos/brave-origin-bin` when a Cachy repo has it (`pacman -Si cachyos/...`),
-  else `aur/brave-origin-bin` through yay. Installing needs sudo, so from rofi (no tty) the script reopens
+  else `aur/brave-origin-bin` through yay. Once installed, its toolbar colour follows the theme
+  (`x11-theme apply-chromium`, see "Chromium needs root" below). Installing needs sudo, so from rofi (no tty) the script reopens
   itself in alacritty. `$mod+b` launches the default browser (`x11-default-browser launch`) and
   `$mod+Shift+Ctrl+b` the same in private browsing (`--target private-window`, `--private-window`,
   `--incognito`); `$mod+Shift+b`, `$mod+Ctrl+b` and `$mod+Mod1+b` launch qutebrowser, firefox and chromium
@@ -584,7 +585,7 @@ No quickshell, nothing else from omarchy's shell.
   | qutebrowser | `qutebrowser/omarchy_theme.py` (from quattro-dots) reads `colors.toml` | `:config-source` |
   | GTK3, GTK4, Firefox, virt-manager, Qt | `gtk.css.tpl` -> `~/.config/gtk-{3,4}.0/gtk.css` (see below) | app restart |
   | icons | generated `x11-theme` icon theme inherits the theme's `icons.theme` (Yaru-red ...) | app restart |
-  | Chromium | `BrowserThemeColor` policy from the theme's `chromium.theme` | Chromium re-reads policy |
+  | Chromium, Brave Origin | `BrowserThemeColor` policy from the theme's `chromium.theme` | Chromium re-reads policy; Brave Origin not yet seen live |
   | wallpaper | the theme's `backgrounds/` (+ `~/.config/omarchy/backgrounds/<theme>/`) | immediate |
   | lock screen | `bin/x11-lock` reads `colors.toml` | next lock |
   | Neovim | omarchy's `neovim.lua.tpl` (aether.nvim), linked as `lua/plugins/theme.lua` | hot-reload plugin |
@@ -605,11 +606,15 @@ No quickshell, nothing else from omarchy's shell.
   (Flame is no longer installed). Qt reads its palette from GTK3 through qt6-base's gtk3
   platform theme (`QT_QPA_PLATFORMTHEME=gtk3` in `shell/xprofile`); for that the CSS also defines GTK3's
   legacy `theme_*` names, without which Qt's selection stayed GTK's blue.
-- **Chromium needs root, narrowly.** The policy lives in root-owned `/etc/chromium/policies/managed/`.
-  `setup_theme_helper()` copies `theme/root/chromium-theme-color` to `/usr/local/lib/cachy-dots/` (root:root
-  755, never a link into the repo) and adds `/etc/sudoers.d/cachy-dots-theme`, validated with `visudo -c`,
+- **Chromium needs root, narrowly.** The policy lives in root-owned `/etc/chromium/policies/managed/`, and
+  Brave Origin's in `/etc/brave/policies/managed/` (the root is compiled into its binary, and omarchy uses
+  the same path). `setup_theme_helper()` copies `theme/root/chromium-theme-color` to `/usr/local/lib/cachy-dots/`
+  (root:root 755, never a link into the repo) and adds `/etc/sudoers.d/cachy-dots-theme`, validated with `visudo -c`,
   allowing exactly that path without a password. The helper accepts one `#rrggbb` and writes only
-  `color.json` (`BrowserThemeColor` + `BrowserColorScheme: device`); this is what omarchy does too.
+  `color.json` (`BrowserThemeColor` + `BrowserColorScheme: device`) under each root. Brave's root is written
+  only when `/usr/bin/brave-origin` exists, so the helper never creates a policy root for a browser that is not
+  installed; `x11-theme apply-chromium` runs once after the install to colour it straight away. This is what
+  omarchy does too.
 - **Root helpers.** Two root files follow the theme, each through its own root-owned helper COPIED to
   `/usr/local/lib/cachy-dots/` (`chromium-theme-color`, `ly-theme-colors`), with one sudoers file
   (`/etc/sudoers.d/cachy-dots-theme`, `visudo -c`'d) allowing exactly those two paths without a password.

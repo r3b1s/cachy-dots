@@ -214,16 +214,17 @@ tint_vesktop() {
     rm -rf "$tmp"
 }
 
-# Chromium's toolbar colour comes from the BrowserThemeColor policy, a root-owned
-# file. install.sh installs a root-owned helper that writes only that, and a
-# sudoers rule for it alone; without them this is skipped.
+# Chromium's and Brave Origin's toolbar colour comes from the BrowserThemeColor
+# policy, a root-owned file under each browser's policy root. install.sh installs
+# a root-owned helper that writes only that, and a sudoers rule for it alone;
+# without them this is skipped.
 apply_chromium() {
     [[ -x $CHROMIUM_HELPER ]] || return 0
     local rgb hex
     rgb=$(tr -d '[:space:]' < "$CURRENT/chromium.theme" 2>/dev/null) || return 0
     [[ $rgb =~ ^([0-9]{1,3}),([0-9]{1,3}),([0-9]{1,3})$ ]] || return 0
     printf -v hex '#%02x%02x%02x' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
-    sudo -n "$CHROMIUM_HELPER" "$hex" 2>/dev/null || echo "x11-theme: could not set Chromium's colour (sudo rule missing?)" >&2
+    sudo -n "$CHROMIUM_HELPER" "$hex" 2>/dev/null || echo "x11-theme: could not set the Chromium and Brave Origin colour (sudo rule missing?)" >&2
 }
 
 # Firefox: every profile gets chrome/x11-theme.css and x11-theme-content.css,
@@ -509,5 +510,9 @@ case "${1:-}" in
     # install.sh re-merges /etc/ly/config.ini from its pristine copy, which
     # drops the colours; this puts the current theme's back.
     apply-ly) apply_ly ;;
+    # x11-default-browser calls this after installing Brave Origin: its policy
+    # root is written only from here on, so it gets the colour without waiting
+    # for the next switch.
+    apply-chromium) apply_chromium ;;
     *) sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

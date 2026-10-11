@@ -1,10 +1,12 @@
 #!/bin/sh
-# chromium-theme-color '#rrggbb' — set Chromium's toolbar colour by policy.
+# chromium-theme-color '#rrggbb' — set the toolbar colour of the Chromium-family
+# browsers by policy: Chromium, and Brave Origin once it is installed.
 #
 # Installed by install.sh as a root-owned COPY in /usr/local/lib/cachy-dots/
 # (never a link into the user-writable repo), with a sudoers rule that lets the
-# user run exactly this, password-less, so x11-theme can retint Chromium. It
-# therefore accepts one strictly validated argument and writes one file.
+# user run exactly this, password-less, so x11-theme can retint them. It
+# therefore accepts one strictly validated argument and writes one color.json
+# under each browser's policy root.
 set -eu
 PATH=/usr/bin:/bin
 
@@ -14,9 +16,28 @@ case "${1:-}" in
 esac
 [ "$(id -u)" -eq 0 ] || { echo "chromium-theme-color: must run as root" >&2; exit 1; }
 
-dir=/etc/chromium/policies/managed
-install -d -m 755 -o root -g root /etc/chromium /etc/chromium/policies "$dir"
-tmp=$(mktemp "$dir/.color.json.XXXXXX")
-printf '{"BrowserThemeColor": "%s", "BrowserColorScheme": "device"}\n' "$color" > "$tmp"
-chmod 644 "$tmp"
-mv -f "$tmp" "$dir/color.json"
+# Each browser reads its policy from a root compiled into its binary. Chromium is
+# always installed, so its root is always written. Brave Origin reads
+# /etc/brave/policies, and that root is written only once its binary exists: a
+# policy root is a trust point, so none is created for a browser not installed.
+roots="/etc/chromium/policies"
+if [ -x /usr/bin/brave-origin ]; then
+    roots="$roots /etc/brave/policies"
+fi
+
+# Write $color as the managed colour policy under the policy root $1.
+write_color() {
+    root=$1
+    dir=$root/managed
+    install -d -m 755 -o root -g root "$(dirname "$root")" "$root" "$dir"
+    tmp=$(mktemp "$dir/.color.json.XXXXXX")
+    printf '{"BrowserThemeColor": "%s", "BrowserColorScheme": "device"}\n' "$color" > "$tmp"
+    chmod 644 "$tmp"
+    mv -f "$tmp" "$dir/color.json"
+}
+
+for root in $roots; do
+    # TODO(human): decide what one root's failed write does to the others and to
+    # the exit status. As it stands, set -e stops at the first failure.
+    write_color "$root"
+done

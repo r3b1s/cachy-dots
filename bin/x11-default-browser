@@ -8,7 +8,8 @@
 #            and records the choice in ~/.config/cachy-dots/default-browser so a
 #            re-run of install.sh keeps it instead of putting qutebrowser back.
 #            brave-origin is installed first when it is missing: cachyos/brave-origin-bin
-#            where a Cachy repo has it, else aur/brave-origin-bin through yay.
+#            where a Cachy repo has it, else aur/brave-origin-bin through yay. Its
+#            toolbar colour then follows the theme (x11-theme apply-chromium).
 #            Installing needs sudo, so with no terminal (from rofi) this reopens
 #            itself in alacritty.
 #   menu     rofi list of the above, the current one marked.
@@ -71,6 +72,9 @@ install_brave() {
         echo "no cachyos/brave-origin-bin and no yay for aur/brave-origin-bin" >&2
         return 1
     fi
+    # Brave Origin's policy root is written only once the binary exists, so give
+    # it the current theme's colour now rather than at the next theme switch.
+    x11-theme apply-chromium || echo "x11-default-browser: could not colour Brave Origin; the next theme switch will" >&2
 }
 
 set_default() {

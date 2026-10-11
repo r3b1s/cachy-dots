@@ -40,7 +40,8 @@ setup_firefox() {
 # /etc/chromium/policies/managed/ (managed, because that is the only level that
 # sets a default engine; recommended/ merely suggests). The toolbar colour is a
 # second policy file, color.json, written by x11-theme on every theme switch
-# through the helper installed by setup_theme_helper().
+# through the helper installed by setup_theme_helper(). Brave Origin gets the
+# same file in /etc/brave/policies/managed/ once it is installed.
 setup_chromium() {
     local src="$REPO/chromium/policies/managed/brave-search.json"
     local target="/etc/chromium/policies/managed/brave-search.json"
