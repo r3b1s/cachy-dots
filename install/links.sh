@@ -59,6 +59,57 @@ install_bashrc_block() {
     esac
 }
 
+# ~/.ssh for the user: the directory, an empty authorized_keys (sshd reads it, and
+# the opt-in hardened drop-in in ssh/ needs a key there before it turns passwords
+# off), and ~/.ssh/config with github.com and gitlab.com identities. The block is
+# appended only when neither host already has a Host entry in ~/.ssh/config; if
+# either does, nothing is appended, so the user's own entries are never duplicated
+# or overridden. Existing content is never rewritten. Remove the block to have it
+# added again.
+setup_ssh() {
+    local dir="$HOME/.ssh" cfg="$HOME/.ssh/config" keys="$HOME/.ssh/authorized_keys"
+    local open="# >>> cachy-dots >>>" close="# <<< cachy-dots <<<"
+
+    if [ ! -d "$dir" ]; then
+        run mkdir -m 700 "$dir"
+        echo "created $dir"
+    fi
+    if [ ! -e "$keys" ]; then
+        run install -m 600 /dev/null "$keys"
+        echo "created $keys (empty)"
+    fi
+
+    # A Host line (keywords are case-insensitive, and may list several patterns)
+    # that names either host.
+    if [ -f "$cfg" ] && grep -qiE '^[[:space:]]*host[[:space:]=]+(.*[[:space:]=])?(github\.com|gitlab\.com)([[:space:]]|$)' "$cfg"; then
+        echo "ssh config: github.com or gitlab.com already configured, nothing appended"
+    elif [ "$dry" = 1 ]; then
+        echo "+ append the cachy-dots block to $cfg"
+    else
+        # A new file is private like the directory; an existing one keeps its mode.
+        [ -e "$cfg" ] || install -m 600 /dev/null "$cfg"
+        {
+            if [ -s "$cfg" ]; then echo; fi
+            echo "$open"
+            cat <<'EOF'
+host github.com
+  hostname github.com
+  user git
+  port 22
+  identitiesonly yes
+
+host gitlab.com
+  hostname gitlab.com
+  user git
+  port 22
+  identitiesonly yes
+EOF
+            echo "$close"
+        } >> "$cfg"
+        echo "ssh config: appended cachy-dots block to $cfg"
+    fi
+}
+
 # Whole directories are linked where the app never writes into its config dir.
 # Where it does (qutebrowser, btop, nvim, starship's shared ~/.config) individual
 # files are linked, so runtime state stays out of the repo.
@@ -131,6 +182,7 @@ install_links() {
     [ "$dry" = 1 ] || find "$cfg/nvim" -xtype l -lname "$REPO/*" -print -delete 2>/dev/null | sed 's/^/removed dangling link /' || true
 
     install_bashrc_block
+    setup_ssh
 
     # ~/.xprofile is sourced by the session start-up (ly runs /etc/ly/setup.sh,
     # which reads it before exec'ing the session), so this is how XDG_CURRENT_DESKTOP

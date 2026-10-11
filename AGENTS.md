@@ -197,8 +197,16 @@ exists yet, never overwriting a user-picked theme. Takes effect on next launch.
 
 ## sshd
 
-`install.sh` does not touch sshd: it neither enables nor configures it, and it never writes `authorized_keys`.
+`install.sh` does not touch sshd: it neither enables nor configures it.
 CachyOS may already run it, and on the arch-boxes cloud image it is enabled, but neither is the repo's doing.
+
+The user's ssh files are scaffolded by `setup_ssh()` in `install/links.sh`, on every profile and in `sync.sh`:
+`~/.ssh` (700) if absent, an empty `~/.ssh/authorized_keys` (600) if absent, and a `# >>> cachy-dots >>>` block
+at the end of `~/.ssh/config` (600 when the file is new) with `github.com` and `gitlab.com` host entries
+(`user git`, `identitiesonly yes`, no `IdentityFile`). The block is appended only when neither `github.com` nor
+`gitlab.com` already has a `Host` entry in the file; if either does, nothing is appended, so existing content is
+never rewritten or duplicated. To get the block back after removing it, delete the marked lines and re-run. Put your key in
+`authorized_keys` before enabling the drop-in below.
 The hardening drop-in, `ssh/sshd_config.d/10-cachy-safe.conf` (pubkey only, no passwords or interactive
 login, no root), is opt-in: copy it to `/etc/ssh/sshd_config.d/` yourself. Put your key in
 `~/.ssh/authorized_keys` first, because the drop-in turns password logins off. Arch's `sshd_config` Includes
@@ -325,7 +333,7 @@ unchanged; read them as "in `install/`"):
 | `system.sh` | login shell, ly overlay, nix, services, firewall, touchpad, keyring check, `validate_i3` |
 | `browsers.sh` | Firefox and Chromium policies, `setup_default_apps` |
 | `theme.sh` | root helpers, GTK, dark mode, `setup_theme` |
-| `links.sh` | `link`, `install_links`, the bashrc block, the nvim tree |
+| `links.sh` | `link`, `install_links`, the bashrc block, `setup_ssh` (the `~/.ssh` scaffold), the nvim tree |
 | `voxtype.sh` | the speech model |
 | `flow.sh` | `install_main`: the steps in order, and `record_profile` |
 | `profile-<name>.sh` | what a profile leaves out |
