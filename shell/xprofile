@@ -40,3 +40,9 @@ case ":${XDG_CURRENT_DESKTOP:-}:" in
     *:GNOME:*) ;;
     *) export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:+$XDG_CURRENT_DESKTOP:}GNOME" ;;
 esac
+
+# Xft.dpi: with none set, alacritty (winit) derives its scale factor from the
+# panel's physical size, so the same `size = 10` came out ~1.6x larger on a
+# 157 DPI laptop than on a 92 DPI desktop. Pinning 96 makes fonts the same size
+# on every machine; GTK, Qt and Firefox read it too.
+command -v xrdb >/dev/null 2>&1 && echo 'Xft.dpi: 96' | xrdb -merge

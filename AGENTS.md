@@ -50,7 +50,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Launcher, notifications | `rofi`, `rofimoji` (emoji picker, `$mod+Ctrl+e`), `dunst`, `libnotify` |
 | Terminals, editor, monitors | `alacritty` (default), `kitty`, `neovim`, `btop` |
 | Browsers | `chromium`, `qutebrowser-git`, `firefox` |
-| X and the session | `xorg-server`, `xorg-xinit`, `xorg-xauth`, `xorg-xrandr`, `ly` |
+| X and the session | `xorg-server`, `xorg-xinit`, `xorg-xauth`, `xorg-xrandr`, `xorg-xrdb` (`Xft.dpi: 96` from `shell/xprofile`, so alacritty is the same size on every panel), `ly` |
 | Shell and prompt | `starship`, `eza`, `zoxide`, `fzf`, `bat`, `bash-completion` |
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
 | Sync and notes | `rclone`, `obsidian` |

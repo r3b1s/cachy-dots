@@ -25,6 +25,7 @@ PKGS=(
     xorg-server                     # the X server itself
     xorg-xinit                      # startx / xinit
     xorg-xrandr                     # monitor size, set by bin/x11-monitor
+    xorg-xrdb                       # loads Xft.dpi from shell/xprofile
     xorg-xauth                      # X authentication (ly and startx)
     ly                              # display manager; runs i3 (see AGENTS.md)
 )
