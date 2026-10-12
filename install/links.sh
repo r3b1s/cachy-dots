@@ -110,6 +110,37 @@ EOF
     fi
 }
 
+# The i3 config is linked file by file, not as a directory: conf.d/04-monitors.conf
+# is a per-host copy (import_monitors_conf), and it has to live in ~/.config/i3, not
+# in the repo. An old whole-directory link is removed first; removing a symlink
+# leaves its target alone.
+install_i3_config() {
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/i3" src
+    if [ -L "$cfg" ]; then
+        run rm "$cfg"
+        echo "removed the old $cfg directory link"
+    fi
+    run mkdir -p "$cfg/conf.d"
+    link "$REPO/i3/config" "$cfg/config"
+    for src in "$REPO"/i3/conf.d/*.conf; do
+        link "$src" "$cfg/conf.d/$(basename "$src")"
+    done
+    import_monitors_conf
+}
+
+# The monitor layout is per host, so it is copied from i3/templates/ once and then
+# left alone: neither install.sh nor sync.sh overwrites it, and a symlink or a real
+# file already there is kept as it is.
+import_monitors_conf() {
+    local dst="${XDG_CONFIG_HOME:-$HOME/.config}/i3/conf.d/04-monitors.conf"
+    local src="$REPO/i3/templates/04-monitors.conf"
+    if [ -e "$dst" ] || [ -L "$dst" ]; then
+        return 0
+    fi
+    run install -m 644 "$src" "$dst"
+    echo "copied $src -> $dst (this host's monitor layout; edit it there)"
+}
+
 # Whole directories are linked where the app never writes into its config dir.
 # Where it does (qutebrowser, btop, nvim, starship's shared ~/.config) individual
 # files are linked, so runtime state stays out of the repo.
@@ -118,7 +149,8 @@ install_links() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 
     local d
-    for d in i3 kitty alacritty rofi shell; do
+    install_i3_config
+    for d in kitty alacritty rofi shell; do
         link "$REPO/$d" "$cfg/$d"
     done
 

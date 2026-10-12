@@ -7,6 +7,7 @@
 #
 #   00-base.conf         font, borders, gaps
 #   01-colors.conf       window colours (from the active theme; see x11-theme)
+#   04-monitors.conf     this host's monitor layout: a copy of i3/templates/, not linked
 #   05-autostart.conf    daemons, tray applets, guest agents, wallpaper
 #   10-core.conf         focus / move / resize / layouts
 #   15-bar.conf          i3bar + i3status-rust
