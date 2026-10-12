@@ -47,6 +47,14 @@ dev=$(pick_backlight) || {
 }
 
 before=$(brightnessctl -d "$dev" -m | cut -d, -f3)
+# The coarse keys step by 1% instead of 5% below 10%, and going down from 10%
+# exactly, so a 5% step never jumps over the low end. Up from 10% stays 5%.
+pct_before=$(brightnessctl -d "$dev" -m | cut -d, -f4 | tr -d %)
+if [ "$pct_before" -lt 10 ]; then
+    case $step in 5%+) step=1%+ ;; 5%-) step=1%- ;; esac
+elif [ "$pct_before" -eq 10 ]; then
+    [ "$step" = "5%-" ] && step=1%-
+fi
 max=$(brightnessctl -d "$dev" max)
 
 # --min-value=1 (not "-n 1": -n takes an optional argument, so the separate "1" is not read as its value and the set is silently skipped): never all the way to black, which on a laptop panel is indistinguishable from off.
