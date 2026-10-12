@@ -3,21 +3,21 @@
 # Sourced by install.sh, install_vm.sh and sync.sh through install/lib.sh; defines
 # functions and package lists only, and runs nothing.
 
-# x11-theme writes two root-owned files: the BrowserThemeColor policy of Chromium
-# and Brave Origin, and ly's colours in /etc/ly/config.ini. As omarchy does for
-# Chromium, each write goes through one root-owned helper, with a sudoers rule
-# naming those helpers alone, so a theme switch never prompts for a password:
-#   /usr/local/lib/cachy-dots/{chromium-theme-color,ly-theme-colors}
+# x11-theme writes one root-owned file: the BrowserThemeColor policy of Chromium
+# and Brave Origin. As omarchy does, the write goes through a root-owned helper,
+# with a sudoers rule naming that helper alone, so a theme switch never prompts
+# for a password:
+#   /usr/local/lib/cachy-dots/chromium-theme-color
 #     COPIED from theme/root/ (root must not run a file the user can edit);
 #     each accepts only strictly validated colour arguments
-#   /etc/sudoers.d/cachy-dots-theme    NOPASSWD for exactly those two paths
+#   /etc/sudoers.d/cachy-dots-theme    NOPASSWD for exactly that path
 THEME_HELPER_DIR=/usr/local/lib/cachy-dots
-THEME_HELPERS=(chromium-theme-color ly-theme-colors)
+THEME_HELPERS=(chromium-theme-color)
 THEME_SUDOERS=/etc/sudoers.d/cachy-dots-theme
 
 setup_theme_helper() {
     local h src rule tmp paths=()
-    say "Installing the theme helpers (Chromium, ly)"
+    say "Installing the theme helpers (Chromium)"
     for h in "${THEME_HELPERS[@]}"; do
         src="$REPO/theme/root/$h"
         [ -r "$src" ] || continue
@@ -34,14 +34,14 @@ setup_theme_helper() {
     if [ "$dry" = 1 ]; then echo "+ write $THEME_SUDOERS: $rule"; return; fi
     if ! $SUDO grep -qxF "$rule" "$THEME_SUDOERS" 2>/dev/null; then
         tmp=$(mktemp)
-        printf '# cachy-dots: lets x11-theme set Chromium'"'"'s colour policy and ly'"'"'s colours.\n%s\n' "$rule" > "$tmp"
+        printf '# cachy-dots: lets x11-theme set Chromium'"'"'s colour policy.\n%s\n' "$rule" > "$tmp"
         # visudo checks the syntax before anything reaches sudoers.d; a broken
         # file there would lock sudo out entirely.
         if $SUDO visudo -cqf "$tmp"; then
             $SUDO install -o root -g root -m 440 "$tmp" "$THEME_SUDOERS"
             echo "theme helpers: sudoers rule in $THEME_SUDOERS"
         else
-            warn "the sudoers rule did not validate; Chromium, Brave Origin and ly will not follow the theme"
+            warn "the sudoers rule did not validate; Chromium and Brave Origin will not follow the theme"
         fi
         rm -f "$tmp"
     fi

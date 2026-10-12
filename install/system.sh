@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# System setup: login shell, ly, services, nix, firewall, touchpad, keyring.
+# System setup: login shell, services, nix, firewall, touchpad, keyring.
 # Sourced by install.sh, install_vm.sh and sync.sh through install/lib.sh; defines
 # functions and package lists only, and runs nothing.
 
@@ -19,86 +19,6 @@ setup_login_shell() {
     run $SUDO chsh -s "$bash_path" "$TARGET_USER" \
         || { warn "could not change the login shell to bash"; return 0; }
     echo "login shell: $bash_path (applies at next login)"
-}
-
-# ly's settings overlay (colours come from the theme; see x11-theme apply_ly).
-#
-# ly reads exactly one config file, /etc/ly/config.ini - the path is compiled in,
-# and there is no ~/.config/ly/config.ini fallback - so the theme has to be merged
-# into that file. Merging rather than replacing keeps every setting we do not care
-# about at its packaged value, and keeps working across upgrades that add keys.
-#
-# The original is kept once as config.ini.cachy-orig; re-running restores from it
-# first, so the merge is idempotent instead of accumulating.
-install_ly_theme() {
-    # LY_CONFIG exists so this can be pointed elsewhere for testing; normal use
-    # is the system path.
-    local target="${LY_CONFIG:-/etc/ly/config.ini}"
-    local src="$REPO/ly/overlay.ini"
-    local pristine="$target.cachy-orig"
-
-    [ -r "$src" ] || return 0
-    if [ ! -f "$target" ]; then
-        warn "$target not found; skipping the ly theme (is the 'ly' package installed?)"
-        return
-    fi
-
-    say "Applying the ly overlay"
-    local merged
-    merged=$(mktemp)
-
-    if [ -f "$pristine" ]; then
-        cat "$pristine" > "$merged"
-    else
-        cat "$target" > "$merged"
-        run $SUDO cp -a "$target" "$pristine"
-        echo "saved pristine copy as $pristine"
-    fi
-
-    # Replace each key we theme in place; append any key the packaged file lacks.
-    # Operating on the pristine copy means re-running never stacks duplicates.
-    awk -v overlay="$src" '
-        function keyof(s) { k = s; sub(/=.*/, "", k); gsub(/[[:space:]]/, "", k); return k }
-        function valof(s) {
-            v = substr(s, index(s, "=") + 1)
-            sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v)
-            return v
-        }
-        BEGIN {
-            while ((getline line < overlay) > 0) {
-                if (line ~ /^[a-z_]+[[:space:]]*=/) {
-                    k = keyof(line)
-                    if (!(k in val)) order[++n] = k
-                    val[k] = valof(line)
-                }
-            }
-            close(overlay)
-        }
-        {
-            if ($0 ~ /^[a-z_]+[[:space:]]*=/) {
-                k = keyof($0)
-                if (k in val) { print k " = " val[k]; done_[k] = 1; next }
-            }
-            print
-        }
-        END {
-            for (i = 1; i <= n; i++)
-                if (!(order[i] in done_)) print order[i] " = " val[order[i]]
-        }
-    ' "$merged" > "$merged.new" && mv "$merged.new" "$merged"
-
-    if cmp -s "$merged" "$target"; then
-        echo "ly theme: already up to date"
-    else
-        run $SUDO install -m 644 "$merged" "$target"
-        echo "ly theme: written to $target"
-    fi
-    rm -f "$merged"
-
-    # The merge starts from the pristine file, so put the theme's colours back.
-    if [ "$dry" = 0 ] && [ -f "$HOME/.local/state/omarchy/current/theme.name" ]; then
-        "$REPO/bin/x11-theme" apply-ly || true
-    fi
 }
 
 # nix is for project-specific environments only (`nix-shell`, `nix develop`):

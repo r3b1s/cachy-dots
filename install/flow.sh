@@ -25,7 +25,6 @@ install_main() {
         sync_qt_stack
         setup_login_shell
         setup_theme_helper
-        install_ly_theme
         enable_services
         enable_nix
         setup_dark_theme

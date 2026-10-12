@@ -7,7 +7,7 @@
 #      links that moved, and removes links whose repo file is gone; a real file
 #      in the way is backed up as <name>.bak.<time>
 #   2. copies the configs that cannot be links, each only when it differs from the
-#      repo: the ly overlay, the theme helpers and their sudoers rule, the
+#      repo: the theme helper and their sudoers rule, the
 #      Firefox and Chromium policies, the touchpad config, the nix.conf block,
 #      the GTK settings, the managed ~/.bashrc block
 #   3. re-renders the current theme (templates, the files rendered from them)
@@ -95,7 +95,6 @@ setup_gtk
 if [ "$root" = 1 ]; then
     # Each only writes when its target differs from the repo.
     setup_theme_helper
-    install_ly_theme
     setup_firefox
     setup_chromium
     want touchpad && setup_touchpad

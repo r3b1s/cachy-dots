@@ -7,7 +7,7 @@
 #   packages.sh  package lists
 #   repos.sh     CachyOS repo check, chaotic-aur
 #   pacman.sh    the pacman transaction, AUR builds, the Qt 6 stack
-#   system.sh    login shell, ly, nix, services, firewall, touchpad, keyring
+#   system.sh    login shell, nix, services, firewall, touchpad, keyring
 #   browsers.sh  Firefox and Chromium policies, default applications
 #   theme.sh     root helpers, GTK, dark mode, the first theme
 #   links.sh     symlinks into ~/.config and ~/.local/bin
