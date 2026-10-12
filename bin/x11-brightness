@@ -49,8 +49,8 @@ dev=$(pick_backlight) || {
 before=$(brightnessctl -d "$dev" -m | cut -d, -f3)
 max=$(brightnessctl -d "$dev" max)
 
-# -n 1: never all the way to black, which on a laptop panel is indistinguishable from off.
-brightnessctl -q -d "$dev" -n 1 set "$step"
+# --min-value=1 (not "-n 1": -n takes an optional argument, so the separate "1" is not read as its value and the set is silently skipped): never all the way to black, which on a laptop panel is indistinguishable from off.
+brightnessctl -q -d "$dev" --min-value=1 set "$step"
 
 after=$(brightnessctl -d "$dev" -m | cut -d, -f3)
 pct=$(brightnessctl -d "$dev" -m | cut -d, -f4 | tr -d %)
