@@ -118,3 +118,7 @@ if [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]; the
     warn "syncthing stops when you log out; to keep it running: loginctl enable-linger"
 fi
 say "GUI: http://127.0.0.1:8384 (set a GUI password; add $HOME/Sync as the folder)"
+# Discovery cannot leave wt0, so a peer left at "dynamic" is never dialled.
+say "give each remote device a static address (Edit > Advanced > Addresses):"
+say "  tcp://<peer NetBird IP>:22000, quic://<peer NetBird IP>:22000"
+say "and give this host's to the peers: tcp://$ip:22000, quic://$ip:22000"
