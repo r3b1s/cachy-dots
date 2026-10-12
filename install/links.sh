@@ -141,27 +141,34 @@ import_monitors_conf() {
     echo "copied $src -> $dst (this host's monitor layout; edit it there)"
 }
 
-# Whole directories are linked where the app never writes into its config dir.
-# Where it does (qutebrowser, btop, nvim, starship's shared ~/.config) individual
-# files are linked, so runtime state stays out of the repo.
+# A whole-directory link into the repo, left by an earlier layout. It is removed so
+# the files can be linked into a real directory: a file link made through a
+# directory link would land in the repo. Removing a symlink leaves its target alone.
+retire_dir_link() {
+    local dir="$1" target="$2"
+    if [ -L "$dir" ] && [ "$(readlink "$dir")" = "$target" ]; then
+        run rm "$dir"
+        echo "removed the old $dir directory link"
+    fi
+}
+
+# Every config is linked file by file, never as a directory, so a host can leave
+# any file out (or keep a local one beside it) without touching the repo. Apps
+# that write next to their config (qutebrowser, btop, nvim, starship's shared
+# ~/.config) need this too, so runtime state stays out of the repo. link() makes
+# the directories it needs.
 install_links() {
     say "Linking dots"
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 
     local d
     install_i3_config
-    for d in kitty alacritty rofi shell; do
-        link "$REPO/$d" "$cfg/$d"
-    done
-
-    # Earlier layouts linked these whole directories. dunst now needs a real
-    # directory (its theme is a drop-in beside dunstrc), and i3status-rust's
-    # config is rendered into the state directory instead.
-    for d in dunst i3status-rust; do
-        if [ -L "$cfg/$d" ] && [ "$(readlink -f "$cfg/$d")" = "$REPO/$d" ]; then
-            run rm "$cfg/$d"
-            echo "removed the old $cfg/$d directory link"
-        fi
+    # The four directories that were linked whole, and dunst and i3status-rust,
+    # which were too: dunst now needs a real directory (its theme is a drop-in
+    # beside dunstrc), and i3status-rust's config is rendered into the state
+    # directory instead.
+    for d in kitty alacritty rofi shell dunst i3status-rust; do
+        retire_dir_link "$cfg/$d" "$REPO/$d"
     done
 
     # Files the rendered theme provides: ~/.local/state/omarchy/current/theme/
@@ -191,6 +198,12 @@ install_links() {
     for pair in \
         "qutebrowser/config.py:qutebrowser/config.py" \
         "qutebrowser/omarchy_theme.py:qutebrowser/omarchy_theme.py" \
+        "alacritty/alacritty.toml:alacritty/alacritty.toml" \
+        "kitty/kitty.conf:kitty/kitty.conf" \
+        "rofi/config.rasi:rofi/config.rasi" \
+        "shell/init.sh:shell/init.sh" \
+        "shell/aliases:shell/aliases" \
+        "shell/integrations:shell/integrations" \
         "dunst/dunstrc:dunst/dunstrc" \
         "qutebrowser/vimium.py:qutebrowser/vimium.py" \
         "qutebrowser/startpage.html:qutebrowser/startpage.html" \
