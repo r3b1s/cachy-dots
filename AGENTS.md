@@ -449,7 +449,12 @@ whole run when ufw could not start.
   value. `$terminal-cmd` is `$terminal -e`. A future terminal menu only has to change TERMINAL. Not yet switched:
   `bin/x11-default-browser` still starts `alacritty` by name for the sudo prompt. Kitty stays installed and follows the
   theme, but nothing in the config launches it and its remote-control socket is off.
-- `install.sh` links whole dirs for kitty, alacritty, rofi, shell (i3 is linked file by file, and its monitor copy is made by `import_monitors_conf`, see above); individual files for dunst (`dunstrc`;
+- Nothing under `~/.config` is a link to a repo directory any more: `install_links` links individual files only,
+  and `link()` creates the host-local directories (`mkdir -p`). Earlier layouts linked whole directories; `retire_dir_link`
+  removes those first, because a file link made through a directory link would land in the repo. alacritty
+  (`alacritty.toml`), kitty (`kitty.conf`), rofi (`config.rasi`) and shell (`init.sh`, `aliases`, `integrations`; `xprofile`
+  goes to `~/.xprofile` and `blerc` to `~/.blerc`) are linked that way. i3 is linked file by file too, and its monitor copy
+  is made by `import_monitors_conf`, see above. Individual files for dunst (`dunstrc`;
   the theme drop-in goes beside it in `dunstrc.d/`), qutebrowser (`config.py`, `omarchy_theme.py`,
   `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
   `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
