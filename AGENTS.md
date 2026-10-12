@@ -462,7 +462,7 @@ whole run when ufw could not start.
   (nothing runs on sourcing; `link()` stays silent for links that are already right), takes the profile from
   `~/.config/cachy-dots/profile`, and runs `install_links` (new links, repointed ones, backups of real files in the way), removes links
   into the repo whose file is gone, `setup_gtk`, the root copies that only write when they differ
-  (`setup_theme_helper`, `install_ly_theme`, `setup_firefox`, `setup_chromium`, `setup_touchpad`, the nix.conf
+  (`setup_theme_helper`, `setup_firefox`, `setup_chromium`, `setup_touchpad`, the nix.conf
   block, which restarts `nix-daemon.service` only if it changed), `x11-theme refresh`, `setup_default_apps`
   and `i3 -C`, then lists packages the repo wants that are missing and points at `install.sh`. Flags: `-n`,
   `--no-root` (skip the `/etc` and `/usr/local` copies, no sudo), `--themes` (`x11-theme update`, which pulls).
