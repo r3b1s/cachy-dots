@@ -31,6 +31,7 @@ install_main() {
         setup_gtk
         setup_firefox
         setup_chromium
+        setup_terminal_env
         setup_firewall
         want touchpad && setup_touchpad
         [ "${PROFILE_NO_SLEEP:-0}" = 1 ] && setup_no_sleep

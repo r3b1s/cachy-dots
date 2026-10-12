@@ -9,6 +9,7 @@
 #   2. copies the configs that cannot be links, each only when it differs from the
 #      repo: the theme helper and their sudoers rule, the
 #      Firefox and Chromium policies, the touchpad config, the nix.conf block,
+#      TERMINAL in /etc/environment,
 #      the GTK settings, the managed ~/.bashrc block
 #   3. re-renders the current theme (templates, the files rendered from them)
 #   4. re-applies the default apps, keeping the browser chosen in the menu
@@ -97,6 +98,7 @@ if [ "$root" = 1 ]; then
     setup_theme_helper
     setup_firefox
     setup_chromium
+    setup_terminal_env
     want touchpad && setup_touchpad
     [ "${PROFILE_NO_SLEEP:-0}" = 1 ] && setup_no_sleep
     if pacman -Qq nix >/dev/null 2>&1 && [ "$TARGET_USER" != root ]; then

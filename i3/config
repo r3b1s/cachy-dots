@@ -18,9 +18,12 @@
 
 set $mod Mod4
 set $bin ~/.local/bin
-# Default terminal. alacritty/alacritty.toml carries the pinkrot colours.
-set $terminal alacritty
-set $terminal-cmd alacritty --command
+# Default terminal: $TERMINAL from the environment (/etc/environment, see
+# install/system.sh), handed over as the i3wm.terminal X resource by shell/xprofile.
+# alacritty is the fallback when no TERMINAL was set. alacritty/alacritty.toml
+# carries the pinkrot colours.
+set_from_resource $terminal i3wm.terminal alacritty
+set $terminal-cmd $terminal -e
 
 # XDG_CURRENT_DESKTOP is exported from shell/xprofile (-> ~/.xprofile), which the
 # session start-up sources before i3 is exec'd, so every child of i3 inherits it.

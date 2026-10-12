@@ -54,6 +54,35 @@ setup_nix_conf() {
     echo "nix.conf: nix-command and flakes enabled, $user trusted"
 }
 
+# TERMINAL: the default terminal, for scripts (x11-theme's picker, and whatever a
+# terminal menu sets later). pam_env reads /etc/environment at every login, ly's
+# included, so this reaches the i3 session and everything it starts. A managed
+# block keeps the rest of the file as it is; it is rewritten on re-runs and only
+# written when it differs. TERMINAL_ENV_FILE points it elsewhere (for tests).
+setup_terminal_env() {
+    local value=${1:-alacritty} file=${TERMINAL_ENV_FILE:-/etc/environment}
+    local open="# >>> cachy-dots >>>" close="# <<< cachy-dots <<<"
+    local block stripped tmp
+    block=$(printf '%s\nTERMINAL=%s\n%s\n' "$open" "$value" "$close")
+
+    if [ "$dry" = 1 ]; then
+        echo "+ write to $file:"; printf '%s\n' "$block" | sed 's/^/+   /'
+        return 0
+    fi
+    stripped=$([ ! -f "$file" ] || awk -v o="$open" -v c="$close" '$0 == o { skip = 1; next } $0 == c { skip = 0; next } !skip' "$file")
+    if printf '%s\n' "$stripped" | grep -q '^TERMINAL='; then
+        warn "$file sets TERMINAL outside the cachy-dots block; check which one should win"
+    fi
+    tmp=$(mktemp)
+    { [ -z "$stripped" ] || printf '%s\n' "$stripped"; printf '%s\n' "$block"; } > "$tmp"
+    if [ -f "$file" ] && cmp -s "$tmp" "$file"; then
+        rm -f "$tmp"; return 0
+    fi
+    $SUDO install -Dm644 "$tmp" "$file"
+    rm -f "$tmp"
+    echo "$file: TERMINAL=$value (takes effect at the next login)"
+}
+
 enable_nix() {
     pacman -Qq nix >/dev/null 2>&1 || return 0
     command -v systemctl >/dev/null || return 0

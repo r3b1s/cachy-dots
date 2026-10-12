@@ -46,3 +46,10 @@ esac
 # 157 DPI laptop than on a 92 DPI desktop. Pinning 96 makes fonts the same size
 # on every machine; GTK, Qt and Firefox read it too.
 command -v xrdb >/dev/null 2>&1 && echo 'Xft.dpi: 96' | xrdb -merge
+
+# TERMINAL (from /etc/environment, via pam_env) becomes the X resource i3wm.terminal,
+# which i3/config reads with set_from_resource for $terminal. With no TERMINAL set,
+# nothing is published and i3 falls back to alacritty.
+if [ -n "${TERMINAL:-}" ] && command -v xrdb >/dev/null 2>&1; then
+    printf 'i3wm.terminal: %s\n' "$TERMINAL" | xrdb -merge
+fi
