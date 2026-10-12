@@ -103,7 +103,7 @@ Notes on particular entries:
   `startx` needs, and what `ly` runs against.
 - **`chromium`** is installed alongside `qutebrowser-git` because both follow the system colour scheme.
 - **`firefox`** is configured by enterprise policy, not by copying profile files; see below.
-- **`ttf-jetbrains-mono-nerd`** is the font named by kitty, alacritty, i3, ly and the bar.
+- **`ttf-jetbrains-mono-nerd`** is the font named by kitty, alacritty, i3 and the bar.
 
 ## Starting i3
 
@@ -111,14 +111,9 @@ The VM has no desktop environment. `ly` is the display manager: install.sh enabl
 at boot you get a login prompt on the virtual console. Pick `i3` as the session; it comes from i3-wm's
 `/usr/share/xsessions/i3.desktop`, which ly reads, so no extra session file is needed.
 
-ly reads exactly one config file, `/etc/ly/config.ini`. The path is compiled into it and there is **no**
-`~/.config/ly/config.ini` fallback, so a per-user config does nothing. `install_ly_theme()` therefore merges
-`ly/overlay.ini` (non-colour settings) into that system file, keeping the packaged original at
-`/etc/ly/config.ini.cachy-orig` and always re-merging from it, so repeat runs are idempotent; it then runs
-`x11-theme apply-ly` to put the theme's colours back. The colours follow the theme: x11-theme renders
-`ly.ini.tpl` and writes its keys through the root helper `ly-theme-colors` (see "Theming"); ly shows them at
-its next start. A `pacman -Syu` that upgrades ly restores the packaged file (or leaves a `.pacnew`); re-run
-the installer to put the overlay and colours back.
+ly is **not themed or configured** by these dots: it runs with its packaged `/etc/ly/config.ini`. A
+theme once left its text and background the same colour (catppuccin-latte), hiding every field, so theming
+was removed rather than risk a login screen nobody can read.
 Autologin is deliberately not enabled: log in interactively.
 
 `xorg-xinit` and `xorg-xauth` are still installed, so `startx /usr/bin/i3` works from a tty as a fallback
@@ -330,7 +325,7 @@ unchanged; read them as "in `install/`"):
 | `packages.sh` | `PKGS`, `PINNED`, `PINNED_REPLACES`, `AUR_PKGS`, the guest-agent packages |
 | `repos.sh` | `check_cachy_repos`, `setup_chaotic_aur` |
 | `pacman.sh` | `install_packages`, `install_aur`, `sync_qt_stack` |
-| `system.sh` | login shell, ly overlay, nix, services, firewall, touchpad, keyring check, `validate_i3` |
+| `system.sh` | login shell, nix, services, firewall, touchpad, keyring check, `validate_i3` |
 | `browsers.sh` | Firefox and Chromium policies, `setup_default_apps` |
 | `theme.sh` | root helpers, GTK, dark mode, `setup_theme` |
 | `links.sh` | `link`, `install_links`, the bashrc block, `setup_ssh` (the `~/.ssh` scaffold), the nvim tree |
@@ -398,7 +393,11 @@ whole run when ufw could not start.
 
 ## Layout and install
 
-- `i3/` — `config` + numbered `conf.d/` modules (see header of `i3/config`).
+- `i3/` — `config` + numbered `conf.d/` modules (see header of `i3/config`). The monitor layout is per host:
+  `i3/templates/04-monitors.conf` (comments only, with example layouts) is **copied** to
+  `~/.config/i3/conf.d/04-monitors.conf` by `install_links` (install.sh and sync.sh) only when that file is missing,
+  and is never linked or overwritten after that. Because of that, `~/.config/i3` is a real directory whose files are
+  linked individually, not a link to `i3/`.
 - One top-level dir per app (`kitty/`, `alacritty/`, `rofi/`, `dunst/`, `starship/`, …), plus `shell/` (bash integration), `bin/` (helper scripts → `~/.local/bin`).
 - Wallpapers come from the active theme's `backgrounds/` plus `~/.config/omarchy/backgrounds/<theme>/` (yours,
   as on omarchy); `~/.config/wallpapers/` is only the fallback when a theme has none. `bin/x11-wallpaper`
@@ -443,18 +442,21 @@ whole run when ufw could not start.
 - Colours come from the active theme for almost everything (see "Theming"); the exceptions with static
   pinkrot colours are gone: starship uses only named ANSI colours, so it follows the terminal's palette,
   which the theme sets.
-- Default terminal is alacritty (`set $terminal` in `i3/config`). Kitty stays installed and follows the
+- Default terminal: `TERMINAL` in the environment, alacritty when unset. `setup_terminal_env` (`install/system.sh`)
+  writes `TERMINAL=alacritty` into a managed block of `/etc/environment`, which pam_env reads at every login (ly's
+  included). `shell/xprofile` publishes it to X as the resource `i3wm.terminal` (only when set), and `i3/config` reads
+  it with `set_from_resource $terminal i3wm.terminal alacritty`, so the repo's i3 config holds no environment-specific
+  value. `$terminal-cmd` is `$terminal -e`. A future terminal menu only has to change TERMINAL. Not yet switched:
+  `bin/x11-default-browser` still starts `alacritty` by name for the sudo prompt. Kitty stays installed and follows the
   theme, but nothing in the config launches it and its remote-control socket is off.
-- `install.sh` links whole dirs for i3, kitty, alacritty, rofi, shell; individual files for dunst (`dunstrc`;
+- `install.sh` links whole dirs for kitty, alacritty, rofi, shell (i3 is linked file by file, and its monitor copy is made by `import_monitors_conf`, see above); individual files for dunst (`dunstrc`;
   the theme drop-in goes beside it in `dunstrc.d/`), qutebrowser (`config.py`, `omarchy_theme.py`,
   `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
   `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
   (`satty/config.toml`), voxtype (`voxtype/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
   (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
   `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` is
-  linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`. The ly theme is merged
-  into `/etc/ly/config.ini` instead
-  of linked, and the GTK icon theme is generated into `~/.local/share/icons/`.
+  linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`. The GTK icon theme is generated into `~/.local/share/icons/`.
 - **`sync.sh`** (repo root) brings an installed system up to date after a `git pull` or an edit, without
   installing anything, enabling a service or touching the network: it sources `install/lib.sh` for the functions
   (nothing runs on sourcing; `link()` stays silent for links that are already right), takes the profile from
@@ -533,8 +535,8 @@ These were left out while the dots only targeted disposable VMs; they are for da
   the bar had when inhibit was switched on (toggle again after a resolution change). Checked with a stub
   `systemd-inhibit` and `xset` (the sandbox the script was written in has no system bus, X or dzen2); **the
   placement and the glyph rendering have not been seen on a screen.**
-- **Nightlight.** `bin/x11-nightlight` (`$mod+Ctrl+n`) toggles `gammastep -m randr -O 4000` (one-shot: it sets
-  the gamma ramps and exits, X keeps them, so no daemon runs). `NIGHTLIGHT_TEMP` changes the warmth. The
+- **Nightlight.** `bin/x11-nightlight` (`$mod+Ctrl+n`) toggles `gammastep -m randr -O 1000` (one-shot: it sets
+  the gamma ramps and exits, X keeps them, so no daemon runs). `NIGHTLIGHT_TEMP` changes the warmth; `$mod+Shift+Ctrl+n` toggles a milder 2000K (`x11-nightlight toggle 2000`). The
   virtio GPU on the test VM supports gamma ramps (`xrandr --verbose` shows `Gamma: 1.0:1.3:1.6` when on).
 - **Bluetooth.** `blueman-manager` is in rofi's drun list; `blueman-applet` starts only when
   `/sys/class/bluetooth` has an adapter. `bluetooth.service` is enabled; its unit is conditioned on the same
@@ -579,8 +581,14 @@ No quickshell, nothing else from omarchy's shell.
 
 - **Commands.** `x11-theme install <git-url>` clones a theme repo into `~/.config/omarchy/themes/<name>` and
   applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`
-  fetches one of omarchy's built-in themes (they live inside omarchy's repo, 279 MB in all, so a blobless
-  sparse shallow clone into a temp dir checks out only `themes/<name>`); with no name it lists them.
+  fetches one of omarchy's built-in themes from `omacom/omarchy` (basecamp's old URL redirects there), branch
+  `quattro`, its `themes/` folder (279 MB in all, so a blobless sparse shallow clone into a temp dir checks out
+  only `themes/<name>`). `--list` (or no name) lists them; `--help` prints the source links to audit them.
+  `x11-theme add-wallpaper [file]` copies an image into `~/.config/omarchy/backgrounds/<current theme>/`, the pool
+  `x11-wallpaper menu` offers for that theme; with no file it opens yazi in `$TERMINAL` (alacritty when unset; `--class x11-picker` for alacritty, which i3
+  floats at 60%x70% of the active output, centred, focused, with the same `border pixel 2`; chooser mode): Enter on a folder opens it, and only JPEG, PNG, WebP or BMP files
+  that are really images (checked with `magick identify`) are added.
+  The super+esc menu's "Add wallpaper to current theme" runs it with the picker.
   `set`, `refresh` (re-render after editing a template), `list`, `current`, `remove`, and `menu`: the
   theme switcher, an omarchy-style rofi grid of each theme's `preview.png` (`$mod+Shift+Ctrl+space`).
   `x11-wallpaper menu` is the same grid for the current theme's backgrounds (`$mod+Ctrl+space`), and
@@ -630,7 +638,6 @@ No quickshell, nothing else from omarchy's shell.
   | satty | `satty/config.toml.tpl` (palette from the theme), linked like the bar config | next start |
   | CopyQ | `copyq.ini.tpl` -> the `[Theme]` section of `copyq.conf` (stop, edit, restart) | restart (automatic) |
   | tray icons | one style: a monochrome symbolic glyph in the theme foreground, at full strength (see below) | nm-applet and CopyQ restarted automatically; Vesktop at its next start |
-  | ly | `ly.ini.tpl` -> `/etc/ly/config.ini` via the `ly-theme-colors` root helper | next login screen |
   | ZAP | `bin/zaproxy` runs it with Java's GTK look and feel, i.e. through `gtk.css` | restart ZAP |
   | Vesktop | quattro-dots' `hooks/theme-set.d/vesktop` composes the rendered `quattro-vesktop.palette.css` (`vesktop/palette.css.tpl`) with `vesktop/discord.css` into `~/.config/vesktop/themes/quattro-dots.theme.css` | live (Vencord watches its themes folder) |
   | light/dark | `mode` -> dconf `color-scheme`, adw-gtk3 vs adw-gtk3-dark, `prefer-dark` | app restart |
@@ -651,10 +658,6 @@ No quickshell, nothing else from omarchy's shell.
   only when `/usr/bin/brave-origin` exists, so the helper never creates a policy root for a browser that is not
   installed; `x11-theme apply-chromium` runs once after the install to colour it straight away. This is what
   omarchy does too.
-- **Root helpers.** Two root files follow the theme, each through its own root-owned helper COPIED to
-  `/usr/local/lib/cachy-dots/` (`chromium-theme-color`, `ly-theme-colors`), with one sudoers file
-  (`/etc/sudoers.d/cachy-dots-theme`, `visudo -c`'d) allowing exactly those two paths without a password.
-  `ly-theme-colors` takes only ly's colour keys, each `0xAARRGGBB`, and changes nothing else.
 - **ZAP.** Its `GuiBootstrap` honours `swing.defaultlaf` unless a look and feel is picked in ZAP's own
   Options > Display (which then wins). `bin/zaproxy`, ahead of `/usr/bin/zaproxy` on PATH, sets it through
   `JDK_JAVA_OPTIONS` (only that `java` launch, unlike `_JAVA_OPTIONS`) and runs `zap.sh` directly, since
