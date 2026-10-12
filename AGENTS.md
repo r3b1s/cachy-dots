@@ -583,7 +583,10 @@ No quickshell, nothing else from omarchy's shell.
   applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`
   fetches one of omarchy's built-in themes from `omacom/omarchy` (basecamp's old URL redirects there), branch
   `quattro`, its `themes/` folder (279 MB in all, so a blobless sparse shallow clone into a temp dir checks out
-  only `themes/<name>`). `--list` (or no name) lists them; `--help` prints the source links to audit them.
+  only `themes/<name>`). `--list` (or no name) lists them; `--all` copies every one without applying any (it
+  does the full download and refreshes existing copies, local edits to them included); `--help` prints the source
+  links to audit them. The names are the folders in the repo's `themes/` at run time (`ls-tree -d`, so a file
+  there is not a theme), never a list kept in the script.
   `x11-theme add-wallpaper [file]` copies an image into `~/.config/omarchy/backgrounds/<current theme>/`, the pool
   `x11-wallpaper menu` offers for that theme; with no file it opens yazi in `$TERMINAL` (alacritty when unset; `--class x11-picker` for alacritty, which i3
   floats at 60%x70% of the active output, centred, focused, with the same `border pixel 2`; chooser mode): Enter on a folder opens it, and only JPEG, PNG, WebP or BMP files

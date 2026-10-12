@@ -2,9 +2,10 @@
 # x11-theme — omarchy themes for the i3 desktop.
 #
 #   x11-theme install <git-url>   clone an omarchy theme repo and apply it
-#   x11-theme install-omarchy [--list|--help|name]  fetch one of omarchy's built-in
-#                                 themes and apply it; --list names them, --help
-#                                 says where their source is
+#   x11-theme install-omarchy [--list|--all|--help|name]  fetch one of omarchy's
+#                                 built-in themes and apply it; --list names them,
+#                                 --all installs every one (without applying any),
+#                                 --help says where their source is
 #   x11-theme set <name>          apply an installed (or built-in) theme
 #   x11-theme refresh             re-render the current theme (after editing a template)
 #   x11-theme update              pull every theme installed from git, then refresh
@@ -410,7 +411,7 @@ omarchy_checkout() {
 # Printed without touching the network, so it works offline too.
 omarchy_help() {
     cat <<EOF
-usage: x11-theme install-omarchy [--list | --help | NAME]
+usage: x11-theme install-omarchy [--list | --all | --help | NAME]
 
 Copy one of omarchy's built-in themes out of its repository into
 $USER_THEMES/NAME and apply it. The copy is a snapshot: "x11-theme update"
@@ -418,11 +419,17 @@ leaves it alone, so run install-omarchy NAME again to refresh it.
 
   NAME      fetch and apply that theme
   --list    list the built-in themes, one per line (also the default with no NAME)
+  --all     install every built-in theme (refreshing any copies already here),
+            without applying one; switch with: x11-theme set NAME
   --help    show this help
+
+The names are read from the repository's themes/ folder at run time, so a
+theme added upstream appears here with no change to this script.
 
 examples:
   x11-theme install-omarchy --list
   x11-theme install-omarchy tokyo-night
+  x11-theme install-omarchy --all
 
 source: read a theme before you apply it. Each one is a folder of data
 (colors.toml, backgrounds/, templates); x11-theme runs nothing from it, and
@@ -433,29 +440,77 @@ leaves out the files that would (Lua, terminal configs, vscode.json: DENIED).
 EOF
 }
 
+# The built-in themes: the folders in omarchy's themes/ directory, one name per
+# line, read from the checkout each time, so nothing here changes when omarchy
+# adds or drops one. -d lists only folders (a stray file in themes/ is not a
+# theme), and a folder whose name is not a usable theme name is skipped.
+omarchy_theme_names() {
+    local name
+    git -C "$OMARCHY_CACHE" ls-tree --name-only -d HEAD themes/ | sed 's|^themes/||' |
+    while IFS= read -r name; do
+        if valid_name "$name"; then
+            printf '%s\n' "$name"
+        else
+            echo "x11-theme: skipping omarchy folder '$name' (not a usable theme name)" >&2
+        fi
+    done
+}
+
+# Snapshot themes/NAME from the checkout into $USER_THEMES/NAME. It is built
+# beside the target and moved into place, so a failed copy never replaces a
+# good one.
+omarchy_copy() {
+    local name=$1
+    mkdir -p "$USER_THEMES"
+    rm -rf "${USER_THEMES:?}/$name.tmp"
+    cp -r "$OMARCHY_CACHE/themes/$name" "$USER_THEMES/$name.tmp" \
+        && echo "$OMARCHY_REPO themes/$name" > "$USER_THEMES/$name.tmp/$SOURCE_MARK" \
+        && rm -rf "${USER_THEMES:?}/$name" \
+        && mv "$USER_THEMES/$name.tmp" "$USER_THEMES/$name" \
+        || { rm -rf "${USER_THEMES:?}/$name.tmp"; return 1; }
+}
+
+# --all: copy every built-in theme, refreshing any copies already installed.
+# Nothing is applied; that stays a choice for x11-theme set.
+omarchy_install_all() {
+    local name names n=0 failed=0
+    names=$(omarchy_theme_names)
+    [[ -n $names ]] || die "omarchy has no themes in $OMARCHY_REPO (themes/)"
+    echo "fetching every theme from $OMARCHY_REPO (a large download)" >&2
+    git -C "$OMARCHY_CACHE" sparse-checkout set themes
+    while IFS= read -r name; do
+        if omarchy_copy "$name"; then
+            n=$((n + 1))
+        else
+            echo "x11-theme: could not copy '$name'" >&2
+            failed=1
+        fi
+    done <<<"$names"
+    echo "installed $n omarchy themes into $USER_THEMES"
+    echo "apply one with: x11-theme set NAME (see: x11-theme list)"
+    return $failed
+}
+
 cmd_install_omarchy() {
-    local name=${1:-}
+    local name=${1:-} names
     case "$name" in
         -h|--help) omarchy_help; return ;;
         -l|--list) name="" ;;
+        -a|--all)  [[ $# -eq 1 ]] || die "--all takes no theme name"; omarchy_checkout; omarchy_install_all; return ;;
         -*) die "unknown option '$name' (see: x11-theme install-omarchy --help)" ;;
     esac
     omarchy_checkout
     if [[ -z $name ]]; then
-        git -C "$OMARCHY_CACHE" ls-tree --name-only HEAD themes/ | sed 's|^themes/||'
+        omarchy_theme_names
         return
     fi
     name=$(normalise "$name")
     valid_name "$name" || die "bad theme name '$1'"
-    git -C "$OMARCHY_CACHE" ls-tree --name-only HEAD "themes/$name" | grep -q . \
-        || die "omarchy has no theme '$name' (run: x11-theme install-omarchy)"
+    names=$(omarchy_theme_names)
+    grep -qx -- "$name" <<<"$names" \
+        || die "omarchy has no theme '$name' (run: x11-theme install-omarchy --list)"
     git -C "$OMARCHY_CACHE" sparse-checkout set "themes/$name"
-    mkdir -p "$USER_THEMES"
-    rm -rf "${USER_THEMES:?}/$name.tmp"
-    cp -r "$OMARCHY_CACHE/themes/$name" "$USER_THEMES/$name.tmp"
-    echo "$OMARCHY_REPO themes/$name" > "$USER_THEMES/$name.tmp/$SOURCE_MARK"
-    rm -rf "${USER_THEMES:?}/$name"
-    mv "$USER_THEMES/$name.tmp" "$USER_THEMES/$name"
+    omarchy_copy "$name" || die "could not copy theme '$name'"
     cmd_set "$name"
 }
 
