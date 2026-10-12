@@ -2,8 +2,9 @@
 # x11-theme — omarchy themes for the i3 desktop.
 #
 #   x11-theme install <git-url>   clone an omarchy theme repo and apply it
-#   x11-theme install-omarchy [name]  fetch one of omarchy's built-in themes and
-#                                 apply it; without a name, list them
+#   x11-theme install-omarchy [--list|--help|name]  fetch one of omarchy's built-in
+#                                 themes and apply it; --list names them, --help
+#                                 says where their source is
 #   x11-theme set <name>          apply an installed (or built-in) theme
 #   x11-theme refresh             re-render the current theme (after editing a template)
 #   x11-theme update              pull every theme installed from git, then refresh
@@ -11,6 +12,8 @@
 #   x11-theme current             the applied theme's name
 #   x11-theme menu                pick a theme from a rofi grid ($mod+Shift+Ctrl+space)
 #   x11-theme remove <name>       delete an installed theme (not the current one)
+#   x11-theme add-wallpaper [file]  add an image to the current theme's wallpapers
+#                                 (no file: pick one in yazi, in $TERMINAL)
 #
 # Themes use omarchy's format and paths, so any omarchy theme repo works and
 # omarchy-style hooks keep working:
@@ -38,8 +41,10 @@ BUILTIN_THEMES="$OMARCHY_PATH/themes"
 HOOKS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/x11-theme.lock"
 CHROMIUM_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
-LY_HELPER=/usr/local/lib/cachy-dots/ly-theme-colors
-OMARCHY_REPO=https://github.com/basecamp/omarchy
+# basecamp/omarchy moved to omacom/omarchy (the old URL redirects). Its default
+# branch is quattro, and the built-in themes are the folders under themes/ on it.
+OMARCHY_REPO=https://github.com/omacom/omarchy
+OMARCHY_BRANCH=quattro
 OMARCHY_CACHE=""
 # Marks a theme directory that came from somewhere else without a .git of its
 # own (install-omarchy copies one theme out of omarchy's repo).
@@ -255,16 +260,6 @@ apply_firefox() {
     done
 }
 
-# ly's colours, through the root helper (it reads only /etc/ly/config.ini).
-# Applied at ly's next start, i.e. the next login screen.
-apply_ly() {
-    [[ -x $LY_HELPER && -f $CURRENT/ly.ini ]] || return 0
-    local args
-    mapfile -t args < <(sed -nE 's/^([a-z_]+)[[:space:]]*=[[:space:]]*(0x[0-9A-Fa-f]{8})[[:space:]]*$/\1=\2/p' "$CURRENT/ly.ini")
-    (( ${#args[@]} )) || return 0
-    sudo -n "$LY_HELPER" "${args[@]}" 2>/dev/null || echo "x11-theme: could not set ly's colours (sudo rule missing?)" >&2
-}
-
 # CopyQ keeps its theme as a [Theme] section of copyq.conf and rewrites that
 # file itself, so it is stopped, edited and restarted (the restart also picks up
 # the re-tinted tray icon). Without a display a running CopyQ is left alone, as
@@ -366,7 +361,6 @@ apply() {
     tint_icons
     tint_vesktop
     apply_chromium
-    apply_ly
     apply_copyq
     apply_firefox
     reload_apps
@@ -407,13 +401,45 @@ cmd_install() {
 omarchy_checkout() {
     OMARCHY_TMP=$(mktemp -d)
     trap 'rm -rf "$OMARCHY_TMP"' EXIT
-    git clone --quiet --depth 1 --filter=blob:none --sparse -- "$OMARCHY_REPO" "$OMARCHY_TMP/omarchy" \
-        || die "could not clone $OMARCHY_REPO"
+    git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$OMARCHY_BRANCH" -- \
+        "$OMARCHY_REPO" "$OMARCHY_TMP/omarchy" \
+        || die "could not clone $OMARCHY_REPO ($OMARCHY_BRANCH)"
     OMARCHY_CACHE="$OMARCHY_TMP/omarchy"
+}
+
+# Printed without touching the network, so it works offline too.
+omarchy_help() {
+    cat <<EOF
+usage: x11-theme install-omarchy [--list | --help | NAME]
+
+Copy one of omarchy's built-in themes out of its repository into
+$USER_THEMES/NAME and apply it. The copy is a snapshot: "x11-theme update"
+leaves it alone, so run install-omarchy NAME again to refresh it.
+
+  NAME      fetch and apply that theme
+  --list    list the built-in themes, one per line (also the default with no NAME)
+  --help    show this help
+
+examples:
+  x11-theme install-omarchy --list
+  x11-theme install-omarchy tokyo-night
+
+source: read a theme before you apply it. Each one is a folder of data
+(colors.toml, backgrounds/, templates); x11-theme runs nothing from it, and
+leaves out the files that would (Lua, terminal configs, vscode.json: DENIED).
+  all themes:  $OMARCHY_REPO/tree/$OMARCHY_BRANCH/themes
+  one theme:   $OMARCHY_REPO/tree/$OMARCHY_BRANCH/themes/NAME
+  the copy and render code is in this repo: bin/x11-theme and theme/
+EOF
 }
 
 cmd_install_omarchy() {
     local name=${1:-}
+    case "$name" in
+        -h|--help) omarchy_help; return ;;
+        -l|--list) name="" ;;
+        -*) die "unknown option '$name' (see: x11-theme install-omarchy --help)" ;;
+    esac
     omarchy_checkout
     if [[ -z $name ]]; then
         git -C "$OMARCHY_CACHE" ls-tree --name-only HEAD themes/ | sed 's|^themes/||'
@@ -469,6 +495,84 @@ cmd_remove() {
     echo "removed $name"
 }
 
+# The picker for add-wallpaper runs yazi in the default terminal ($TERMINAL, set
+# system-wide by setup_terminal_env in install/system.sh) in chooser mode: yazi
+# writes the files picked to a file when it opens them. Enter on a lone folder
+# opens that folder instead (the loop), so folders are walked as in yazi itself.
+PICKER_SH='while :; do
+    : > "$1"
+    yazi --chooser-file "$1" "$2" || break
+    [ -s "$1" ] || break
+    first=$(head -n 1 "$1")
+    [ -d "$first" ] && [ "$(grep -c "" "$1")" -eq 1 ] || break
+    set -- "$1" "$first"
+done'
+
+# Prints the paths picked, one per line; prints nothing when the picker is cancelled.
+pick_images() {
+    local chooser start="$HOME" term="${TERMINAL:-alacritty}" class=()
+    chooser=$(mktemp) || return 1
+    if [ -d "$HOME/Pictures" ]; then start="$HOME/Pictures"; fi
+    # i3 floats the picker by its window class (30-apps.conf). Only alacritty is
+    # given one here; another terminal opens the picker tiled.
+    case "${term##*/}" in alacritty) class=(--class x11-picker) ;; esac
+    "$term" "${class[@]}" -e sh -c "$PICKER_SH" sh "$chooser" "$start" \
+        || notify "Add wallpaper" "could not open the terminal '$term'"
+    cat -- "$chooser"
+    rm -f -- "$chooser"
+}
+
+# True for a readable JPEG, PNG, WebP or BMP. The name is checked and so is the
+# content, so a text file renamed .png, or a folder, is refused.
+is_image() {
+    local fmt
+    [[ -f $1 && -r $1 ]] || return 1
+    [[ ${1,,} =~ \.(jpe?g|png|webp|bmp)$ ]] || return 1
+    fmt=$(magick identify -quiet -format '%m\n' -- "$1" 2>/dev/null) || return 1
+    fmt=${fmt%%$'\n'*}
+    case "$fmt" in JPEG|PNG|WEBP|BMP|BMP3) return 0 ;; esac
+    return 1
+}
+
+# Copies an image into the theme's pool and prints the new path. Never overwrites:
+# a name already taken gets -2, -3, ...
+store_image() {  # <theme> <file>
+    local dir base stem ext dst n=2
+    dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/backgrounds/$1"
+    base=${2##*/}; stem=${base%.*}; ext=${base##*.}
+    dst="$dir/$base"
+    while [[ -e $dst ]]; do dst="$dir/$stem-$n.$ext"; n=$((n + 1)); done
+    mkdir -p "$dir"
+    cp -- "$2" "$dst" || return 1
+    printf '%s\n' "$dst"
+}
+
+# add-wallpaper [file]: with a file, add that image; without one, open the picker.
+# Anything picked that is not an image is refused, and the rest are still added.
+cmd_add_wallpaper() {
+    local theme src="${1:-}" file dst
+    local -a picks=() refused=()
+    fail() { notify "Add wallpaper" "$*"; die "$*"; }
+    theme=$(cat "$STATE/theme.name" 2>/dev/null || true)
+    [[ -n $theme ]] || fail "no theme applied"
+    if [[ -n $src ]]; then
+        picks=("$src")
+    else
+        mapfile -t picks < <(pick_images)
+        [[ ${#picks[@]} -gt 0 ]] || exit 0
+    fi
+    for file in "${picks[@]}"; do
+        if is_image "$file"; then
+            dst=$(store_image "$theme" "$file") || fail "could not copy ${file##*/}"
+            echo "added $dst"
+            notify "Wallpaper added" "$theme: ${dst##*/}"
+        else
+            refused+=("${file##*/}")
+        fi
+    done
+    [[ ${#refused[@]} -eq 0 ]] || fail "not a JPEG, PNG, WebP or BMP image, not added: ${refused[*]}"
+}
+
 # The rofi layout both pickers use (this menu and `x11-wallpaper menu`): an
 # omarchy-style grid of 16:9 thumbnails, captioned underneath.
 GRID_THEME='window { width: 62em; } listview { columns: 3; lines: 2; spacing: 10px; flow: horizontal; fixed-height: true; fixed-columns: true; } element { orientation: vertical; padding: 8px; spacing: 6px; } element-icon { size: 16em; } element-text { horizontal-align: 0.5; }'
@@ -507,12 +611,10 @@ case "${1:-}" in
     menu)    cmd_menu ;;
     grid-theme) printf '%s\n' "$GRID_THEME" ;;
     remove)  shift; cmd_remove "$@" ;;
-    # install.sh re-merges /etc/ly/config.ini from its pristine copy, which
-    # drops the colours; this puts the current theme's back.
-    apply-ly) apply_ly ;;
+    add-wallpaper) shift; cmd_add_wallpaper "$@" ;;
     # x11-default-browser calls this after installing Brave Origin: its policy
     # root is written only from here on, so it gets the colour without waiting
     # for the next switch.
     apply-chromium) apply_chromium ;;
-    *) sed -n '2,13p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
