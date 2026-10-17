@@ -48,6 +48,7 @@ c.url.searchengines = {
     "man": "https://search.brave.com/search?q={}+site%3Aman7.org%2Flinux%2Fman-pages",
     "mise": "https://search.brave.com/search?q={}+site%3Ahttps%3A%2F%2Fmise.jdx.dev&source=web",
     "ansible": "https://docs.ansible.com/projects/ansible/latest/search.html?q={}&check_keywords=yes&area=default",
+    "obp":"https://community.obsidian.md/search?q={}&type=plugin",
     # --- threat intelligence --- #
     "shodan": "https://www.shodan.io/search?query={}",
     "cve": "https://www.cve.org/CVERecord/SearchResults?query={}",
