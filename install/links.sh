@@ -211,7 +211,8 @@ install_links() {
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
         "starship/starship.toml:starship.toml" \
-        "voxtype/config.toml:voxtype/config.toml"
+        "voxtype/config.toml:voxtype/config.toml" \
+        "git/config:git/config"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
     done

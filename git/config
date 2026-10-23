@@ -1,0 +1,6 @@
+# Git defaults for every repository, linked to ~/.config/git/config by install_links.
+# Git reads this before ~/.gitconfig, so identity and any personal setting stay
+# there, and a key set in ~/.gitconfig overrides the one here.
+
+[init]
+	defaultBranch = main

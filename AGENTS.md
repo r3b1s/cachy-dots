@@ -252,7 +252,7 @@ Push-to-talk dictation. `voxtype/config.toml` is quattro-dots' config ported fro
 - **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf`, guarded by `command -v`. The packaged
   `voxtype.service` is wanted by `graphical-session.target`, which a bare i3 session never reaches.
 - **Toggle:** `$mod+d` -> `bin/x11-voxtype toggle` (`voxtype record toggle`, plus a dunst notification
-  in place of omarchy-osd); the `sup_d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, as in
+  in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, as in
   quattro-dots, so the `input` group is not needed.
 - **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
   `post_output_command` is `bin/x11-voxtype paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
@@ -459,7 +459,8 @@ whole run when ufw could not start.
   `vimium.py`, `startpage.html`), btop, nvim (full LazyVim tree via
   `link_nvim_tree()`), tmux (`tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`), satty
   (`satty/config.toml`), voxtype (`voxtype/config.toml`), the telemetry opt-outs (`env/telemetry.conf` -> `~/.config/environment.d/`), chromium policy
-  (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`) and `starship/starship.toml` ->
+  (`chromium/policies/managed/*.json` -> `/etc/chromium/policies/managed/`), `git/config` -> `~/.config/git/config`
+  (git's defaults, `init.defaultBranch = main`; a key in `~/.gitconfig` overrides it) and `starship/starship.toml` ->
   `~/.config/starship.toml` (those apps write runtime state next to their config). `shell/xprofile` is
   linked separately to `~/.xprofile`, which is outside `~/.config`; `bin/*` goes to `~/.local/bin`. The GTK icon theme is generated into `~/.local/share/icons/`.
 - **`sync.sh`** (repo root) brings an installed system up to date after a `git pull` or an edit, without
