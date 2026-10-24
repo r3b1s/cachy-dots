@@ -242,6 +242,31 @@ point_vesktop_theme() {
 # post_hook runs `x11-theme from-dux`. matugen wants absolute paths, so the file is
 # written here rather than linked.
 MATUGEN_DROPIN_MARK="# cachy-dots: written by install/session.sh (cachy-session); i3 removes it"
+# Sunshine's capture method is the one setting of sunshine.conf that follows the
+# session: x11 grabs an X server, which Hyprland has not got (Sunshine then
+# fails at start with "Unable to initialize capture method"), and wlr, the
+# wlr-screencopy protocol, is what Hyprland offers. The rest of the file (the
+# display, the GPU, the encoder, what its web UI saved) belongs to the host and
+# is left alone. Only when Sunshine is installed or already has a config. A
+# running Sunshine keeps its method until it restarts, which each session does
+# at login (try-restart in i3's 05-autostart.conf and hypr/cachy.lua).
+point_sunshine() {
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/sunshine.conf" want=x11 tmp
+    [ "$1" = hyprland ] && want=wlr
+    command -v sunshine >/dev/null || [ -f "$conf" ] || return 0
+    if [ -f "$conf" ] && [ "$(grep -E '^[[:space:]]*capture[[:space:]]*=' "$conf" | tail -n1 | sed 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//')" = "$want" ]; then
+        return 0
+    fi
+    [ "$dry" = 1 ] && { echo "+ set capture = $want in $conf"; return; }
+    mkdir -p "$(dirname "$conf")"
+    tmp=$(mktemp)
+    { [ -f "$conf" ] && grep -vE '^[[:space:]]*capture[[:space:]]*=' "$conf"; printf 'capture = %s\n' "$want"; } > "$tmp" || true
+    # cat keeps a link to the file (or its owner) as it is
+    cat "$tmp" > "$conf"
+    rm -f "$tmp"
+    echo "sunshine: capture = $want"
+}
+
 matugen_dropin() { echo "${XDG_CONFIG_HOME:-$HOME/.config}/matugen/dms/configs/cachy-dots.toml"; }
 
 point_matugen() {
@@ -359,6 +384,7 @@ apply_session() {
     point_icons "$s"
     point_vesktop_theme "$s"
     point_matugen "$s"
+    point_sunshine "$s"
     if [ "$s" = hyprland ]; then
         mask_units mask
         ensure_cachy_require

@@ -44,8 +44,9 @@ hl.on("hyprland.start", function()
 	-- seconds, so a quick switch from i3 finds its DISPLAY and its portals still
 	-- there: drop i3's display first (XWayland's, if Hyprland has one, comes back
 	-- with --all), and stop the portals so the next request starts them with this
-	-- session's environment and portal config.
-	hl.exec_cmd("systemctl --user unset-environment DISPLAY XAUTHORITY; dbus-update-activation-environment --systemd --all; systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-hyprland.service")
+	-- session's environment and portal config. A running Sunshine is restarted last,
+	-- for this session's display and capture method (install/session.sh).
+	hl.exec_cmd("systemctl --user unset-environment DISPLAY XAUTHORITY; dbus-update-activation-environment --systemd --all; systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-hyprland.service; systemctl --user try-restart sunshine.service")
 	-- Dictation (bin/dictate). voxtype.service hangs off
 	-- graphical-session.target, which this session does not reach. A daemon left
 	-- by an i3 session outlives it, with i3's environment, so it is replaced.

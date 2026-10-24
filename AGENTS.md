@@ -318,6 +318,22 @@ inactive one gives a degraded session, not a broken one.
   (first line `# cachy-session stub`) that shows i3-nagbar, instead of i3's default config and its wizard; there
   is no Hyprland-side stub, `hyprland.lua` being dux's. `x11-theme` refuses its changing commands while Hyprland
   is active, and `sync.sh` skips its re-render. A switch there and back leaves the links byte-identical.
+- **Sunshine's capture method follows the session** (`point_sunshine`): `capture = x11` under i3, `capture = wlr`
+  under Hyprland, set in `~/.config/sunshine/sunshine.conf`, which is the host's own file and is edited, not
+  linked: only that one key changes, the display, GPU, encoder and what its web UI saved stay (a switch back and
+  forth leaves the other lines as they were). With x11 under Hyprland Sunshine fails at start (`Unable to
+  initialize capture method`, then `Unable to find display or encoder during startup`), which is what a
+  Moonlight client then runs into: hit on the workstation. `wlr` is wlr-screencopy, named for Hyprland in
+  Sunshine's docs; `kms` also finds the display on arch0 but warns that the cursor may not show, and `auto`
+  picks `wlr` there. A running Sunshine keeps its method until it restarts, so each session ends its login
+  commands with `systemctl --user try-restart sunshine.service` (i3's `05-autostart.conf`, `hypr/cachy.lua`; a
+  no-op when it is not running). Neither session reaches `graphical-session.target`, so a `sunshine.service`
+  wanted by it is not started at login by either: start it by hand. Checked on arch0 (Sunshine from the
+  omarchy repo, software encoder, no GPU encode there): x11 fails as above, wlr and kms find the display and
+  libx264, the key flips both ways and keeps the rest, and `try-restart` restarts a running service and leaves
+  a stopped one. **Not checked:** the workstation's AMD VA-API encode through `wlr`, a Moonlight client, and
+  `apps.json`: "Low Res Desktop" runs `xrandr --output DP-0`, which is X11 only (and DP-0 is an NVIDIA name; the
+  connector is DP-3).
 - **The user manager outlives a logout** by a few seconds (indefinitely with another session open), with the
   previous session's activation environment and portals. Seen on arch0: after Hyprland ended it still had
   `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP=Hyprland`, and the portal running. Each session resets that at
