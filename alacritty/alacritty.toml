@@ -1,9 +1,11 @@
 # alacritty — the default terminal ($terminal in i3/config). Colours come from
-# the active theme (x11-theme renders omarchy's alacritty.toml.tpl). x11-theme
-# touches this file after a switch, which is what makes alacritty reload.
+# colors.toml, a link the active session points (install/session.sh): x11-theme's
+# render of omarchy's alacritty.toml.tpl under i3, dux's dank-theme.toml under
+# Hyprland. x11-theme touches this file after a switch, which is what makes
+# alacritty reload.
 
 [general]
-import = ["~/.local/state/omarchy/current/theme/alacritty.toml"]
+import = ["~/.config/alacritty/colors.toml"]
 
 [env]
 TERM = "xterm-256color"

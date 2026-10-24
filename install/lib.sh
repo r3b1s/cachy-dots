@@ -11,6 +11,7 @@
 #   browsers.sh  Firefox and Chromium policies, default applications
 #   theme.sh     root helpers, GTK, dark mode, the first theme
 #   links.sh     symlinks into ~/.config and ~/.local/bin
+#   session.sh   what the i3 and Hyprland sessions own, and switching between them
 #   voxtype.sh   the speech model
 #   flow.sh      install_main: the steps, in order, for the profile
 #   profile-<name>.sh   what a profile leaves out
@@ -24,7 +25,7 @@ PROFILE=${PROFILE:-workstation}
 . "$REPO/install/common.sh"
 # shellcheck disable=SC1090
 . "$REPO/install/profile-$PROFILE.sh"
-for _m in packages repos pacman system browsers theme links voxtype flow; do
+for _m in packages repos pacman system browsers theme links session voxtype flow; do
     # shellcheck disable=SC1090
     . "$REPO/install/$_m.sh"
 done

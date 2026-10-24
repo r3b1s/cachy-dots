@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# cachy-session [status] | i3 | hyprland  [-n]
+#
+# Which desktop session the dots are set up for. One is active at a time:
+#   i3        the X11 session (the default)
+#   hyprland  Hyprland with dux-shell (installed by opt/hyprland.sh)
+#
+# Switching unlinks what the other session owns, links this one's, points the
+# colour slots (terminal, GTK, satty) at its colours, masks or unmasks dunst and
+# blueman's applet, and records the choice in ~/.config/cachy-dots/session, which
+# install.sh and sync.sh follow from then on. Nothing running is changed: log out
+# and pick the session at the login screen. install/session.sh has the details.
+#
+#   -n, --dry-run  print what would change
+set -euo pipefail
+
+SELF=$(readlink -f "${BASH_SOURCE[0]}")
+dry=0
+target=status
+for arg in "$@"; do
+    case "$arg" in
+        -n|--dry-run) dry=1 ;;
+        -h|--help) sed -n '2,14p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        status|i3|hyprland) target=$arg ;;
+        *) echo "unknown argument: $arg (see cachy-session --help)" >&2; exit 2 ;;
+    esac
+done
+
+# The installer's modules: functions only, nothing runs on sourcing.
+PROFILE=${PROFILE:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/profile" 2>/dev/null || echo workstation)}
+# shellcheck source=install/lib.sh
+. "$(dirname "$SELF")/../install/lib.sh"
+
+[ "$(id -u)" -ne 0 ] || { warn "run cachy-session as your own user, not root"; exit 1; }
+
+hypr_lua="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
+
+# What a Hyprland session needs before it can be the active one.
+hyprland_missing() {
+    command -v Hyprland >/dev/null || echo "Hyprland is not installed (opt/hyprland.sh)"
+    command -v dms >/dev/null || echo "dux-shell (dms) is not installed (opt/hyprland.sh)"
+    if [ ! -f "$hypr_lua" ]; then
+        echo "$hypr_lua does not exist: run \`dms setup\` once and answer 2 (Hyprland), 4 (no terminal config), 2 (no systemd), y"
+    fi
+}
+
+case "$target" in
+    status)
+        echo "active session: $(active_session)"
+        missing=$(hyprland_missing)
+        if [ -z "$missing" ]; then
+            echo "hyprland: ready"
+        else
+            printf 'hyprland: not ready\n%s\n' "$(printf '%s\n' "$missing" | sed 's/^/  /')"
+        fi
+        ;;
+    i3)
+        apply_session i3
+        validate_session
+        echo
+        echo "Log out and pick i3 at the login screen."
+        ;;
+    hyprland)
+        missing=$(hyprland_missing)
+        if [ -n "$missing" ]; then
+            printf '%s\n' "$missing" | while IFS= read -r line; do warn "$line"; done
+            exit 1
+        fi
+        apply_session hyprland
+        validate_session
+        echo
+        echo "Log out and pick Hyprland at the login screen."
+        ;;
+esac

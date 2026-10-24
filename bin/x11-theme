@@ -656,6 +656,18 @@ cmd_menu() {
     if [[ -n $row ]]; then cmd_set "${names[$row]}"; fi
 }
 
+# dux themes the Hyprland session, so while that one is active (bin/cachy-session)
+# the commands that change something refuse: they would recolour Chromium, GTK
+# and the running apps under dux, and reload i3.
+case "${1:-}" in
+    list|current|grid-theme|"") ;;
+    *)
+        if [[ ${SESSION:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/session" 2>/dev/null || true)} == hyprland ]]; then
+            die "the Hyprland session is active and dux themes it; run \`cachy-session i3\` first"
+        fi
+        ;;
+esac
+
 case "${1:-}" in
     install) shift; cmd_install "$@" ;;
     install-omarchy) shift; cmd_install_omarchy "$@" ;;

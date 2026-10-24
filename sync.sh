@@ -13,7 +13,11 @@
 #      the GTK settings, the managed ~/.bashrc block
 #   3. re-renders the current theme (templates, the files rendered from them)
 #   4. re-applies the default apps, keeping the browser chosen in the menu
-#   5. validates the i3 config, and lists packages the repo wants that are missing
+#   5. validates the active session's config (i3 or Hyprland), and lists packages
+#      the repo wants that are missing
+#
+# The links and colours of the active session (bin/cachy-session) are re-applied
+# too; x11-theme's re-render is skipped while Hyprland is active (dux themes it).
 #
 # Safe to re-run. The root-owned copies use sudo; --no-root skips them.
 #
@@ -33,7 +37,7 @@ for arg in "$@"; do
         -n|--dry-run) dry=1 ;;
         --no-root)    root=0 ;;
         --themes)     themes=1 ;;
-        -h|--help)    sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)    sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -91,6 +95,7 @@ sync_theme() {
 }
 
 install_links
+apply_session
 prune_dangling
 setup_gtk
 if [ "$root" = 1 ]; then
@@ -110,9 +115,9 @@ if [ "$root" = 1 ]; then
 else
     echo "--no-root: skipped the copies into /etc and /usr/local"
 fi
-sync_theme
+if [ "$(active_session)" = i3 ]; then sync_theme; else echo "theme: left to dux (Hyprland session)"; fi
 setup_default_apps
-validate_i3
+validate_session
 report_missing_packages
 
 echo
@@ -120,4 +125,8 @@ if [ "$FAILED" = 1 ]; then
     warn "synced with errors (see the warnings above)"
     exit 1
 fi
-echo "Synced. Reload i3 with \$mod+Shift+Ctrl+Mod1+c for config changes that i3 reads at start."
+if [ "$(active_session)" = i3 ]; then
+    echo "Synced. Reload i3 with \$mod+Shift+Ctrl+Mod1+c for config changes that i3 reads at start."
+else
+    echo "Synced. Reload Hyprland with \$mod+Shift+r (hyprctl reload) for config changes."
+fi

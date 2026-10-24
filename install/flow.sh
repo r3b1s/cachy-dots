@@ -39,10 +39,12 @@ install_main() {
     fi
     if [ "$do_links" = 1 ]; then
         install_links
-        setup_theme
+        apply_session
+        # x11-theme themes the i3 session; dux themes Hyprland itself.
+        if [ "$(active_session)" = i3 ]; then setup_theme; else echo "theme: left to dux (Hyprland session)"; fi
         setup_default_apps
         setup_voxtype
-        validate_i3
+        validate_session
     fi
     record_profile
 
@@ -56,5 +58,9 @@ install_main() {
         warn "finished with errors (see the warnings above)"
         exit 1
     fi
-    echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."
+    if [ "$(active_session)" = i3 ]; then
+        echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."
+    else
+        echo "Done. Log into the Hyprland session (cachy-session i3 switches back to i3)."
+    fi
 }

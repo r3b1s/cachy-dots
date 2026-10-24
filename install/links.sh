@@ -110,24 +110,6 @@ EOF
     fi
 }
 
-# The i3 config is linked file by file, not as a directory: conf.d/04-monitors.conf
-# is a per-host copy (import_monitors_conf), and it has to live in ~/.config/i3, not
-# in the repo. An old whole-directory link is removed first; removing a symlink
-# leaves its target alone.
-install_i3_config() {
-    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/i3" src
-    if [ -L "$cfg" ]; then
-        run rm "$cfg"
-        echo "removed the old $cfg directory link"
-    fi
-    run mkdir -p "$cfg/conf.d"
-    link "$REPO/i3/config" "$cfg/config"
-    for src in "$REPO"/i3/conf.d/*.conf; do
-        link "$src" "$cfg/conf.d/$(basename "$src")"
-    done
-    import_monitors_conf
-}
-
 # The monitor layout is per host, so it is copied from i3/templates/ once and then
 # left alone: neither install.sh nor sync.sh overwrites it, and a symlink or a real
 # file already there is kept as it is.
@@ -157,12 +139,16 @@ retire_dir_link() {
 # that write next to their config (qutebrowser, btop, nvim, starship's shared
 # ~/.config) need this too, so runtime state stays out of the repo. link() makes
 # the directories it needs.
+#
+# These are the links both sessions share. The i3 config, ~/.xprofile, dunst's
+# config, the i3-only scripts, the Hyprland files and the colour slots (terminal,
+# GTK and satty colours) belong to a session: apply_session (install/session.sh)
+# makes them, right after this.
 install_links() {
     say "Linking dots"
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 
     local d
-    install_i3_config
     # The four directories that were linked whole, and dunst and i3status-rust,
     # which were too: dunst now needs a real directory (its theme is a drop-in
     # beside dunstrc), and i3status-rust's config is rendered into the state
@@ -174,11 +160,7 @@ install_links() {
     # Files the rendered theme provides: ~/.local/state/omarchy/current/theme/
     # is replaced on every switch, so these links stay valid.
     local th="$HOME/.local/state/omarchy/current/theme"
-    link "$th/dunst.conf" "$cfg/dunst/dunstrc.d/90-theme.conf"
     link "$th/btop.theme" "$cfg/btop/themes/current.theme"
-    link "$th/gtk.css" "$cfg/gtk-3.0/gtk.css"
-    link "$th/gtk.css" "$cfg/gtk-4.0/gtk.css"
-    link "$th/satty.config.toml" "$cfg/satty/config.toml"
     link "$th/yazi.toml" "$cfg/yazi/flavors/omarchy.yazi/flavor.toml"
     link "$REPO/yazi/theme.toml" "$cfg/yazi/theme.toml"
     link "$th/zathurarc" "$cfg/zathura/zathurarc"
@@ -204,7 +186,6 @@ install_links() {
         "shell/init.sh:shell/init.sh" \
         "shell/aliases:shell/aliases" \
         "shell/integrations:shell/integrations" \
-        "dunst/dunstrc:dunst/dunstrc" \
         "qutebrowser/vimium.py:qutebrowser/vimium.py" \
         "qutebrowser/startpage.html:qutebrowser/startpage.html" \
         "btop/btop.conf:btop/btop.conf" \
@@ -230,12 +211,6 @@ install_links() {
     install_bashrc_block
     setup_ssh
 
-    # ~/.xprofile is sourced by the session start-up (ly runs /etc/ly/setup.sh,
-    # which reads it before exec'ing the session), so this is how XDG_CURRENT_DESKTOP
-    # reaches everything i3 spawns. It lives in $HOME, not in ~/.config, hence the
-    # separate link rather than one of the pair mappings above.
-    link "$REPO/shell/xprofile" "$HOME/.xprofile"
-
     # ble.sh is opt-in here (opt/blesh.sh links ~/.blerc), so nothing for it.
 
     # Launcher entries for repo scripts: rofi's drun lists them on i3, dux's
@@ -247,6 +222,7 @@ install_links() {
 
     local script
     for script in "$REPO"/bin/*; do
+        in_list "$(basename "$script")" "${I3_ONLY_BIN[@]}" && continue
         link "$script" "$HOME/.local/bin/$(basename "$script")"
     done
     # Scripts that only make sense in a guest (vm/): the vm profile only.
