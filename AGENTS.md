@@ -70,7 +70,7 @@ Notes on particular entries:
   later chaotic-aur or Cachy build wins), and only otherwise runs `yay` as the invoking user (makepkg
   refuses root). The AUR package is maintained by voxtype's authors; its two signing keys (`validpgpkeys`
   in the PKGBUILD) are imported best effort first. `brave-origin-bin` is the other AUR/Cachy package, but it
-  is installed on demand by `bin/x11-default-browser`, not by `install.sh`.
+  is installed on demand by `bin/default-browser`, not by `install.sh`.
 - **`qutebrowser-git` is chaotic-aur only**, with no fallback. `install.sh` checks
   `pacman -Si chaotic-aur/qutebrowser-git`, and if that fails it warns, finishes the rest, and exits
   non-zero rather than substituting extra's `qutebrowser`. If a conflicting `qutebrowser` is installed it is
@@ -251,11 +251,11 @@ Push-to-talk dictation. `voxtype/config.toml` is a Hyprland config ported to X11
   model the config names, once (`setup_voxtype()`; needs network, a failure only warns).
 - **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf`, guarded by `command -v`. The packaged
   `voxtype.service` is wanted by `graphical-session.target`, which a bare i3 session never reaches.
-- **Toggle:** `$mod+d` -> `bin/x11-voxtype toggle` (`voxtype record toggle`, plus a dunst notification
+- **Toggle:** `$mod+d` -> `bin/dictate toggle` (`voxtype record toggle`, plus a dunst notification
   in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, so the
   `input` group is not needed.
 - **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
-  `post_output_command` is `bin/x11-voxtype paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
+  `post_output_command` is `bin/dictate paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
   pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. The Hyprland
   config's submap that swallowed the keyboard while text was typed has no i3 port; `--clearmodifiers` covers a
   still-held `$mod`.
@@ -447,7 +447,7 @@ whole run when ufw could not start.
   included). `shell/xprofile` publishes it to X as the resource `i3wm.terminal` (only when set), and `i3/config` reads
   it with `set_from_resource $terminal i3wm.terminal alacritty`, so the repo's i3 config holds no environment-specific
   value. `$terminal-cmd` is `$terminal -e`. A future terminal menu only has to change TERMINAL. Not yet switched:
-  `bin/x11-default-browser` still starts `alacritty` by name for the sudo prompt. Kitty stays installed and follows the
+  `bin/default-browser` still starts `alacritty` by name for the sudo prompt. Kitty stays installed and follows the
   theme, but nothing in the config launches it and its remote-control socket is off.
 - Nothing under `~/.config` is a link to a repo directory any more: `install_links` links individual files only,
   and `link()` creates the host-local directories (`mkdir -p`). Earlier layouts linked whole directories; `retire_dir_link`
@@ -562,14 +562,14 @@ These were left out while the dots only targeted disposable VMs; they are for da
   and the microphone block `pavucontrol --tab=4` (Input Devices), to pick the default device and set levels;
   the blocks keep their own right click (mute) and wheel (volume). `pavucontrol` is in `PKGS` (it was only
   installed by hand before) and its window floats. It talks to PipeWire through `pipewire-pulse`.
-- **Default browser.** `$mod+Escape` -> "Default Browser" opens `bin/x11-default-browser menu`:
+- **Default browser.** `$mod+Escape` -> "Default Browser" opens `bin/default-browser menu`:
   qutebrowser (the default), firefox, chromium, brave-origin. `set` runs `xdg-settings` and `xdg-mime`
   for web links and HTML, and records the choice in `~/.config/cachy-dots/default-browser`, which
   `setup_default_apps()` honours so a re-run of `install.sh` does not put qutebrowser back. brave-origin is
   installed when missing: `cachyos/brave-origin-bin` when a Cachy repo has it (`pacman -Si cachyos/...`),
   else `aur/brave-origin-bin` through yay. Once installed, its toolbar colour follows the theme
   (`x11-theme apply-chromium`, see "Chromium needs root" below). Installing needs sudo, so from rofi (no tty) the script reopens
-  itself in alacritty. `$mod+b` launches the default browser (`x11-default-browser launch`) and
+  itself in alacritty. `$mod+b` launches the default browser (`default-browser launch`) and
   `$mod+Shift+Ctrl+b` the same in private browsing (`--target private-window`, `--private-window`,
   `--incognito`); `$mod+Shift+b`, `$mod+Ctrl+b` and `$mod+Mod1+b` launch qutebrowser, firefox and chromium
   whatever the default is. `$mod+u` (the browser workspace) is always qutebrowser.

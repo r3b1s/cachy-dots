@@ -1,4 +1,4 @@
-# satty — screenshot annotation. Fed by bin/x11-screenshot (maim | satty -f -).
+# satty — screenshot annotation. Fed by bin/screenshot (maim | satty -f -).
 # Reference: /usr/share/doc/satty/README.md ("Configuration").
 #
 # A template: x11-theme renders it with the active theme's colours to

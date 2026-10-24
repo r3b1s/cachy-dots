@@ -1,0 +1,64 @@
+#!/bin/sh
+# ws-app [--no-baf] [--notify <title> <message>] <workspace> [command...]
+#
+# Toggle a named workspace, and launch the command when it is empty:
+#   - i3: an ordinary named workspace. If it is already focused, jump back to the
+#     previous one; otherwise switch to it.
+#   - Hyprland: special:<workspace>, shown or hidden over the current one. A
+#     workspace rule's on_created_empty would do the launching, but rules cannot
+#     live in hypr/dms/binds-user.lua, which dux's keybind editor rewrites.
+#
+# "--no-baf" flag (i3 only):
+#   - do not use i3's back_and_forth behavior when the workspace is already focused
+set -eu
+
+no_baf=false
+notify=false
+notify_title=''
+notify_msg=''
+
+if [ "${1:-}" = "--no-baf" ]; then
+    no_baf=true
+    shift
+fi
+
+if [ "${1:-}" = "--notify" ]; then
+    notify=true
+    notify_title="${2:-}"
+    notify_msg="${3:-}"
+    shift 3
+fi
+
+ws="$1"
+shift
+
+if [ "${XDG_SESSION_TYPE:-}" = wayland ]; then
+    hyprctl dispatch "hl.dsp.workspace.toggle_special(\"$ws\")" >/dev/null
+    [ "$#" -gt 0 ] || exit 0
+    # Launch only when the toggle showed it (focused) and it holds no window: a
+    # toggle that hid it must not start another copy.
+    shown=$(hyprctl monitors -j | jq -r --arg ws "special:$ws" 'any(.[]; .focused and .specialWorkspace.name == $ws)')
+    windows=$(hyprctl clients -j | jq --arg ws "special:$ws" '[.[] | select(.workspace.name == $ws)] | length')
+    [ "$shown" = true ] && [ "${windows:-0}" -eq 0 ] || exit 0
+else
+    focused=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused) | .name')
+
+    if [ "$focused" = "$ws" ] && [ "$no_baf" = false ]; then
+        exec i3-msg workspace back_and_forth >/dev/null
+    fi
+
+    i3-msg "workspace --no-auto-back-and-forth \"$ws\"" >/dev/null
+
+    [ "$#" -gt 0 ] || exit 0
+    windows=$(i3-msg -t get_tree | jq --arg ws "$ws" '
+        [recurse(.nodes[]?, .floating_nodes[]?)
+         | select(.type == "workspace" and .name == $ws)][0]
+        | [recurse(.nodes[]?, .floating_nodes[]?) | select(.window != null)]
+        | length')
+    [ "${windows:-0}" -eq 0 ] || exit 0
+fi
+
+if [ "${notify:-false}" = "true" ]; then
+  dunstify "$notify_title" "$notify_msg"
+fi
+"$@" >/dev/null 2>&1 &

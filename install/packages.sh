@@ -32,14 +32,14 @@ PKGS=(
 
 # What the config calls at runtime.
 PKGS+=(
-    jq                               # x11-ws-app
+    jq                               # ws-app
     git                              # x11-theme clones theme repos; a vanilla Arch cloud image has none
     eza zoxide fzf bat               # shell integrations (shell/); bat previews fzf's ff
     bash-completion
     maim xclip xcolor                # screenshots, clipboard, colour picker
     feh                              # wallpaper, set by bin/x11-wallpaper
     numlockx
-    xdotool                          # pointer warp (bin/x11-focus) and dictation paste (bin/x11-voxtype)
+    xdotool                          # pointer warp (bin/x11-focus) and dictation paste (bin/dictate)
     libnotify                        # dunstify links against it (dunst's optdep); the OSDs use it
     curl                             # fetches the seeded wallpaper
     rofimoji                         # emoji picker, bound in i3/conf.d/30-apps.conf
@@ -65,7 +65,7 @@ PKGS+=(
 # Desktop tools for daily use (not just disposable VMs).
 PKGS+=(
     copyq                            # clipboard history; bin/x11-clipboard puts it in rofi
-    satty                            # screenshot annotation (bin/x11-screenshot annotate-*)
+    satty                            # screenshot annotation (bin/screenshot annotate-*)
     xss-lock                         # locks on suspend and idle (i3lock-color is pinned below)
     xorg-xset                        # xset: sets the idle timer xss-lock watches (05-autostart.conf)
     dzen2                            # the idle-inhibit cup, centred on the bar (bin/x11-idle)
@@ -153,7 +153,7 @@ PINNED_REPLACES=(qutebrowser:qutebrowser-git i3lock:i3lock-color vesktop:vesktop
 # AUR packages: the few that no pacman repo carries. A repo build always wins:
 # when pacman can see the package in an enabled repo (Cachy, Arch, chaotic-aur)
 # it is installed from there like any other; yay builds it only otherwise.
-#   voxtype-bin  push-to-talk dictation (voxtype/, bin/x11-voxtype). The AUR
+#   voxtype-bin  push-to-talk dictation (voxtype/, bin/dictate). The AUR
 #                package is kept by voxtype's own authors.
 # makepkg refuses to run as root, so yay runs as the invoking user (yay itself
 # is pinned above and installed first).

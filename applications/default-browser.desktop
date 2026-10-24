@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Default Browser
+Comment=Pick the browser that opens web links (bin/default-browser)
+Exec=sh -c '"$HOME/.local/bin/default-browser" menu'
+Icon=web-browser
+Terminal=false
+Categories=Settings;

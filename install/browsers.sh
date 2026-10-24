@@ -74,7 +74,7 @@ DEFAULT_APPS=(
 setup_default_apps() {
     command -v xdg-mime >/dev/null || return 0
     say "Default applications"
-    # The $mod+Escape > "Default Browser" menu (bin/x11-default-browser) records
+    # The $mod+Escape > "Default Browser" menu (bin/default-browser) records
     # its pick here; keep it rather than putting qutebrowser back on every run.
     local pair app browser=org.qutebrowser.qutebrowser.desktop chosen
     chosen=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/default-browser" 2>/dev/null || true)

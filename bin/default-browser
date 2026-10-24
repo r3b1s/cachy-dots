@@ -1,7 +1,7 @@
 #!/bin/sh
-# x11-default-browser menu | set <browser> | current | launch [--private]
+# default-browser menu | set <browser> | current | launch [--private]
 #
-# The "Default Browser" entry of the $mod+Escape menu (bin/x11-power-menu).
+# The "Default Browser" entry of i3's $mod+Escape menu (bin/x11-power-menu).
 # Browsers: qutebrowser, firefox, chromium, brave-origin.
 #
 #   set      makes it the default for web links and HTML (xdg-settings + xdg-mime),
@@ -10,12 +10,14 @@
 #            brave-origin is installed first when it is missing: cachyos/brave-origin-bin
 #            where a Cachy repo has it, else aur/brave-origin-bin through yay. Its
 #            toolbar colour then follows the theme (x11-theme apply-chromium).
-#            Installing needs sudo, so with no terminal (from rofi) this reopens
-#            itself in alacritty.
-#   menu     rofi list of the above, the current one marked.
+#            Installing needs sudo, so with no terminal (from a menu) this reopens
+#            itself in $TERMINAL (alacritty when unset).
+#   menu     a list of the above, the current one marked: rofi on X11, dux's
+#            launcher (`dms dmenu`) under Hyprland.
 #   current  prints the name.
 #   launch   starts the default browser (a new window), in private browsing with
-#            --private. $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf).
+#            --private. $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf,
+#            hypr/dms/binds-user.lua).
 #
 # $mod+Shift+b, $mod+Ctrl+b and $mod+Mod1+b launch qutebrowser, firefox and
 # chromium directly, whatever the default is. $mod+u (the browser workspace) is
@@ -61,7 +63,7 @@ current() {
     [ -n "$d" ] && name_of_desktop "$d" || echo none
 }
 
-notify() { dunstify -a x11-default-browser -r 9993 "Default browser" "$1" 2>/dev/null || echo "$1"; }
+notify() { dunstify -a default-browser -r 9993 "Default browser" "$1" 2>/dev/null || echo "$1"; }
 
 install_brave() {
     if pacman -Si cachyos/brave-origin-bin >/dev/null 2>&1; then
@@ -74,7 +76,7 @@ install_brave() {
     fi
     # Brave Origin's policy root is written only once the binary exists, so give
     # it the current theme's colour now rather than at the next theme switch.
-    x11-theme apply-chromium || echo "x11-default-browser: could not colour Brave Origin; the next theme switch will" >&2
+    x11-theme apply-chromium || echo "default-browser: could not colour Brave Origin; the next theme switch will" >&2
 }
 
 set_default() {
@@ -84,7 +86,7 @@ set_default() {
     if ! desktop_of "$b" >/dev/null; then
         if [ ! -t 0 ]; then
             # No terminal for sudo's prompt: run the same command in one.
-            exec alacritty --title "install $b" -e sh -c \
+            exec "${TERMINAL:-alacritty}" -e sh -c \
                 "$0 set $b || { echo; printf 'failed; press enter'; read -r _; }"
         fi
         case "$b" in
@@ -99,6 +101,14 @@ set_default() {
     mkdir -p "$state_dir"
     echo "$d" > "$marker"
     notify "$b"
+}
+
+choose() {
+    if [ "${XDG_SESSION_TYPE:-}" = wayland ]; then
+        dms dmenu -p 'default browser'
+    else
+        rofi -dmenu -i -p 'default browser'
+    fi
 }
 
 # The command line for a browser, new window; private browsing when $2 is set.
@@ -124,17 +134,17 @@ case "${1:-}" in
         case "${2:-}" in
             --private) launch "$b" 1 ;;
             "")        launch "$b" ;;
-            *) echo "usage: x11-default-browser launch [--private]" >&2; exit 1 ;;
+            *) echo "usage: default-browser launch [--private]" >&2; exit 1 ;;
         esac ;;
     current) current ;;
-    set)     [ -n "${2:-}" ] || { echo "usage: x11-default-browser set <browser>" >&2; exit 1; }
+    set)     [ -n "${2:-}" ] || { echo "usage: default-browser set <browser>" >&2; exit 1; }
              set_default "$2" ;;
     menu)
         cur=$(current)
         pick=$(for b in $BROWSERS; do
                    if [ "$b" = "$cur" ]; then echo "$b (default)"; else echo "$b"; fi
-               done | rofi -dmenu -i -p 'default browser') || exit 0
+               done | choose) || exit 0
         set_default "${pick%% *}"
         ;;
-    *) echo "usage: x11-default-browser menu | set <browser> | current | launch [--private]" >&2; exit 1 ;;
+    *) echo "usage: default-browser menu | set <browser> | current | launch [--private]" >&2; exit 1 ;;
 esac

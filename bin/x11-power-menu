@@ -1,6 +1,6 @@
 #!/bin/sh
 # System menu via rofi: lock / suspend / logout / reboot / poweroff, the default
-# browser (bin/x11-default-browser), adding a wallpaper to the current theme
+# browser (bin/default-browser), adding a wallpaper to the current theme
 # (bin/x11-theme add-wallpaper), and the power profile (power-profiles-daemon)
 # when the machine offers one.
 set -eu
@@ -28,7 +28,7 @@ case "$choice" in
     logout)   exec i3-msg exit ;;
     reboot)   exec systemctl reboot ;;
     poweroff) exec systemctl poweroff ;;
-    "Default Browser") exec "$(dirname "$0")/x11-default-browser" menu ;;
+    "Default Browser") exec "$(dirname "$0")/default-browser" menu ;;
     "Add wallpaper to current theme") exec "$(dirname "$0")/x11-theme" add-wallpaper ;;
     "power profile:"*)
         pick=$(powerprofilesctl list | sed -n 's/^[ *]*\([a-z-]*\):$/\1/p' | rofi -dmenu -i -p 'power profile') || exit 0

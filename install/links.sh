@@ -238,6 +238,13 @@ install_links() {
 
     # ble.sh is opt-in here (opt/blesh.sh links ~/.blerc), so nothing for it.
 
+    # Launcher entries for repo scripts: rofi's drun lists them on i3, dux's
+    # launcher under Hyprland, where they are the way into these menus.
+    local entry
+    for entry in "$REPO"/applications/*.desktop; do
+        link "$entry" "$HOME/.local/share/applications/$(basename "$entry")"
+    done
+
     local script
     for script in "$REPO"/bin/*; do
         link "$script" "$HOME/.local/bin/$(basename "$script")"

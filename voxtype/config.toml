@@ -1,12 +1,13 @@
 # Voxtype Configuration
 #
-# Ported from a Hyprland config to i3/X11. Linked to
+# Used by both sessions, i3 and Hyprland. Linked to
 # ~/.config/voxtype/config.toml by install.sh; `voxtype setup model` edits it in
 # place, so those changes show up in the repo.
 #
-# Dictation: $mod+d (i3/conf.d/30-apps.conf) runs bin/x11-voxtype toggle.
-# The daemon is started by i3 (05-autostart.conf), not by voxtype.service, which
-# hangs off graphical-session.target, and a bare i3 session never reaches it.
+# Dictation: $mod+d (i3/conf.d/30-apps.conf, hypr/dms/binds-user.lua) runs
+# bin/dictate toggle. The daemon is started by the session (i3's 05-autostart.conf,
+# hypr/cachy.lua), not by voxtype.service, which hangs off graphical-session.target,
+# and neither session reaches it.
 #
 # Location: ~/.config/voxtype/config.toml
 # All settings can be overridden via CLI flags
@@ -112,14 +113,14 @@ wtype_shift_prefix = true
 
 
 # Pre/Post Output Commands
-# X11 has no wtype, so the text goes to the clipboard (xclip) and the post command
-# pastes it with xdotool: bin/x11-voxtype paste mirrors it into the PRIMARY
-# selection too (alacritty's Shift+Insert pastes PRIMARY, GTK's pastes CLIPBOARD),
-# then sends Shift+Insert. The Hyprland setup also swapped to a submap that
-# swallowed the keyboard while the text was typed; --clearmodifiers in the paste
-# covers the one case that mattered, a still-held $mod.
-pre_output_command = ""
-post_output_command = "bash ~/.local/bin/x11-voxtype paste"
+# The text goes to the clipboard (wl-copy under Hyprland, xclip on X11) and the post
+# command pastes it: bin/dictate paste mirrors it into the PRIMARY selection too
+# (alacritty's Shift+Insert pastes PRIMARY, GTK's pastes CLIPBOARD), then sends
+# Shift+Insert (wtype, or xdotool --clearmodifiers on X11). Under Hyprland the pre
+# command swaps to a submap that swallows the modifier keys while the text is
+# pasted, and the post command leaves it; on X11 both do nothing more.
+pre_output_command = "bash ~/.local/bin/dictate pre"
+post_output_command = "bash ~/.local/bin/dictate paste"
 
 # Post-processing command (optional)
 # Pipe transcribed text through an external command for cleanup before output.

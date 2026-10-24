@@ -1,0 +1,81 @@
+#!/bin/sh
+# screenshot region|full|annotate-region|annotate-full|ocr
+#
+#   region:          interactive selection, copied to the clipboard
+#   full:            whole screen, saved to ~/Pictures and copied to the clipboard
+#   annotate-region: interactive selection, opened in satty to draw on
+#   annotate-full:   whole screen, opened in satty to draw on
+#   ocr:             interactive selection, its text (tesseract) to the clipboard
+#
+# X11 (i3) captures with maim and copies with xclip. Wayland (Hyprland) captures
+# with dux's `dms screenshot` and copies with wl-copy; there, plain region and
+# full screenshots are bound to `dms screenshot` itself (hypr/dms/binds-user.lua),
+# so this script is used for ocr and annotate-*.
+#
+# In satty (config in satty/config.toml): Enter copies to the clipboard and
+# closes, Ctrl+S saves to ~/Pictures/Screenshots, Escape discards.
+set -eu
+
+pics="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+
+if [ "${XDG_SESSION_TYPE:-}" = wayland ]; then
+    # dux's own file, clipboard copy and notification are off: done below, as on X11.
+    capture() { dms screenshot "$1" --stdout --no-file --no-clipboard --no-notify; }
+    copy_png()  { wl-copy --type image/png; }
+    copy_text() { wl-copy; }
+else
+    capture() { if [ "$1" = region ]; then maim -s -u; else maim -u; fi; }
+    copy_png()  { xclip -selection clipboard -t image/png; }
+    copy_text() { xclip -selection clipboard; }
+fi
+
+notify() { dunstify -a screenshot "$@"; }
+
+annotate() {
+    mkdir -p "$pics/Screenshots"
+    satty --filename - "$@"
+}
+
+# A region into a temp file first, so a cancelled selection ends the script
+# before anything is copied or an empty editor opens.
+capture_region() {
+    tmp=$(mktemp --suffix=.png)
+    trap 'rm -f "$tmp"' EXIT
+    capture region > "$tmp" && [ -s "$tmp" ] || exit 0
+}
+
+case "${1:-region}" in
+    region)
+        capture_region
+        copy_png < "$tmp"
+        notify "Screenshot" "Region copied to clipboard"
+        ;;
+    full)
+        mkdir -p "$pics"
+        file="$pics/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
+        capture full > "$file"
+        copy_png < "$file"
+        notify "Screenshot" "Saved $file"
+        ;;
+    annotate-region)
+        capture_region
+        annotate < "$tmp"
+        ;;
+    annotate-full)
+        capture full | annotate --fullscreen
+        ;;
+    ocr)
+        # Upscaled 2x before recognition: screen text is small, and tesseract is
+        # tuned for ~300 dpi scans, so it misreads 1:1 UI text far more often.
+        capture_region
+        text=$(magick "$tmp" -resize 200% -colorspace Gray png:- | tesseract stdin stdout --psm 6 2>/dev/null \
+               | sed -e 's/[[:space:]]*$//' -e '/./,$!d')
+        if [ -z "$text" ]; then
+            notify "Text capture" "No text found"
+            exit 0
+        fi
+        printf '%s' "$text" | copy_text
+        notify "Text copied" "$(printf '%s' "$text" | head -c 120)"
+        ;;
+    *) echo "usage: screenshot region|full|annotate-region|annotate-full|ocr" >&2; exit 1 ;;
+esac

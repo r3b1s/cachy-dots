@@ -668,7 +668,7 @@ case "${1:-}" in
     grid-theme) printf '%s\n' "$GRID_THEME" ;;
     remove)  shift; cmd_remove "$@" ;;
     add-wallpaper) shift; cmd_add_wallpaper "$@" ;;
-    # x11-default-browser calls this after installing Brave Origin: its policy
+    # default-browser calls this after installing Brave Origin: its policy
     # root is written only from here on, so it gets the colour without waiting
     # for the next switch.
     apply-chromium) apply_chromium ;;
