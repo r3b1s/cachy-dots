@@ -405,8 +405,8 @@ Push-to-talk dictation. `voxtype/config.toml` is a Hyprland config ported to X11
   `command -v`. The packaged `voxtype.service` is wanted by `graphical-session.target`, which neither session
   reaches. The daemon is no X client, so it outlives an i3 session; each session replaces one left running
   (`pkill -x`), since it would carry the other session's environment.
-- **Toggle:** `$mod+d` -> `bin/dictate toggle` (`voxtype record toggle`, plus a notification
-  in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, so the
+- **Toggle:** `$mod+d` -> `bin/dictate toggle` (`voxtype record toggle`), with no notification:
+  voxtype's audio feedback beeps mark the start and the stop, and its own notifications are off; the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, so the
   `input` group is not needed.
 - **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
   `post_output_command` is `bin/dictate paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
