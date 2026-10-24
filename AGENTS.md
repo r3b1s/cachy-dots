@@ -479,6 +479,35 @@ user, and installs the keyboard config in `opt/kanata/enthium.kbd`. That file is
 - **Keyboards.** kanata grabs every keyboard it finds unless `enthium.kbd` sets `linux-dev`. The config is not
   designed for every keyboard, so check `sudo kanata --list` first.
 
+## RetroArch (opt-in)
+
+`opt/omarchy-retroarch.sh` sets RetroArch up as Omarchy's `bin/omarchy-install-gaming-retroarch` does; it is not
+part of `install.sh`. `[-n] [--yes] [--reconfigure] [--remove]`.
+
+- **Packages (51, one transaction):** `retroarch`, the three asset packs and about 30 libretro cores, with
+  `libretro-core-info`, `-overlays` and `-shaders-slang`, 36 in all by plain name (a Cachy build wins where there
+  is one); and 15 only in Omarchy's repo (the libretro database, the joypad profiles, and the FBNeo, UAE, CPC and
+  ten VICE cores), by `omarchy/<name>`. When `[omarchy]` is not in `pacman.conf` the script asks `y/N` first
+  (`--yes` answers it; no terminal and no `--yes` stops) and runs `opt/omarchy-repo.sh`. About 1.2 GB with the
+  data (`/usr/lib/libretro` 690 MB, `/usr/share/libretro` 540 MB).
+- **Config:** `retroarch/omarchy.cfg` is merged key by key into `~/.config/retroarch/retroarch.cfg` (not linked:
+  RetroArch rewrites it on exit): the library, overlay, shader, autoconfig and database paths, `~/Games/roms` and
+  `~/Games/bios` (made), `video_driver = vulkan`, `menu_driver = xmb`, shaders on, no Images and Video tabs;
+  `retroarch/global.slangp` becomes `~/.config/retroarch/config/global.slangp`, the one-line `#reference` to
+  `crt-royale` that gives every game the CRT look (RetroArch loads it with `auto_shaders_enable`; the cfg alone is
+  not enough). Compared with Omarchy's own script run in a scratch home on arch0: the same keys and values.
+- **Applied once.** Omarchy's script rewrites those keys on every run, which would undo what is changed in
+  RetroArch's menus, so the marker `~/.config/cachy-dots/omarchy-retroarch` makes a re-run install only what is
+  missing; `--reconfigure` applies the config again. It will not touch the config while RetroArch runs.
+- **Window rules** (always present, no run needed): `com.libretro.RetroArch` fullscreen, and under Hyprland idle
+  inhibited while fullscreen (`hypr/cachy.lua`, Omarchy's `default/hypr/apps/retroarch.lua`; `inhibitingIdle`
+  checked on arch0); i3 only has the fullscreen (`i3/conf.d/30-apps.conf`; `$mod+Ctrl+i` holds idle off).
+- **Not ported:** Omarchy's per-game launcher generator (`omarchy-games-retro-install`, built on its menu
+  scripts, notifications and an icon), its preferred-core list, and opening `~/Games` in nautilus afterwards.
+- **Vulkan:** the script warns when no Vulkan driver is installed (`/usr/share/vulkan/icd.d`). arch0 had none, and
+  RetroArch exited at start-up with `video_driver = vulkan`; with `vulkan-swrast` it opened, fullscreen. Software
+  Vulkan only shows the rule works, not how crt-royale performs.
+
 ## Neovim
 
 `nvim/` is a LazyVim tree ported from the Omarchy host (`init.lua`, `lua/config/lazy.lua`,

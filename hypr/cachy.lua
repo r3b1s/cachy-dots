@@ -69,6 +69,9 @@ hl.window_rule({ match = { class = "^(vesktop)$" }, workspace = "special:slash" 
 -- below), so `dcal show` makes the window in that process, not in the one ws-app
 -- started: the rule is what puts it on the workspace.
 hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "special:plus" })
+-- RetroArch (opt/omarchy-retroarch.sh): fullscreen, and no idle lock while it is, as
+-- Omarchy's default/hypr/apps/retroarch.lua.
+hl.window_rule({ match = { class = "^(com.libretro.RetroArch)$" }, fullscreen = true, idle_inhibit = "fullscreen" })
 
 -- ── submaps ──────────────────────────────────────────────────────────────
 local function notify(title, body)
