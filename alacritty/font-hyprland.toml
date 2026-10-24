@@ -1,0 +1,7 @@
+# The Hyprland session's terminal font: ~/.config/alacritty/font.toml links here
+# while Hyprland is the active session (install/session.sh). dux's own mono font,
+# Fira Code, as the Nerd Font build (ttf-firacode-nerd, opt/hyprland.sh); dux
+# bundles its fonts inside dms, where other apps cannot use them. Bold and italic
+# fall back to this family.
+[font]
+normal = { family = "FiraCode Nerd Font", style = "Regular" }

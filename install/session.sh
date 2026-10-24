@@ -59,6 +59,8 @@ session_links() {
             # dux owns hyprland.lua and the rest of hypr/dms/; these two are ours.
             printf '%s\t%s\n' "$REPO/hypr/cachy.lua" "$cfg/hypr/cachy.lua"
             printf '%s\t%s\n' "$REPO/hypr/dms/binds-user.lua" "$cfg/hypr/dms/binds-user.lua"
+            # Read only when XDG_CURRENT_DESKTOP is Hyprland: folders open in Dux Files.
+            printf '%s\t%s\n' "$REPO/hypr/hyprland-mimeapps.list" "$cfg/hyprland-mimeapps.list"
             ;;
     esac
 }
@@ -86,7 +88,9 @@ link_session() {
         retire_dir_link "${XDG_CONFIG_HOME:-$HOME/.config}/i3" "$REPO/i3"
     fi
     while IFS=$'\t' read -r src dst; do
-        if is_session_stub "$dst"; then
+        # A stub of ours, or a file with nothing but comments (dux's setup writes
+        # binds-user.lua as just its header): nothing to back up.
+        if is_session_stub "$dst" || { [ -f "$dst" ] && [ ! -L "$dst" ] && ! grep -qvE '^[[:space:]]*(--.*)?$' "$dst"; }; then
             run rm "$dst"
         fi
         link "$src" "$dst"
@@ -124,8 +128,9 @@ is_dux_gtk_css() {
         && grep -qE '^@import url.*dank-colors\.css.*\);$' "$1"
 }
 
-# The colour slots: one link (gtk.css: a link or a file) per app that both
-# sessions theme, pointed at the active session's colours.
+# The slots: one link (gtk.css: a link or a file) per app that both sessions
+# theme, pointed at the active session's colours, and the terminals' font file:
+# i3's own font under i3, dux's mono font under Hyprland.
 point_slots() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}" d f
     local th="$HOME/.local/state/omarchy/current/theme"
@@ -133,23 +138,23 @@ point_slots() {
         i3)
             link "$th/alacritty.toml" "$cfg/alacritty/colors.toml"
             link "$th/kitty.conf" "$cfg/kitty/colors.conf"
+            link "$REPO/alacritty/font-i3.toml" "$cfg/alacritty/font.toml"
+            link "$REPO/kitty/font-i3.conf" "$cfg/kitty/font.conf"
             link "$th/satty.config.toml" "$cfg/satty/config.toml"
             for d in gtk-3.0 gtk-4.0; do
                 is_dux_gtk_css "$cfg/$d/gtk.css" && run rm "$cfg/$d/gtk.css"
                 link "$th/gtk.css" "$cfg/$d/gtk.css"
             done
+            point_file_manager /usr/share/dbus-1/services/org.freedesktop.FileManager1.service
             ;;
         hyprland)
-            # dux writes these on its first theme generation; until then the
-            # terminals keep x11-theme's colours, and the next sync.sh or
-            # cachy-session run repoints them.
-            for f in alacritty/colors.toml:alacritty/dank-theme.toml kitty/colors.conf:kitty/dank-theme.conf; do
-                if [ -f "$cfg/${f#*:}" ]; then
-                    link "$cfg/${f#*:}" "$cfg/${f%%:*}"
-                else
-                    echo "note: no $cfg/${f#*:} yet (dux writes it); $cfg/${f%%:*} keeps x11-theme's colours"
-                fi
-            done
+            # dux writes these when it starts (its theme templates for every
+            # installed terminal), so before the first Hyprland login the links
+            # point at nothing yet.
+            link "$cfg/alacritty/dank-theme.toml" "$cfg/alacritty/colors.toml"
+            link "$cfg/kitty/dank-theme.conf" "$cfg/kitty/colors.conf"
+            link "$REPO/alacritty/font-hyprland.toml" "$cfg/alacritty/font.toml"
+            link "$REPO/kitty/font-hyprland.conf" "$cfg/kitty/font.conf"
             link "$REPO/satty/config-wayland.toml" "$cfg/satty/config.toml"
             # A real file importing dux's colours, which dux's gtk.sh recognises as
             # its own (it leaves a symlink alone).
@@ -166,8 +171,22 @@ point_slots() {
                 echo '@import url("dank-colors.css");' > "$cfg/$d/gtk.css"
                 echo "wrote $cfg/$d/gtk.css (imports dux's dank-colors.css)"
             done
+            point_file_manager /usr/local/share/dbus-1/services/dev.duxlabs.files.FileManager1.service
             ;;
     esac
+}
+
+# Which file manager D-Bus starts for org.freedesktop.FileManager1 ("show in
+# folder"): nautilus under i3, Dux Files under Hyprland. Both ship an activation
+# file for the name, and Dux Files' in /usr/local/share would win in both
+# sessions; one in the user's own data directory comes first, so it is a link
+# there to the active session's. Nothing is linked when that file is missing.
+point_file_manager() {
+    local src=$1 dst="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services/org.freedesktop.FileManager1.service"
+    [ -f "$src" ] || return 0
+    [ "$(readlink "$dst" 2>/dev/null)" = "$src" ] && return 0
+    link "$src" "$dst"
+    [ "$dry" = 1 ] || busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || true
 }
 
 # A mask is a link to /dev/null in the user's unit directory: no root, no running
@@ -203,7 +222,7 @@ CACHY_REQUIRE='require("cachy") -- cachy-dots: hypr/cachy.lua (added by cachy-se
 
 ensure_cachy_require() {
     local f="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
-    [ -f "$f" ] || { warn "$f is missing: run \`dms setup\` (see opt/hyprland.sh)"; return 0; }
+    [ -f "$f" ] || { warn "$f is missing: opt/hyprland.sh has dux write it"; return 0; }
     grep -qF 'require("cachy")' "$f" && return 0
     if [ "$dry" = 1 ]; then echo "+ append to $f: $CACHY_REQUIRE"; return 0; fi
     printf '\n%s\n' "$CACHY_REQUIRE" >> "$f"

@@ -1,7 +1,7 @@
 # satty under Hyprland: the colour slot ~/.config/satty/config.toml points here
 # while that session is active (install/session.sh). As satty/config.toml.tpl,
 # which x11-theme renders for i3, but copying with wl-copy, and with satty's own
-# palette: dux themes Hyprland and has no satty template.
+# palette and font: dux themes Hyprland and has no satty template.
 [general]
 # Enter copies and closes; Escape just closes. Ctrl+S saves to output-filename.
 early-exit = ["all"]
@@ -16,7 +16,3 @@ default-round-caps = true
 brush-smooth-history-size = 5
 primary-highlighter = "block"
 notification-thumbnail = "screenshot"
-
-[font]
-family = "JetBrainsMono Nerd Font"
-style = "Regular"

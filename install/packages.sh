@@ -43,6 +43,7 @@ PKGS+=(
     libnotify                        # dunstify links against it (dunst's optdep); the OSDs use it
     curl                             # fetches the seeded wallpaper
     rofimoji                         # emoji picker, bound in i3/conf.d/30-apps.conf
+    noto-fonts-emoji                 # colour emoji glyphs for it, and for dux's picker under Hyprland
 
     # System-wide dark mode. There is no desktop here, so dconf is the system
     # theme: GTK4/libadwaita read it directly, and the portal reads it for

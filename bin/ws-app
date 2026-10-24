@@ -40,6 +40,18 @@ if [ "${XDG_SESSION_TYPE:-}" = wayland ]; then
     shown=$(hyprctl monitors -j | jq -r --arg ws "special:$ws" 'any(.[]; .focused and .specialWorkspace.name == $ws)')
     windows=$(hyprctl clients -j | jq --arg ws "special:$ws" '[.[] | select(.workspace.name == $ws)] | length')
     [ "$shown" = true ] && [ "${windows:-0}" -eq 0 ] || exit 0
+    if [ "${notify:-false}" = "true" ]; then
+      dunstify "$notify_title" "$notify_msg"
+    fi
+    # Launched by Hyprland with a workspace rule: a window started from here
+    # would open on the regular workspace underneath. Each word is single-quoted
+    # for the sh -c Hyprland runs it with, then the whole escaped as a Lua string.
+    cmd=""
+    for a in "$@"; do
+        cmd="$cmd '$(printf '%s' "$a" | sed "s/'/'\\\\''/g")'"
+    done
+    lua=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    exec hyprctl dispatch "hl.dsp.exec_cmd(\"$lua\", { workspace = \"special:$ws\" })" >/dev/null
 else
     focused=$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused) | .name')
 

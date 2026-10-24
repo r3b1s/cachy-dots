@@ -1,0 +1,6 @@
+# The i3 session's terminal font: ~/.config/alacritty/font.toml links here while
+# i3 is the active session (install/session.sh). The same font as i3 and its bar.
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold   = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }

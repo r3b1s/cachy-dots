@@ -1,0 +1,6 @@
+# Default applications for the Hyprland session only: linked to
+# ~/.config/hyprland-mimeapps.list, which GLib and xdg-utils read before
+# ~/.config/mimeapps.list when XDG_CURRENT_DESKTOP is Hyprland. Folders open in
+# dux's file manager here; i3 keeps nautilus (setup_default_apps).
+[Default Applications]
+inode/directory=dev.duxlabs.files.desktop

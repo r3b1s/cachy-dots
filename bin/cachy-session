@@ -40,7 +40,7 @@ hyprland_missing() {
     command -v Hyprland >/dev/null || echo "Hyprland is not installed (opt/hyprland.sh)"
     command -v dms >/dev/null || echo "dux-shell (dms) is not installed (opt/hyprland.sh)"
     if [ ! -f "$hypr_lua" ]; then
-        echo "$hypr_lua does not exist: run \`dms setup\` once and answer 2 (Hyprland), 4 (no terminal config), 2 (no systemd), y"
+        echo "$hypr_lua does not exist: opt/hyprland.sh has dux write it"
     fi
 }
 

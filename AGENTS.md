@@ -1,4 +1,6 @@
 These dotfiles set up a custom i3 desktop on a headless [CachyOS](https://cachyos.org/) VM (qemu/kvm/libvirt).
+A second session, Hyprland with dux-shell, is opt-in; one of the two is active at a time (see "Sessions: i3
+and Hyprland").
 They are a port of `athena-dots` (the AthenaOS version), kept as a separate repo for now.
 
 CachyOS is downstream of Arch and has all the official Arch repos. On top of them it adds its own repos,
@@ -47,7 +49,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Area | Packages |
 | --- | --- |
 | Window manager and layout | `i3-wm`, `i3status-rust` (bar), `autotiling` |
-| Launcher, notifications | `rofi`, `rofimoji` (emoji picker, `$mod+Ctrl+e`), `dunst`, `libnotify` |
+| Launcher, notifications | `rofi`, `rofimoji` (emoji picker, `$mod+Ctrl+e`), `noto-fonts-emoji` (its glyphs, and dux's picker's), `dunst`, `libnotify` |
 | Terminals, editor, monitors | `alacritty` (default), `kitty`, `neovim`, `btop` |
 | Browsers | `chromium`, `qutebrowser-git`, `firefox` |
 | X and the session | `xorg-server`, `xorg-xinit`, `xorg-xauth`, `xorg-xrandr`, `xorg-xrdb` (`Xft.dpi: 96` from `shell/xprofile`, so alacritty is the same size on every panel), `ly` |
@@ -163,6 +165,124 @@ are now one line, sequenced with `&&` in an explicit `sh -c`, because i3's `exec
 
 `bin/x11-wallpaper` is a plain `feh --bg-fill`, with no `--bg-size` and no root-window reset.
 
+## Sessions: i3 and Hyprland
+
+i3 is the default session. Hyprland with [dux-shell](https://github.com/duxlabs-dev/dux-shell) ("dux"; its binary
+is still `dms`) is a second one, opted into with `opt/hyprland.sh`. One is active at a time:
+`bin/cachy-session status | i3 | hyprland [-n]` switches, and records the choice in
+`~/.config/cachy-dots/session`, which `install.sh` and `sync.sh` follow (`apply_session` in `install/session.sh`,
+right after `install_links`). Nothing running is changed: log out and pick the session in ly. Logging into the
+inactive one gives a degraded session, not a broken one.
+
+- **Install: `opt/hyprland.sh`**, after `install.sh`. Hyprland and dux's runtime deps by plain name (`quickshell`,
+  `dux-gop`, `accountsservice`, `matugen`, `qt6ct`, `qt6-multimedia`, `cava`, `wl-clipboard`, `wtype`,
+  `ttf-firacode-nerd`, ...), after a full `-Syu`. Then dux itself from its GitHub releases, every file pinned with
+  a sha256 in the script's `DUX` table: `dms` (dux-shell), `dfiles` (Dux Files), `dcal` (Dux Calendar) and
+  `dsearch` (Dux Search), with their desktop entries and icons, and Dux Files' polkit action, D-Bus activation
+  files and portal file, laid out as their own `make install` does: `/usr/local`, the polkit action in
+  `/usr/share/polkit-1/actions` (polkit reads no other directory), `/usr/bin/<tool>` in those files rewritten
+  to `/usr/local/bin`. `/usr/local/share/cachy-dots/dux.sha256` records what was installed, so a re-run skips
+  it; bump a pin to upgrade. Root-owned, so `dms update` cannot replace them. **Not the AUR** (dux's author
+  publishes `dux-*-bin` there) and not chaotic-aur's `dms-shell-git`. `--remove` deletes the files.
+- **dux owns the Hyprland config.** `opt/hyprland.sh` runs `dms setup headless --compositor hyprland --no-systemd`
+  once, while `~/.config/hypr/hyprland.lua` is missing: dux writes `hyprland.lua` (dwindle, its animations and
+  window rules) and `hypr/dms/*.lua`, which its Settings then edit. No systemd: `dms.service` runs
+  `/usr/bin/dms` and the release ships no unit, so `hyprland.lua` starts `dms run` itself. No `--terminal`: a
+  terminal config would be written through the links into this repo's alacritty or kitty file. (The interactive
+  `dms setup` also runs `usermod -aG input` through sudo, for a Caps Lock indicator; that group can read every
+  keyboard, and headless does not.) `--force` would replace `hyprland.lua` (backup under
+  `~/.config/hypr/.dms-backups/`); `cachy-session hyprland` re-adds our line afterwards.
+- **What the repo adds** are three Hyprland-owned links, `hypr/dms/binds-user.lua`, `hypr/cachy.lua` and
+  `hypr/hyprland-mimeapps.list`, and one line `cachy-session` appends to dux's `hyprland.lua`, after dux's own
+  requires: `require("cachy")`.
+- **Keybinds: the i3 meanings win.** `binds-user.lua` is dux's override file, loaded after its stock
+  `dms/binds.lua`. Every dux chord whose i3 meaning has a Hyprland port is an `hl.unbind` + `hl.bind` pair to that
+  meaning: `$mod+d` dictation, `$mod+w` close, `$mod+Shift+e` yazi (dux's stock chord exits Hyprland with no
+  question), `$mod+Shift+t` terminal, `$mod+x` the notification family, `$mod+Tab` next workspace,
+  `$mod+Ctrl+hjkl` resize, `$mod+Ctrl+i` idle inhibit, `$mod+Ctrl+n` night mode, `Print` full screenshot, and
+  the named workspaces (`t g u o z a y i m q` and `, - = . /`, `$mod+Shift+p`). `$mod+p`, btop's workspace on
+  i3, opens dux's process list instead: dux's own app wins where it has one. The i3 chords dux has nothing
+  on are added (OCR on `$mod+Print`, the `$mod+b` browsers, `$mod+e` Dux Files, `$mod+Escape` power menu,
+  `$mod+Ctrl+e` emoji, ...). dux binds whose i3 meaning has no port stay: `$mod+n` notepad (i3: focus parent),
+  `$mod+s` scratchpad (i3: tabbed), `$mod+v` clipboard, `$mod+space` launcher, `$mod+Shift+/` cheatsheet. The
+  file is kept in the form dux's keybind editor writes (sorted, one statement per line, its header the only
+  comment), because an edit in dux's Settings rewrites it through the link: git then shows just that change.
+  Checked with `dms keybinds set`: every other bind came back unchanged. Not bound yet: `$mod+Ctrl+w` (next
+  wallpaper), the 2000K nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
+- **`hypr/cachy.lua`** holds what that editor would drop. The environment `~/.xprofile` gives i3 (ly reads it for
+  X sessions only): `~/.local/bin` on PATH, `XDG_SESSION_TYPE=wayland`, the telemetry opt-outs from
+  `environment.d`. The startup programs, whose own units hang off `graphical-session.target`, which this session
+  does not reach: voxtype's daemon, `dfiles run --session --hidden`, `dcal run --session --hidden`,
+  `dsearch serve`. The submaps: `passthru` (`$mod+Delete`, Delete leaves), `gaps` (`$mod+Ctrl+g`; h/l and j/k
+  the outer gaps by 20, arrows the inner by 2, Escape leaves; a reload restores dux's values) and
+  `dictate_suppress` (see "Voxtype").
+- **Named workspaces** are special workspaces with i3's names, so they overlay the current workspace rather
+  than replace it. The app ones go through `bin/ws-app`, which toggles and, when the workspace is empty,
+  launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`: a window the script started itself
+  would open on the regular workspace underneath, and a workspace rule's `on_created_empty` cannot live in
+  `binds-user.lua`. (Hyprland's Lua mode rejects the old `exec [rules] cmd` syntax.)
+- **dux does the rest of the desktop**: notifications, the polkit agent (built in, on Quickshell's polkit
+  module), clipboard history (`$mod+v`, `$mod+Ctrl+v`; it records voxtype's `wl-copy` output; the history is in
+  `~/.cache/dms/clipboard/` on disk; `dms clipboard clear` keeps pinned items), launcher, overview, power menu,
+  lock, idle, night mode, screenshots (`dms screenshot`), colour picker, cheatsheet, wallpaper, and emoji
+  through its emojiLauncher plugin (`$mod+Ctrl+e` opens the launcher on the plugin's `:e` trigger;
+  `opt/hyprland.sh` installs and enables it). No rofi: scripts that need a picker use `dms dmenu`, and
+  `applications/default-browser.desktop` puts the default-browser menu in dux's launcher.
+- **dux's apps over third-party ones.** Dux Files is the file manager: `$mod+e`; folders, through
+  `~/.config/hyprland-mimeapps.list`, which GLib and xdg-utils read only when `XDG_CURRENT_DESKTOP` is Hyprland;
+  `org.freedesktop.FileManager1` ("show in folder"), through a per-session link in
+  `~/.local/share/dbus-1/services/`, since its activation file in `/usr/local/share` would otherwise outrank
+  nautilus's under i3 too; and open/save dialogs, through its own `dfiles portal install`, which
+  `opt/hyprland.sh` runs: `FileChooser=dfiles;hyprland;gtk` in `~/.config/xdg-desktop-portal/hyprland-portals.conf`,
+  seeded from the system's file first so its `default=hyprland;gtk` survives (a user file replaces the system one).
+  Dux Calendar syncs accounts and feeds dux's dash; Dux Search indexes for the launcher's file search. Nautilus
+  stays i3's file manager.
+- **Slots** (`point_slots`): one link per app both sessions theme, pointed at the active session's files.
+  alacritty `colors.toml`/`font.toml` and kitty `colors.conf`/`font.conf` (x11-theme's render and JetBrainsMono
+  under i3; dux's `dank-theme` files and FiraCode Nerd Font under Hyprland: dux's own mono default is Fira Code,
+  but its fonts are bundled inside `dms`, and its terminal configs name no family); satty's config (the rendered
+  template, or `satty/config-wayland.toml`: wl-copy, satty's own palette and font); `gtk.css` (x11-theme's link,
+  or a real file importing `dank-colors.css`, which dux's `gtk.sh` treats as its own; it leaves a symlink alone);
+  and the `FileManager1` link above. dux writes its `dank-*` files when it starts, so before the first Hyprland
+  login those links point at nothing yet.
+- **The rest of a switch.** Hyprland masks `dunst.service` and `blueman-applet.service` (links to `/dev/null` in
+  `~/.config/systemd/user/`), so D-Bus activation cannot start them under dux; i3 unmasks them. i3's config,
+  `~/.xprofile`, dunst's config and the i3-only scripts (`I3_ONLY_BIN`: `x11-theme`, `x11-lock`, ...) are
+  unlinked, each only while it still points where the session put it. `~/.config/i3/config` becomes a stub
+  (first line `# cachy-session stub`) that shows i3-nagbar, instead of i3's default config and its wizard; there
+  is no Hyprland-side stub, `hyprland.lua` being dux's. `x11-theme` refuses its changing commands while Hyprland
+  is active, and `sync.sh` skips its re-render. A switch there and back leaves the links byte-identical.
+- **The user manager outlives a logout** by a few seconds (indefinitely with another session open), with the
+  previous session's activation environment and portals. Seen on arch0: after Hyprland ended it still had
+  `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP=Hyprland`, and the portal running. Each session resets that at
+  login: i3's `05-autostart.conf` exports `DISPLAY`/`XAUTHORITY`/`XDG_CURRENT_DESKTOP`, unsets Hyprland's
+  variables and stops the three portal services (D-Bus starts them again on demand); `cachy.lua` does the
+  reverse, dropping i3's `DISPLAY` before exporting everything (XWayland's `:0` comes back with it).
+- **ly** lists both. Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
+- **Shared scripts** pick their backend from `XDG_SESSION_TYPE`:
+
+  | Script | X11 | Wayland |
+  | --- | --- | --- |
+  | `screenshot` | maim, xclip | `dms screenshot <mode> --stdout`, wl-copy (Hyprland binds plain region and full to `dms screenshot` itself) |
+  | `dictate` | xclip, `xdotool --clearmodifiers` | wl-copy, wtype, the `dictate_suppress` submap |
+  | `ws-app` | i3 named workspaces | special workspaces through hyprctl |
+  | `default-browser` | rofi | `dms dmenu` |
+
+- **Not following dux** under Hyprland: btop, yazi, nvim, mpv, zathura, imv, qutebrowser and Firefox keep
+  x11-theme's colours, and GTK's icon theme stays x11-theme's generated one (`settings.ini` is shared).
+- **Tested on arch0** (a vanilla Arch VM, 2026-10-24). Hyprland ran on the virtio GPU (llvmpipe). The session was
+  started as ly starts it, without typing a password: a PAM login session on tty2,
+  `systemd-run -p PAMName=login -p TTYPath=/dev/tty2 -p StandardInput=tty-force --uid=t ... /etc/ly/setup.sh
+  /usr/bin/start-hyprland`, then `chvt 2` (an X server must find its VT already active: `chvt` first). Keys
+  went in with `virsh send-key`, the screen came out with `virsh screenshot`. Checked: no config errors; no chord
+  bound twice; named workspaces launch into their special workspace once; the submaps;
+  `$mod+Shift+e` opens yazi with Hyprland still up; dux's notifications, clipboard (text and images), launcher,
+  dmenu, polkit dialog, region selector and emoji picker; the OCR and dictate paths (the region capture
+  shimmed); Dux Files on `$mod+e`, as the folder handler, as `FileManager1` and as the file chooser; Fira Code in
+  the terminal; and i3 again after the switch back, with dunst, the i3 portals and no dux process. Over ssh, ufw's
+  rate limit on port 22 (6 connections in 30 s) refuses a burst of connections: use one multiplexed connection.
+  Not tested: voxtype with real audio, a ly login with a password, bare metal.
+
 ## Firefox
 
 `setup_firefox()` in `install.sh` installs `firefox/policies.json` to
@@ -249,16 +369,20 @@ Push-to-talk dictation. `voxtype/config.toml` is a Hyprland config ported to X11
 
 - **Install:** `aur/voxtype-bin` (see "packages"), then `voxtype setup --download` fetches the `base.en`
   model the config names, once (`setup_voxtype()`; needs network, a failure only warns).
-- **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf`, guarded by `command -v`. The packaged
-  `voxtype.service` is wanted by `graphical-session.target`, which a bare i3 session never reaches.
-- **Toggle:** `$mod+d` -> `bin/dictate toggle` (`voxtype record toggle`, plus a dunst notification
+- **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf` (i3) or `hypr/cachy.lua` (Hyprland), guarded by
+  `command -v`. The packaged `voxtype.service` is wanted by `graphical-session.target`, which neither session
+  reaches. The daemon is no X client, so it outlives an i3 session; each session replaces one left running
+  (`pkill -x`), since it would carry the other session's environment.
+- **Toggle:** `$mod+d` -> `bin/dictate toggle` (`voxtype record toggle`, plus a notification
   in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, so the
   `input` group is not needed.
 - **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
   `post_output_command` is `bin/dictate paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
-  pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. The Hyprland
-  config's submap that swallowed the keyboard while text was typed has no i3 port; `--clearmodifiers` covers a
-  still-held `$mod`.
+  pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. Under Hyprland the
+  same with wl-copy and `wtype -M shift -k Insert`; wtype cannot clear physically held modifiers, so voxtype's
+  `pre_output_command` (`bin/dictate pre`) enters the `dictate_suppress` submap (`hypr/cachy.lua`), which swallows
+  Super, Alt and Ctrl until `paste` leaves it (Delete leaves it by hand). On X11 `pre` does nothing. Checked on
+  arch0 with a stand-in transcript: the submap is entered and left and PRIMARY is set.
 - **Not tested on a live session** when it was written: voxtype was not installed on the machine the repo was
   edited on. The output driver chain was read from voxtype's `src/output/mod.rs`, not run.
 
@@ -328,7 +452,8 @@ unchanged; read them as "in `install/`"):
 | `system.sh` | login shell, nix, services, firewall, touchpad, keyring check, `validate_i3` |
 | `browsers.sh` | Firefox and Chromium policies, `setup_default_apps` |
 | `theme.sh` | root helpers, GTK, dark mode, `setup_theme` |
-| `links.sh` | `link`, `install_links`, the bashrc block, `setup_ssh` (the `~/.ssh` scaffold), the nvim tree |
+| `links.sh` | `link`, `install_links` (the links both sessions share), the bashrc block, `setup_ssh` (the `~/.ssh` scaffold), the nvim tree |
+| `session.sh` | what the i3 and Hyprland sessions own, the slots, `apply_session` (see "Sessions: i3 and Hyprland") |
 | `voxtype.sh` | the speech model |
 | `flow.sh` | `install_main`: the steps in order, and `record_profile` |
 | `profile-<name>.sh` | what a profile leaves out |
@@ -409,7 +534,8 @@ whole run when ufw could not start.
   "Expected one of these tokens: ... 'exec' ...". Note `i3 -C` validates the config file but **not** the
   command body of a `bindsym`, so it accepts that mistake silently and the bind does nothing.
 - `install.sh` checks the Cachy repos, adds chaotic-aur, refreshes the package databases with a full `pacman -Syu` when anything is missing, installs the missing packages (pacman; a failure is retried once after another sync, then reported without stopping the run), switches the
-  login shell to bash, starts `spice-vdagentd.socket`, symlinks the dots, then validates with `i3 -C`. It is
+  login shell to bash, starts `spice-vdagentd.socket`, symlinks the dots, applies the active session, then
+  validates its config (`i3 -C`, or `Hyprland --verify-config`). It is
   the source of truth for the package list; keep it in sync with this file.
 - GTK ignores `org.gnome.desktop.interface` for the theme and icon theme: it reads XSETTINGS, which needs a
   settings daemon, and there is none in a bare i3 session. `setup_gtk()` in `install.sh` therefore writes
@@ -446,8 +572,7 @@ whole run when ufw could not start.
   writes `TERMINAL=alacritty` into a managed block of `/etc/environment`, which pam_env reads at every login (ly's
   included). `shell/xprofile` publishes it to X as the resource `i3wm.terminal` (only when set), and `i3/config` reads
   it with `set_from_resource $terminal i3wm.terminal alacritty`, so the repo's i3 config holds no environment-specific
-  value. `$terminal-cmd` is `$terminal -e`. A future terminal menu only has to change TERMINAL. Not yet switched:
-  `bin/default-browser` still starts `alacritty` by name for the sudo prompt. Kitty stays installed and follows the
+  value. `$terminal-cmd` is `$terminal -e`. A future terminal menu only has to change TERMINAL. Kitty stays installed and follows the
   theme, but nothing in the config launches it and its remote-control socket is off.
 - Nothing under `~/.config` is a link to a repo directory any more: `install_links` links individual files only,
   and `link()` creates the host-local directories (`mkdir -p`). Earlier layouts linked whole directories; `retire_dir_link`
@@ -466,11 +591,12 @@ whole run when ufw could not start.
 - **`sync.sh`** (repo root) brings an installed system up to date after a `git pull` or an edit, without
   installing anything, enabling a service or touching the network: it sources `install/lib.sh` for the functions
   (nothing runs on sourcing; `link()` stays silent for links that are already right), takes the profile from
-  `~/.config/cachy-dots/profile`, and runs `install_links` (new links, repointed ones, backups of real files in the way), removes links
+  `~/.config/cachy-dots/profile`, and runs `install_links` (new links, repointed ones, backups of real files in the way) and
+  `apply_session` (the active session's links and slots), removes links
   into the repo whose file is gone, `setup_gtk`, the root copies that only write when they differ
   (`setup_theme_helper`, `setup_firefox`, `setup_chromium`, `setup_touchpad`, the nix.conf
-  block, which restarts `nix-daemon.service` only if it changed), `x11-theme refresh`, `setup_default_apps`
-  and `i3 -C`, then lists packages the repo wants that are missing and points at `install.sh`. Flags: `-n`,
+  block, which restarts `nix-daemon.service` only if it changed), `x11-theme refresh` (i3 only), `setup_default_apps`
+  and the active session's config check, then lists packages the repo wants that are missing and points at `install.sh`. Flags: `-n`,
   `--no-root` (skip the `/etc` and `/usr/local` copies, no sudo), `--themes` (`x11-theme update`, which pulls).
   New things that `install.sh` does beyond these (services, firewall, voxtype model, AUR builds) stay its job.
 - See "Shell" below for `shell/` and the login shell.
@@ -568,8 +694,9 @@ These were left out while the dots only targeted disposable VMs; they are for da
   `setup_default_apps()` honours so a re-run of `install.sh` does not put qutebrowser back. brave-origin is
   installed when missing: `cachyos/brave-origin-bin` when a Cachy repo has it (`pacman -Si cachyos/...`),
   else `aur/brave-origin-bin` through yay. Once installed, its toolbar colour follows the theme
-  (`x11-theme apply-chromium`, see "Chromium needs root" below). Installing needs sudo, so from rofi (no tty) the script reopens
-  itself in alacritty. `$mod+b` launches the default browser (`default-browser launch`) and
+  (`x11-theme apply-chromium`, see "Chromium needs root" below). Installing needs sudo, so from a menu (no tty) the script reopens
+  itself in `$TERMINAL`. Under Hyprland the menu is dux's picker (`dms dmenu`), reached from dux's launcher
+  ("Default Browser", `applications/default-browser.desktop`). `$mod+b` launches the default browser (`default-browser launch`) and
   `$mod+Shift+Ctrl+b` the same in private browsing (`--target private-window`, `--private-window`,
   `--incognito`); `$mod+Shift+b`, `$mod+Ctrl+b` and `$mod+Mod1+b` launch qutebrowser, firefox and chromium
   whatever the default is. `$mod+u` (the browser workspace) is always qutebrowser.
@@ -583,7 +710,8 @@ These were left out while the dots only targeted disposable VMs; they are for da
 
 Omarchy themes, applied to this i3 stack by `bin/x11-theme`, with omarchy's own formats and paths so any
 omarchy theme repo works and omarchy-style hooks (the qutebrowser and vesktop ones) run unchanged.
-No quickshell, nothing else from omarchy's shell.
+No quickshell, nothing else from omarchy's shell. This is the i3 session's theming: under Hyprland dux themes
+everything it has templates for, and `x11-theme` refuses to change anything (see "Sessions: i3 and Hyprland").
 
 - **Commands.** `x11-theme install <git-url>` clones a theme repo into `~/.config/omarchy/themes/<name>` and
   applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`
@@ -634,7 +762,7 @@ No quickshell, nothing else from omarchy's shell.
   | i3status-rust | `i3status-rust/config.toml.tpl` is itself a template (linked into `theme/default/themed/`); each block is a hue mixed into the background, stronger from idle to critical (the network block shares volume's `orange`; the battery block (sysfs, green) is hidden on machines with no battery, via `missing_format = ""`) | SIGUSR2 (in-place restart) |
   | rofi | `rofi.rasi.tpl`, `@import`ed by `rofi/config.rasi` | next open |
   | dunst | `dunst.conf.tpl` -> `~/.config/dunst/dunstrc.d/90-theme.conf` drop-in | `dunstctl reload` |
-  | alacritty, kitty, btop | omarchy's own templates; alacritty `import`, kitty `include`, btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |
+  | alacritty, kitty, btop | omarchy's own templates; alacritty `import` and kitty `include` of the session's colour slot (`colors.toml`, `colors.conf`), btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |
   | qutebrowser | `qutebrowser/omarchy_theme.py` reads `colors.toml` | `:config-source` |
   | GTK3, GTK4, Firefox, virt-manager, Qt | `gtk.css.tpl` -> `~/.config/gtk-{3,4}.0/gtk.css` (see below) | app restart |
   | icons | generated `x11-theme` icon theme inherits the theme's `icons.theme` (Yaru-red ...) | app restart |
