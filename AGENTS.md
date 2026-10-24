@@ -204,12 +204,28 @@ inactive one gives a degraded session, not a broken one.
   i3, opens dux's process list instead: dux's own app wins where it has one. `$mod+/` is Vesktop's workspace in
   both sessions (see "Vesktop" below). The i3 chords dux has nothing
   on are added (OCR on `$mod+Print`, the `$mod+b` browsers, `$mod+e` Dux Files, `$mod+Escape` power menu,
-  `$mod+Ctrl+e` emoji, ...). dux binds whose i3 meaning has no port stay: `$mod+n` notepad (i3: focus parent),
-  `$mod+s` scratchpad (i3: tabbed), `$mod+v` clipboard, `$mod+space` launcher, `$mod+Shift+/` cheatsheet. The
+  `$mod+Ctrl+e` emoji, ...). dux binds whose i3 meaning has no port stay: `$mod+v` clipboard, `$mod+space` launcher, `$mod+Shift+/` cheatsheet. The
   file is kept in the form dux's keybind editor writes (sorted, one statement per line, its header the only
   comment), because an edit in dux's Settings rewrites it through the link: git then shows just that change.
   Checked with `dms keybinds set`: every other bind came back unchanged. Not bound yet: `$mod+Ctrl+w` (next
   wallpaper), the 2000K nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
+- **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single
+  toggle: Hyprland keeps an internal state (what the compositor does with the window) and a client state (what
+  the app is told) per window. `$mod+f` maximizes (`bin/maximize`: internal 1, client unchanged, toggled
+  through `hyprctl activewindow`), `$mod+Shift+f` fullscreens without telling the client, `$mod+Ctrl+f`
+  tells the client it is fullscreen while the window stays tiled (a browser's page fullscreen, say),
+  `$mod+Alt+f` is the usual fullscreen of both, and `$mod+Shift+Ctrl+f` resets the window to normal. i3 keeps
+  `$mod+f` and `$mod+Alt+f` as one `fullscreen toggle`. Not run on a live session when written (arch0 was
+  unreachable).
+- **Master-layout chords mirror the reference config** (quattro-dots' `hypr/layouts.lua`) instead of dux's, and
+  replace i3's tabbed/stacking and focus parent/child: `$mod+s` swaps the focused window with the master,
+  `$mod+Shift+s` cycles the workspace's orientation, `$mod+n` and `$mod+Shift+n` roll the windows to the previous
+  and next. dux's `$mod+n`/`$mod+Shift+n` (notepad) and `$mod+s`/`$mod+Shift+s` (scratch workspace) are gone;
+  the notepad is still in dux's launcher. The reference's "cycle workspace layout" is not bound. These are
+  `layout` messages of the **master** layout: dux's default is dwindle, where they do nothing (checked on arch0
+  with `general.layout` set to master: all four work, in dwindle none does), so the layout
+  has to be master. These dots leave that to dux's own settings (its layout page), on purpose: nothing in
+  `hypr/cachy.lua` sets `general.layout`.
 - **`hypr/cachy.lua`** holds what that editor would drop. The environment `~/.xprofile` gives i3 (ly reads it for
   X sessions only): `~/.local/bin` on PATH, `XDG_SESSION_TYPE=wayland`, the telemetry opt-outs from
   `environment.d`. The startup programs, whose own units hang off `graphical-session.target`, which this session

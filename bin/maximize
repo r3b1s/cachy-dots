@@ -1,0 +1,15 @@
+#!/bin/sh
+# maximize: Hyprland only. $mod+f. Toggle the active window between maximized
+# (the tiled layout's whole area, bar and gaps kept) and its default state, as the
+# reference config (quattro-dots hypr/bindings.lua) does with the same two
+# fullscreen_state calls. A window that is fullscreen goes to maximized, not to
+# normal, as there. The other $mod+(Shift|Ctrl|Alt)+f chords are plain
+# fullscreen_state binds in hypr/dms/binds-user.lua.
+set -eu
+
+if [ "$(hyprctl activewindow -j | jq -r '.fullscreen')" = 1 ]; then
+    internal=0
+else
+    internal=1
+fi
+exec hyprctl dispatch "hl.dsp.window.fullscreen_state({ internal = $internal, client = -1, action = \"set\" })" >/dev/null
