@@ -244,7 +244,7 @@ mistaken for the desktop it shares its image with. (It used to be a vignette ove
 
 ## Voxtype
 
-Push-to-talk dictation. `voxtype/config.toml` is quattro-dots' config ported from Hyprland to X11, linked to
+Push-to-talk dictation. `voxtype/config.toml` is a Hyprland config ported to X11, linked to
 `~/.config/voxtype/config.toml` (`voxtype setup model` edits it in place, so changes land in the repo).
 
 - **Install:** `aur/voxtype-bin` (see "packages"), then `voxtype setup --download` fetches the `base.en`
@@ -252,12 +252,12 @@ Push-to-talk dictation. `voxtype/config.toml` is quattro-dots' config ported fro
 - **Daemon:** `exec voxtype -q daemon` from `05-autostart.conf`, guarded by `command -v`. The packaged
   `voxtype.service` is wanted by `graphical-session.target`, which a bare i3 session never reaches.
 - **Toggle:** `$mod+d` -> `bin/x11-voxtype toggle` (`voxtype record toggle`, plus a dunst notification
-  in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, as in
-  quattro-dots, so the `input` group is not needed.
+  in place of omarchy-osd); the `d` workspace that used to hold `$mod+d` is gone. The built-in hotkey is off, so the
+  `input` group is not needed.
 - **Output:** `mode = "clipboard"` (voxtype's chain is wl-copy, then xclip, so on X11 it is xclip). Its
   `post_output_command` is `bin/x11-voxtype paste`: copy CLIPBOARD to PRIMARY too (alacritty's Shift+Insert
-  pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. quattro-dots'
-  Hyprland submap that swallowed the keyboard while text was typed has no port; `--clearmodifiers` covers a
+  pastes PRIMARY, GTK's pastes CLIPBOARD), then `xdotool key --clearmodifiers shift+Insert`. The Hyprland
+  config's submap that swallowed the keyboard while text was typed has no i3 port; `--clearmodifiers` covers a
   still-held `$mod`.
 - **Not tested on a live session** when it was written: voxtype was not installed on the machine the repo was
   edited on. The output driver chain was read from voxtype's `src/output/mod.rs`, not run.
@@ -296,7 +296,7 @@ user, and installs the keyboard config in `opt/kanata/enthium.kbd`. That file is
 `lua/config/options.lua`, `lua/config/keymaps.lua`, `lua/config/autocmds.lua`). Theming works as on
 omarchy: `lua/plugins/theme.lua` is a link (made by install.sh, not in the repo) to the rendered
 `~/.local/state/omarchy/current/theme/neovim.lua`, omarchy's template for `aether.nvim` (v3) filled with the
-active palette, and `omarchy-theme-hotreload.lua` (from quattro-dots) re-applies it in running instances when
+active palette, and `omarchy-theme-hotreload.lua` re-applies it in running instances when
 lazy.nvim's change detection sees the link's target replaced (its notification is turned off in
 `lazy.lua`). `colors/pinkrot.lua` is kept only as the colourscheme lazy shows while installing. Verified
 headless: `colors_name` is `aether` and Normal's background is the theme's. Portable keeps: `snacks-animated-scrolling-off.lua`,
@@ -574,7 +574,7 @@ These were left out while the dots only targeted disposable VMs; they are for da
   `--incognito`); `$mod+Shift+b`, `$mod+Ctrl+b` and `$mod+Mod1+b` launch qutebrowser, firefox and chromium
   whatever the default is. `$mod+u` (the browser workspace) is always qutebrowser.
 - **Telemetry opt-outs: `env/telemetry.conf`.** One `KEY=VALUE` file (the strict subset that both
-  environment.d(5) and `sh` accept), merged from quattro-dots' `shell/envs` and its environment.d file. It is
+  environment.d(5) and `sh` accept), merged from a shell env file and an environment.d file. It is
   linked to `~/.config/environment.d/telemetry.conf` for systemd --user (read when the user manager starts,
   i.e. at login), and the same path is sourced with `set -a` by `shell/xprofile` (the i3 session) and
   `shell/init.sh` (terminals). Delete a line to restore a tool's default; note `NPM_CONFIG_AUDIT=false`.
@@ -582,7 +582,7 @@ These were left out while the dots only targeted disposable VMs; they are for da
 ## Theming
 
 Omarchy themes, applied to this i3 stack by `bin/x11-theme`, with omarchy's own formats and paths so any
-omarchy theme repo works and omarchy-style hooks (quattro-dots' qutebrowser and vesktop ones) run unchanged.
+omarchy theme repo works and omarchy-style hooks (the qutebrowser and vesktop ones) run unchanged.
 No quickshell, nothing else from omarchy's shell.
 
 - **Commands.** `x11-theme install <git-url>` clones a theme repo into `~/.config/omarchy/themes/<name>` and
@@ -635,7 +635,7 @@ No quickshell, nothing else from omarchy's shell.
   | rofi | `rofi.rasi.tpl`, `@import`ed by `rofi/config.rasi` | next open |
   | dunst | `dunst.conf.tpl` -> `~/.config/dunst/dunstrc.d/90-theme.conf` drop-in | `dunstctl reload` |
   | alacritty, kitty, btop | omarchy's own templates; alacritty `import`, kitty `include`, btop `themes/current.theme` link | touch config / SIGUSR1 / SIGUSR2 |
-  | qutebrowser | `qutebrowser/omarchy_theme.py` (from quattro-dots) reads `colors.toml` | `:config-source` |
+  | qutebrowser | `qutebrowser/omarchy_theme.py` reads `colors.toml` | `:config-source` |
   | GTK3, GTK4, Firefox, virt-manager, Qt | `gtk.css.tpl` -> `~/.config/gtk-{3,4}.0/gtk.css` (see below) | app restart |
   | icons | generated `x11-theme` icon theme inherits the theme's `icons.theme` (Yaru-red ...) | app restart |
   | Chromium, Brave Origin | `BrowserThemeColor` policy from the theme's `chromium.theme` | Chromium re-reads policy; Brave Origin not yet seen live |
@@ -648,7 +648,7 @@ No quickshell, nothing else from omarchy's shell.
   | CopyQ | `copyq.ini.tpl` -> the `[Theme]` section of `copyq.conf` (stop, edit, restart) | restart (automatic) |
   | tray icons | one style: a monochrome symbolic glyph in the theme foreground, at full strength (see below) | nm-applet and CopyQ restarted automatically; Vesktop at its next start |
   | ZAP | `bin/zaproxy` runs it with Java's GTK look and feel, i.e. through `gtk.css` | restart ZAP |
-  | Vesktop | quattro-dots' `hooks/theme-set.d/vesktop` composes the rendered `quattro-vesktop.palette.css` (`vesktop/palette.css.tpl`) with `vesktop/discord.css` into `~/.config/vesktop/themes/quattro-dots.theme.css` | live (Vencord watches its themes folder) |
+  | Vesktop | `hooks/theme-set.d/vesktop` composes the rendered `cachy-dots-vesktop.palette.css` (`vesktop/palette.css.tpl`) with `vesktop/discord.css` into `~/.config/vesktop/themes/cachy-dots.theme.css` | live (Vencord watches its themes folder) |
   | light/dark | `mode` -> dconf `color-scheme`, adw-gtk3 vs adw-gtk3-dark, `prefer-dark` | app restart |
 
 - **GTK, Firefox and Qt from one file.** GTK3 uses **adw-gtk3** (`adw-gtk-theme`), which draws GTK3 like
@@ -694,13 +694,14 @@ No quickshell, nothing else from omarchy's shell.
 - **ZAP's splash screen** keeps its white banner and blue progress bar: the banner is a bitmap in the jar
   (`/resource/zap-splash-screen.png`) and the bar is ZAP's own `SplashScreen$CustomProgressBarUI` with
   colours in code. Neither goes through the look and feel; only patching ZAP would change them.
-- **Vesktop** (`cachyos/vesktop-bin`, else `chaotic-aur/vesktop`) uses quattro-dots' files verbatim:
-  `vesktop/palette.css.tpl` (linked into `theme/default/themed/` as `quattro-vesktop.palette.css.tpl`, the
+- **Vesktop** (`cachyos/vesktop-bin`, else `chaotic-aur/vesktop`) uses three files:
+  `vesktop/palette.css.tpl` (linked into `theme/default/themed/` as `cachy-dots-vesktop.palette.css.tpl`, the
   name the hook expects), `vesktop/discord.css`, and `hooks/theme-set.d/vesktop`, linked into
   `~/.config/omarchy/hooks/theme-set.d/`. The hook writes the stylesheet into Vencord's themes folder (a
   write, not a link, so Vencord's directory watch fires) and adds it to `enabledThemes` only while Vesktop is
-  closed, since Vencord rewrites that list from memory on exit; if it was running, enable "quattro-dots"
-  under Settings > Themes once.
+  closed, since Vencord rewrites that list from memory on exit; if it was running, enable "cachy-dots"
+  under Settings > Themes once. A stylesheet an earlier version of the hook wrote under another name
+  (recognised by its `@description` line) is removed, and its `enabledThemes` entry with it.
 - **Not themed:** Firefox's toolbar beyond what GTK gives it; running GTK apps (and ZAP) keep their colours
   until restarted (no settings daemon to signal them).
 - **Testing on the VM**: sync with `rsync -a --delete`, not tar. A stale `01-pinkrot.conf` left behind by a

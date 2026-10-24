@@ -21,8 +21,11 @@ set -uo pipefail
 # directory, so it has to be resolved before the repo layout can be walked.
 QV_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 QV_DATA="$(cd "$(dirname "$QV_SELF")/../../vesktop" && pwd)"
-QV_THEME_FILE="quattro-dots.theme.css"
-QV_PALETTE_FILE="quattro-vesktop.palette.css"
+QV_THEME_FILE="cachy-dots.theme.css"
+QV_PALETTE_FILE="cachy-dots-vesktop.palette.css"
+# The stylesheet's own header line, which is also how a copy an earlier version
+# of this hook wrote under another file name is recognised.
+QV_DESCRIPTION=" * @description Vesktop, retinted to the active Omarchy theme."
 THEME_DIR="$HOME/.local/state/omarchy/current/theme"
 
 [[ -r "$QV_DATA/discord.css" ]] || exit 0
@@ -36,7 +39,7 @@ if [[ -f "$THEME_DIR/vencord.theme.css" ]]; then
 fi
 
 compose() {
-  printf '/**\n * @name quattro-dots\n * @description Vesktop, retinted to the active Omarchy theme.\n * @source https://github.com/t/Dotfiles/quattro-dots\n **/\n\n'
+  printf '/**\n * @name cachy-dots\n%s\n **/\n\n' "$QV_DESCRIPTION"
   # Any token the template engine could not resolve (a theme missing `accent`,
   # say) is dropped rather than emitted as a garbage value, so discord.css
   # falls back to its own default instead of rendering grey.
@@ -92,6 +95,7 @@ client_running() {
 }
 
 shopt -s nullglob
+stale=()
 for root in "$HOME/.config/vesktop" "$HOME/.config/Vencord" "$HOME"/.var/app/*/config/vesktop "$HOME"/.var/app/*/config/Vencord; do
   # Require the client's own config to exist, not just a themes directory:
   # creating themes/ under a path the client never made leaves litter.
@@ -106,29 +110,43 @@ for root in "$HOME/.config/vesktop" "$HOME/.config/Vencord" "$HOME"/.var/app/*/c
     continue
   fi
 
-  tmp=$(mktemp "$themes_dir/.quattro-dots.XXXXXX" 2>/dev/null) || continue
+  tmp=$(mktemp "$themes_dir/.cachy-dots.XXXXXX" 2>/dev/null) || continue
   if printf '%s\n' "$body" >"$tmp" 2>/dev/null; then
     chmod 644 "$tmp" 2>/dev/null
     mv -f "$tmp" "$target" 2>/dev/null || rm -f "$tmp"
   else
     rm -f "$tmp"
   fi
+
+  # Copies an earlier version wrote under another name go, with their
+  # enabledThemes entries below; both wait until the client is closed, so the
+  # list is never left naming a file that is gone.
+  for old in "$themes_dir"/*.theme.css; do
+    [[ "$(basename "$old")" != "$QV_THEME_FILE" ]] || continue
+    grep -qxF "$QV_DESCRIPTION" "$old" 2>/dev/null || continue
+    if client_running; then
+      printf 'vesktop: %s is an old copy of this theme; close Vesktop and re-run to remove it.\n' "$old"
+    else
+      rm -f "$old" && stale+=("$(basename "$old")")
+    fi
+  done
 done
 
 # Turn the theme on in Vencord, but only while the client is closed: Vencord
 # serves this list from memory and rewrites the whole file when it exits, so an
 # edit made underneath a live client is silently discarded.
 settings="$HOME/.config/vesktop/settings/settings.json"
+stale_json=$(printf '%s\n' ${stale[@]+"${stale[@]}"} | jq -R . | jq -sc 'map(select(. != ""))')
 if [[ -f "$settings" ]] \
-  && ! jq -e --arg name "$QV_THEME_FILE" \
-  '(.enabledThemes // []) | index($name) != null' "$settings" >/dev/null 2>&1; then
+  && ! jq -e --arg name "$QV_THEME_FILE" --argjson stale "$stale_json" \
+  '(.enabledThemes // []) as $t | ($t | index($name)) != null and ($t - $stale) == $t' "$settings" >/dev/null 2>&1; then
   if client_running; then
     printf 'vesktop: it is running, so its theme list was left alone.\n'
-    printf 'vesktop: turn quattro-dots on under Settings > Themes, or close Vesktop and re-run.\n'
+    printf 'vesktop: turn cachy-dots on under Settings > Themes, or close Vesktop and re-run.\n'
   else
     staged=$(mktemp)
-    if jq --arg name "$QV_THEME_FILE" \
-      '.enabledThemes = ((.enabledThemes // []) + [$name] | unique)' \
+    if jq --arg name "$QV_THEME_FILE" --argjson stale "$stale_json" \
+      '.enabledThemes = ((.enabledThemes // []) - $stale + [$name] | unique)' \
       "$settings" >"$staged" 2>/dev/null; then
       mv -f "$staged" "$settings"
       printf 'vesktop: enabled %s\n' "$QV_THEME_FILE"

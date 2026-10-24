@@ -42,8 +42,9 @@ BUILTIN_THEMES="$OMARCHY_PATH/themes"
 HOOKS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/hooks"
 LOCK="${XDG_RUNTIME_DIR:-/tmp}/x11-theme.lock"
 CHROMIUM_HELPER=/usr/local/lib/cachy-dots/chromium-theme-color
-# basecamp/omarchy moved to omacom/omarchy (the old URL redirects). Its default
-# branch is quattro, and the built-in themes are the folders under themes/ on it.
+# basecamp/omarchy moved to omacom/omarchy (the old URL redirects). Omarchy's
+# default branch is named quattro, and the built-in themes are the folders under
+# themes/ on it.
 OMARCHY_REPO=https://github.com/omacom/omarchy
 OMARCHY_BRANCH=quattro
 OMARCHY_CACHE=""

@@ -186,8 +186,8 @@ install_links() {
     link "$REPO/mpv/mpv.conf" "$cfg/mpv/mpv.conf"
 
     # omarchy-style theme-set hooks, run by x11-theme after every switch as
-    # `bash <hook> <theme>`. vesktop (from quattro-dots) composes the rendered
-    # quattro-vesktop.palette.css with vesktop/discord.css into Vesktop's themes
+    # `bash <hook> <theme>`. vesktop composes the rendered
+    # cachy-dots-vesktop.palette.css with vesktop/discord.css into Vesktop's themes
     # folder; it reads discord.css from the repo, which is why only the hook is
     # linked.
     local hook

@@ -1,8 +1,7 @@
 # qutebrowser entry point. config.py is the source of truth; :set changes land
 # in autoconfig.yml via config.load_autoconfig() and are kept.
-# Colours come from omarchy_theme.py (the active theme's colors.toml, from
-# quattro-dots), Vimium parity from vimium.py (both linked
-# alongside by install.sh).
+# Colours come from omarchy_theme.py (the active theme's colors.toml), Vimium
+# parity from vimium.py (both linked alongside by install.sh).
 config.load_autoconfig()
 config.source('omarchy_theme.py')
 # Vimium-style shortcuts and search keywords, mirrored from

@@ -2,7 +2,7 @@
 # x11-voxtype toggle | paste
 #
 #   toggle  start or stop a dictation (`voxtype record toggle`) and say which in a
-#           dunst notification. quattro-dots showed omarchy-osd here.
+#           dunst notification.
 #   paste   voxtype's post_output_command (voxtype/config.toml). The text is
 #           already in the CLIPBOARD (voxtype's xclip driver); copy it to PRIMARY
 #           as well, since terminals paste one and GTK the other, and send

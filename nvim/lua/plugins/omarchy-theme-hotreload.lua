@@ -1,4 +1,4 @@
--- From quattro-dots. lua/plugins/theme.lua is a link to the rendered
+-- lua/plugins/theme.lua is a link to the rendered
 -- ~/.local/state/omarchy/current/theme/neovim.lua (aether.nvim with the active
 -- theme's palette); when x11-theme replaces it, lazy.nvim's change detection
 -- fires LazyReload and this re-applies the colourscheme in running instances.
