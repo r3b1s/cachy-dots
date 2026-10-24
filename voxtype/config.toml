@@ -78,7 +78,7 @@ gpu_isolation = true
 context_window_optimization = true
 
 # Provides context to Whisper to improve transcription accuracy for domain-specific vocabulary. The prompt hints at terminology, proper nouns, or formatting conventions that Whisper should expect in the audio.
-initial_prompt = "Lots of software engineering tools, concepts, & disciplines. Networking too. Voxtype, i3, CachyOS, Arch Linux, Quickshell, tiling window managers, programming languages, golang, security, systemd, Linux, Proxmox, Ludus, VM, virtual machines, VMs (plural), journalctl, systemctl, kubectl, CLIs, command line, terminal, cloud-init, shell environments, cybersecurity, machine learning, artificial intelligence, AI, terminal multiplexers, tmux, VPN, VPNs (plural), VPC, VPCs (plural), VPS, VPSs (plural). Other IT & computer science related concepts."
+initial_prompt = "Lots of software engineering tools, concepts, & disciplines. Networking too. Voxtype, i3, CachyOS, Arch Linux, Quickshell, tiling window managers, programming languages, golang, security, systemd, Linux, Proxmox, Ludus, VM, virtual machines, VMs (plural), journalctl, systemctl, kubectl, CLIs, command line, terminal, cloud-init, shell environments, cybersecurity, machine learning, artificial intelligence, AI, terminal multiplexers, tmux, VPN, VPNs (plural), VPC, VPCs (plural), VPS, VPSs (plural). Other IT & computer science related concepts. A tool for managing software project dependencies is mise AKA mise-en-place."
 
 [output]
 # Primary output mode: "type" or "clipboard"
@@ -190,6 +190,23 @@ filler_words = ["uh", "um", "er", "ah", "eh", "hmm", "hm", "mm", "mhm"]
 "DMUX" = "tmux"
 "dmux" = "tmux"
 "T-Mucks" = "tmux"
+"meeze" = "mise"
+"Meeze" = "mise"
+"MEEZE" = "mise"
+"meez" = "mise"
+"MEEZ" = "mise"
+"Meeze on +" = "mise-en-place"
+"MEEZON-+" = "mise-en-place"
+"mise-on-+" = "mise-en-place"
+"mise-en-+" = "mise-en-place"
+"mies" = "mise"
+"Mies" = "mise"
+"herder" = "herdr"
+"OMI-PAI" = "oh-my-pi"
+"OMIPAI" = "oh-my-pi"
+"OMIPI" = "oh-my-pi"
+"OMI-PI" = "oh-my-pi"
+"o my pie" = "oh-my-pi"
 
 # Non-standard Punctuation
 # "TAC" = "-"
