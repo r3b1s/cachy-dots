@@ -25,6 +25,19 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
   `pacman.conf`, below the Cachy and Arch repos, so it can never shadow their builds. A freshly added repo has
   no sync database, and the only supported way to get one is a full `pacman -Syu`, so that is what runs (a
   bare `-Sy` followed by `-S` would be a partial upgrade). It only runs when `chaotic-aur.db` is missing.
+- **Omarchy's package repo is opt-in: `opt/omarchy-repo.sh`** (`--channel stable|rc|edge`, `--remove`, `-n`). It
+  trusts Omarchy's signing key (`40DFB630FF42BCFFB047046CF0134EE680CAC571`, fetched by fingerprint from
+  keys.openpgp.org and locally signed, as `omarchy-update-keyring` does), appends `[omarchy]`
+  (`https://pkgs.omarchy.org/stable/$arch`, `SigLevel = Required DatabaseOptional`: the database is not signed
+  upstream, every package is) in a marked block at the **end** of `pacman.conf`, and fetches that one repo's
+  database with `pacman -Sy` against a temporary config listing only `[omarchy]` (same `DBPath`): no upgrade, and
+  the other repos' databases keep their timestamps. It installs nothing. It is last, like chaotic-aur, because the repo carries 240-odd packages and
+  some share a name with Arch's (`quickshell`, `ghostty`) or chaotic-aur's (`yay`, `yaru-icon-theme`); take
+  packages from it by qualified name (`pacman -S omarchy/libretro-database-git`). Trusting the key lets anything
+  in that repo be installed as root. It also carries `voxtype-bin`, which `install.sh` builds from the AUR.
+  Checked on arch0: a signed install of `omarchy/libretro-cap32-git`, `pacman -S quickshell` still from `extra`,
+  a re-run changing nothing, `--remove` and adding it again with only `omarchy.db` appearing in
+  `/var/lib/pacman/sync/`.
 - **Cachy can lag Arch on a Qt minor, which breaks Qt apps.** Qt modules link against `qt6-base`'s
   *private* API, versioned per release (`Qt_6_PRIVATE_API`, `QtPrivate_6_11_2`), so every module must be on
   `qt6-base`'s minor; pacman cannot enforce it because the dependencies are unversioned. When Arch moves to a
