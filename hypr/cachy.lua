@@ -65,6 +65,10 @@ end)
 -- loading window before its main one, so its windows are sent there by class:
 -- the main window lands on special:slash once the loading one has gone.
 hl.window_rule({ match = { class = "^(vesktop)$" }, workspace = "special:slash" })
+-- Dux Calendar ($mod+Shift+=). Its daemon is already running (hyprland.start
+-- below), so `dcal show` makes the window in that process, not in the one ws-app
+-- started: the rule is what puts it on the workspace.
+hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "special:plus" })
 
 -- ── submaps ──────────────────────────────────────────────────────────────
 local function notify(title, body)

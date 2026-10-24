@@ -1,5 +1,5 @@
 #!/bin/sh
-# default-browser menu | set <browser> | current | launch [--private]
+# default-browser menu | set <browser> | current | launch [--private] [URL]
 #
 # The "Default Browser" entry of i3's $mod+Escape menu (bin/x11-power-menu).
 # Browsers: qutebrowser, firefox, chromium, brave-origin.
@@ -16,7 +16,8 @@
 #            launcher (`dms dmenu`) under Hyprland.
 #   current  prints the name.
 #   launch   starts the default browser (a new window), in private browsing with
-#            --private. $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf,
+#            --private, showing URL in it when one is given ($mod+i opens the
+#            thesaurus on its own workspace). $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf,
 #            hypr/dms/binds-user.lua).
 #
 # $mod+Shift+b, $mod+Ctrl+b and $mod+Mod1+b launch qutebrowser, firefox and
@@ -111,17 +112,20 @@ choose() {
     fi
 }
 
-# The command line for a browser, new window; private browsing when $2 is set.
+# The command line for a browser, new window; private browsing when $2 is set,
+# showing $3 when it is. A URL needs the new-window form: the plain one opens a
+# tab in a window of the running browser, wherever that is.
 launch() {
-    b=$1 private=${2:-}
+    b=$1 private=${2:-} url=${3:-} window=
+    [ -n "$private" ] || window=1
     case "$b" in
-        qutebrowser) set -- qutebrowser ${private:+--target private-window} ;;
-        firefox)     set -- firefox ${private:+--private-window} ;;
-        chromium)    set -- chromium ${private:+--incognito} ;;
+        qutebrowser) set -- qutebrowser ${private:+--target private-window} ${url:+${window:+--target window}} ${url:+"$url"} ;;
+        firefox)     set -- firefox ${private:+--private-window} ${url:+${window:+--new-window}} ${url:+"$url"} ;;
+        chromium)    set -- chromium ${private:+--incognito} ${url:+${window:+--new-window}} ${url:+"$url"} ;;
         brave-origin)
             d=$(desktop_of brave-origin)
             c=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "/usr/share/applications/$d" | head -n1)
-            set -- "${c:-brave-origin}" ${private:+--incognito} ;;
+            set -- "${c:-brave-origin}" ${private:+--incognito} ${url:+${window:+--new-window}} ${url:+"$url"} ;;
         *) notify "no launcher for $b"; exit 1 ;;
     esac
     exec "$@"
@@ -131,11 +135,11 @@ case "${1:-}" in
     launch)
         b=$(current)
         [ "$b" != none ] || b=qutebrowser
-        case "${2:-}" in
-            --private) launch "$b" 1 ;;
-            "")        launch "$b" ;;
-            *) echo "usage: default-browser launch [--private]" >&2; exit 1 ;;
-        esac ;;
+        shift
+        private=
+        [ "${1:-}" != --private ] || { private=1; shift; }
+        [ "$#" -le 1 ] || { echo "usage: default-browser launch [--private] [URL]" >&2; exit 1; }
+        launch "$b" "$private" "${1:-}" ;;
     current) current ;;
     set)     [ -n "${2:-}" ] || { echo "usage: default-browser set <browser>" >&2; exit 1; }
              set_default "$2" ;;
@@ -146,5 +150,5 @@ case "${1:-}" in
                done | choose) || exit 0
         set_default "${pick%% *}"
         ;;
-    *) echo "usage: default-browser menu | set <browser> | current | launch [--private]" >&2; exit 1 ;;
+    *) echo "usage: default-browser menu | set <browser> | current | launch [--private] [URL]" >&2; exit 1 ;;
 esac

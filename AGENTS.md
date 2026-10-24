@@ -55,7 +55,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | X and the session | `xorg-server`, `xorg-xinit`, `xorg-xauth`, `xorg-xrandr`, `xorg-xrdb` (`Xft.dpi: 96` from `shell/xprofile`, so alacritty is the same size on every panel), `ly` |
 | Shell and prompt | `starship`, `eza`, `zoxide`, `fzf`, `bat`, `bash-completion` |
 | Terminal multiplexer | `tmux` (config in `tmux/`) |
-| Sync and notes | `rclone`, `obsidian` |
+| Sync, notes and mail | `rclone`, `obsidian`, `thunderbird` (`$mod+=`) |
 | Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
 | Lock, nightlight | `i3lock-color` (`cachyos/`, else `chaotic-aur/`) + `xss-lock` + `xorg-xset` (the idle timer), `gammastep` |
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
@@ -202,7 +202,11 @@ inactive one gives a degraded session, not a broken one.
   `$mod+Ctrl+hjkl` resize, `$mod+Ctrl+i` idle inhibit, `$mod+Ctrl+n` night mode, `Print` full screenshot, and
   the named workspaces (`t g u o z a y i m q` and `, - = . /`, `$mod+Shift+p`). `$mod+p`, btop's workspace on
   i3, opens dux's process list instead: dux's own app wins where it has one. `$mod+/` is Vesktop's workspace in
-  both sessions (see "Vesktop" below). The i3 chords dux has nothing
+  both sessions (see "Vesktop" below), `$mod+a` Claude Desktop's (`claude-desktop`, not installed by these
+  dots) and `$mod+i` a thesaurus (`default-browser launch https://www.onelook.com/thesaurus`, a new window of
+  the default browser, so it opens on that workspace), `$mod+=` Thunderbird's and `$mod+m` Grayjay's (`grayjay`, not installed by these dots; both sessions). `$mod+Shift+=`
+  is Dux Calendar's, on `special:plus` (`ws-app plus dcal show`, and a window rule on its class, since its
+  daemon is already running and makes the window; Hyprland only, as dux's app has no i3 install). The i3 chords dux has nothing
   on are added (OCR on `$mod+Print`, the `$mod+b` browsers, `$mod+e` Dux Files, `$mod+Escape` power menu,
   `$mod+Ctrl+e` emoji, ...). dux binds whose i3 meaning has no port stay: `$mod+v` clipboard, `$mod+space` launcher, `$mod+Shift+/` cheatsheet. The
   file is kept in the form dux's keybind editor writes (sorted, one statement per line, its header the only

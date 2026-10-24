@@ -60,6 +60,7 @@ PKGS+=(
     tmux                             # terminal multiplexer (config in tmux/)
     rclone                           # cloud storage sync
     obsidian                         # notes
+    thunderbird                      # mail; the `equal` workspace ($mod+=)
     base-devel                       # makepkg and the toolchain, for yay and AUR builds
 )
 
