@@ -226,6 +226,8 @@ inactive one gives a degraded session, not a broken one.
   comment), because an edit in dux's Settings rewrites it through the link: git then shows just that change.
   Checked with `dms keybinds set`: every other bind came back unchanged. Not bound yet: `$mod+Ctrl+w` (next
   wallpaper), the 2000K nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
+- **`$mod+Shift+Space` hides and shows dux's bar** (`dms ipc call bar toggle index 0`, the first bar; checked on arch0 with
+  `bar status`, and the windows take its space).
 - **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single
   toggle: Hyprland keeps an internal state (what the compositor does with the window) and a client state (what
   the app is told) per window. `$mod+f` maximizes (`bin/maximize`: internal 1, client unchanged, toggled
