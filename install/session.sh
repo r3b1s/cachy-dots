@@ -136,6 +136,7 @@ point_slots() {
     local th="$HOME/.local/state/omarchy/current/theme"
     case "$1" in
         i3)
+            link "$th/neovim.lua" "$cfg/nvim/lua/plugins/theme.lua"
             link "$th/alacritty.toml" "$cfg/alacritty/colors.toml"
             link "$th/kitty.conf" "$cfg/kitty/colors.conf"
             link "$REPO/alacritty/font-i3.toml" "$cfg/alacritty/font.toml"
@@ -151,6 +152,8 @@ point_slots() {
             # dux writes these when it starts (its theme templates for every
             # installed terminal), so before the first Hyprland login the links
             # point at nothing yet.
+            # dux's own colourscheme (base46 and `colorscheme dms`); see hypr/nvim-theme.lua.
+            link "$REPO/hypr/nvim-theme.lua" "$cfg/nvim/lua/plugins/theme.lua"
             link "$cfg/alacritty/dank-theme.toml" "$cfg/alacritty/colors.toml"
             link "$cfg/kitty/dank-theme.conf" "$cfg/kitty/colors.conf"
             link "$REPO/alacritty/font-hyprland.toml" "$cfg/alacritty/font.toml"
@@ -174,6 +177,114 @@ point_slots() {
             point_file_manager /usr/local/share/dbus-1/services/dev.duxlabs.files.FileManager1.service
             ;;
     esac
+}
+
+# The GTK (and Qt, through GTK) icon theme: x11-theme's generated one under i3;
+# under Hyprland the one picked in dux's settings, else Papirus-Dark, which dux's
+# documentation recommends. dux's own default, "System Default", reads it back
+# from settings.ini.
+session_icon_theme() {
+    local s=${1:-$(active_session)} pick
+    if [ "$s" = i3 ]; then echo x11-theme; return; fi
+    pick=$(jq -r '.iconThemeDark // empty' "${XDG_CONFIG_HOME:-$HOME/.config}/dms/settings.json" 2>/dev/null || true)
+    if [ -n "$pick" ] && [ "$pick" != "System Default" ]; then echo "$pick"
+    elif [ -d /usr/share/icons/Papirus-Dark ]; then echo Papirus-Dark
+    else echo x11-theme; fi
+}
+
+# settings.ini and the dconf key both name the icon theme. dux resets its own pick
+# to "System Default" when the dconf key changes under it, so the key is set back
+# to the session's theme as well.
+point_icons() {
+    local icons cfg="${XDG_CONFIG_HOME:-$HOME/.config}" d
+    icons=$(session_icon_theme "$1")
+    for d in gtk-3.0 gtk-4.0; do
+        [ -f "$cfg/$d/settings.ini" ] && ini_set "$cfg/$d/settings.ini" gtk-icon-theme-name "$icons"
+    done
+    if command -v gsettings >/dev/null && [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
+        && [ "$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null)" != "'$icons'" ]; then
+        run gsettings set org.gnome.desktop.interface icon-theme "$icons" || true
+    fi
+    return 0
+}
+
+# Vesktop's theme: cachy-dots' own (hooks/theme-set.d/vesktop, x11-theme's colours)
+# under i3, dux's dank-discord.css (its matugen template) under Hyprland. Vencord
+# rewrites enabledThemes from memory when it exits, so this waits for it to be closed.
+point_vesktop_theme() {
+    local settings="${XDG_CONFIG_HOME:-$HOME/.config}/vesktop/settings/settings.json" on off tmp
+    command -v vesktop >/dev/null || [ -f "$settings" ] || return 0
+    if [ "$1" = hyprland ]; then on=dank-discord.css off=cachy-dots.theme.css
+    else on=cachy-dots.theme.css off=dank-discord.css; fi
+    if jq -e --arg on "$on" --arg off "$off" \
+        '(.enabledThemes // []) | (index($on) != null) and (index($off) == null)' "$settings" >/dev/null 2>&1; then
+        return 0
+    fi
+    if pgrep -x -u "$(id -u)" 'vesktop|Vesktop' >/dev/null 2>&1; then
+        warn "Vesktop is running: close it and re-run cachy-session to switch its theme to $on"
+        return 0
+    fi
+    if [ "$dry" = 1 ]; then echo "+ Vesktop: enable $on, disable $off"; return 0; fi
+    mkdir -p "$(dirname "$settings")"
+    tmp=$(mktemp)
+    if { cat "$settings" 2>/dev/null || echo '{}'; } \
+        | jq --arg on "$on" --arg off "$off" '.enabledThemes = (((.enabledThemes // []) - [$off]) + [$on] | unique)' > "$tmp"; then
+        mv "$tmp" "$settings"
+        echo "Vesktop: theme $on"
+    else
+        rm -f "$tmp"
+        warn "could not edit $settings; pick $on under Vesktop's Settings > Themes"
+    fi
+}
+
+# dux renders hypr/matugen/omarchy-colors.toml with its own templates, through this
+# drop-in in the directory it reads extra matugen configs from; the template's
+# post_hook runs `x11-theme from-dux`. matugen wants absolute paths, so the file is
+# written here rather than linked.
+MATUGEN_DROPIN_MARK="# cachy-dots: written by install/session.sh (cachy-session); i3 removes it"
+matugen_dropin() { echo "${XDG_CONFIG_HOME:-$HOME/.config}/matugen/dms/configs/cachy-dots.toml"; }
+
+point_matugen() {
+    local f content
+    f=$(matugen_dropin)
+    if [ "$1" = i3 ]; then
+        if [ -f "$f" ] && head -n1 "$f" | grep -qxF "$MATUGEN_DROPIN_MARK"; then
+            run rm "$f"
+            echo "removed $f"
+        fi
+        return 0
+    fi
+    content="$MATUGEN_DROPIN_MARK
+[templates.cachy-dots]
+input_path = '$REPO/hypr/matugen/omarchy-colors.toml'
+output_path = '${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots/dux-colors.toml'
+post_hook = 'sh -c \"$REPO/bin/x11-theme from-dux >/dev/null 2>&1 &\"'"
+    [ -f "$f" ] && [ "$(cat "$f")" = "$content" ] && return 0
+    if [ -e "$f" ] && ! head -n1 "$f" | grep -qxF "$MATUGEN_DROPIN_MARK"; then
+        warn "$f is not cachy-dots'; left as it is"
+        return 0
+    fi
+    if [ "$dry" = 1 ]; then echo "+ write $f"; return 0; fi
+    mkdir -p "$(dirname "$f")"
+    printf '%s\n' "$content" > "$f"
+    echo "wrote $f"
+}
+
+# The apps that read x11-theme's render (the state directory) follow the session's
+# palette: under Hyprland dux's, rendered by `x11-theme from-dux` from what dux last
+# wrote; under i3 the theme it was set to, rendered again if dux's took its place.
+render_session_theme() {
+    local state="$HOME/.local/state/omarchy/current"
+    local colors="${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots/dux-colors.toml"
+    if [ "$1" = hyprland ]; then
+        [ -s "$colors" ] || { echo "theme: dux renders its palette when it next starts"; return 0; }
+        if [ "$dry" = 1 ]; then echo "+ x11-theme from-dux"; return 0; fi
+        SESSION=hyprland "$REPO/bin/x11-theme" from-dux || warn "x11-theme from-dux failed"
+    elif [ -f "$state/theme.dux" ]; then
+        if [ "$dry" = 1 ]; then echo "+ x11-theme refresh (back from dux's palette)"; return 0; fi
+        SESSION=i3 "$REPO/bin/x11-theme" refresh || warn "x11-theme refresh failed"
+    fi
+    return 0
 }
 
 # Which file manager D-Bus starts for org.freedesktop.FileManager1 ("show in
@@ -245,6 +356,9 @@ apply_session() {
     [ "$s" = hyprland ] && write_i3_stub
     link_session "$s"
     point_slots "$s"
+    point_icons "$s"
+    point_vesktop_theme "$s"
+    point_matugen "$s"
     if [ "$s" = hyprland ]; then
         mask_units mask
         ensure_cachy_require
@@ -252,6 +366,7 @@ apply_session() {
         mask_units unmask
     fi
     record_session "$s"
+    render_session_theme "$s"
 }
 
 # Hyprland's own check of the config dux wrote and ours on top of it.

@@ -201,7 +201,8 @@ inactive one gives a degraded session, not a broken one.
   question), `$mod+Shift+t` terminal, `$mod+x` the notification family, `$mod+Tab` next workspace,
   `$mod+Ctrl+hjkl` resize, `$mod+Ctrl+i` idle inhibit, `$mod+Ctrl+n` night mode, `Print` full screenshot, and
   the named workspaces (`t g u o z a y i m q` and `, - = . /`, `$mod+Shift+p`). `$mod+p`, btop's workspace on
-  i3, opens dux's process list instead: dux's own app wins where it has one. The i3 chords dux has nothing
+  i3, opens dux's process list instead: dux's own app wins where it has one. `$mod+/` is Vesktop's workspace in
+  both sessions (see "Vesktop" below). The i3 chords dux has nothing
   on are added (OCR on `$mod+Print`, the `$mod+b` browsers, `$mod+e` Dux Files, `$mod+Escape` power menu,
   `$mod+Ctrl+e` emoji, ...). dux binds whose i3 meaning has no port stay: `$mod+n` notepad (i3: focus parent),
   `$mod+s` scratchpad (i3: tabbed), `$mod+v` clipboard, `$mod+space` launcher, `$mod+Shift+/` cheatsheet. The
@@ -216,6 +217,10 @@ inactive one gives a degraded session, not a broken one.
   `dsearch serve`. The submaps: `passthru` (`$mod+Delete`, Delete leaves), `gaps` (`$mod+Ctrl+g`; h/l and j/k
   the outer gaps by 20, arrows the inner by 2, Escape leaves; a reload restores dux's values) and
   `dictate_suppress` (see "Voxtype").
+- **Apps that belong to a workspace.** `ws-app` launches one only into an empty workspace, and its launch rule
+  places only the first window. Vesktop opens a loading window before its main one, so a window rule in
+  `hypr/cachy.lua` sends every `vesktop`-class window to `special:slash` (i3: `assign [class="^vesktop$"] slash`).
+  Checked on arch0: the 300x350 loading window opened there, and the main window replaced it there.
 - **Named workspaces** are special workspaces with i3's names, so they overlay the current workspace rather
   than replace it. The app ones go through `bin/ws-app`, which toggles and, when the workspace is empty,
   launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`: a window the script started itself
@@ -237,14 +242,40 @@ inactive one gives a degraded session, not a broken one.
   seeded from the system's file first so its `default=hyprland;gtk` survives (a user file replaces the system one).
   Dux Calendar syncs accounts and feeds dux's dash; Dux Search indexes for the launcher's file search. Nautilus
   stays i3's file manager.
+- **Apps follow dux's colours** through dux's own mechanism for apps it has no template for, a user matugen
+  template. `hypr/matugen/omarchy-colors.toml` writes dux's palette (primary as accent, primary container as
+  selection, `dank16` as the 16 colours, light or dark) as an omarchy `colors.toml` to
+  `~/.local/state/cachy-dots/dux-colors.toml`; dux runs it with its own templates on every colour change, through
+  `~/.config/matugen/dms/configs/cachy-dots.toml`, a drop-in in the directory dux reads extra configs from
+  (`cachy-session` writes it, with absolute paths, and removes it under i3), so your own
+  `~/.config/matugen/config.toml` is never touched. Its `post_hook` runs `x11-theme from-dux`, which renders this
+  repo's templates from that palette into x11-theme's state directory, so everything that reads the render
+  follows dux: Firefox's userChrome and about: pages (at its next start), Chromium and Brave Origin
+  (`BrowserThemeColor` through the root helper; Chromium re-reads its policy), qutebrowser (`:config-source`),
+  btop, yazi, tmux, zathura, imv, mpv and Obsidian (its hook). `theme.name`, the i3 theme, is kept, and
+  `theme.dux` marks the render as dux's: `cachy-session i3` renders the i3 theme again. qutebrowser's start page
+  shows dux's wallpaper when dux shows an image (`wallpaperPath` in `~/.local/state/dms/session.json`); dux's
+  generated wallpapers are no file. Checked on arch0: flipping dux to light (`dms ipc call theme light`) re-rendered
+  the palette and turned Chromium's frame light, and back; Firefox's frame, tabs and address bar took dux's
+  colours, qutebrowser's bars too; switching to i3 put pinkrot back everywhere.
+- **dux's own integrations where it has one.** Neovim: `lua/plugins/theme.lua` points at `hypr/nvim-theme.lua`,
+  dux's `dms` colourscheme with its base46 plugin (installed by lazy.nvim from GitHub); it follows dux's colours
+  as they change. dux's Neovim template is off by default, so `opt/hyprland.sh` turns it on (through the running
+  shell, else in `~/.config/dms/settings.json` when the key is absent: dux stores only what changed). Vesktop:
+  dux's `dank-discord.css` is the enabled theme under Hyprland and cachy-dots' own under i3, swapped in
+  `enabledThemes` while Vesktop is closed (Vencord rewrites the list on exit), and `x11-theme from-dux` skips the
+  vesktop hook. Icons: Papirus-Dark, which dux's documentation recommends (`papirus-icon-theme`), or the theme
+  picked in dux's settings; dux's own default, "System Default", reads it back from `settings.ini`. A switch
+  writes `settings.ini` and the dconf key (dux resets its pick when that key changes under it), and `setup_gtk`
+  follows the session; under Hyprland it leaves the GTK theme and the dark preference to dux.
 - **Slots** (`point_slots`): one link per app both sessions theme, pointed at the active session's files.
   alacritty `colors.toml`/`font.toml` and kitty `colors.conf`/`font.conf` (x11-theme's render and JetBrainsMono
   under i3; dux's `dank-theme` files and FiraCode Nerd Font under Hyprland: dux's own mono default is Fira Code,
   but its fonts are bundled inside `dms`, and its terminal configs name no family); satty's config (the rendered
   template, or `satty/config-wayland.toml`: wl-copy, satty's own palette and font); `gtk.css` (x11-theme's link,
   or a real file importing `dank-colors.css`, which dux's `gtk.sh` treats as its own; it leaves a symlink alone);
-  and the `FileManager1` link above. dux writes its `dank-*` files when it starts, so before the first Hyprland
-  login those links point at nothing yet.
+  Neovim's `theme.lua` (above); and the `FileManager1` link above. dux writes its `dank-*` files when it starts,
+  so before the first Hyprland login those links point at nothing yet.
 - **The rest of a switch.** Hyprland masks `dunst.service` and `blueman-applet.service` (links to `/dev/null` in
   `~/.config/systemd/user/`), so D-Bus activation cannot start them under dux; i3 unmasks them. i3's config,
   `~/.xprofile`, dunst's config and the i3-only scripts (`I3_ONLY_BIN`: `x11-theme`, `x11-lock`, ...) are
@@ -268,8 +299,9 @@ inactive one gives a degraded session, not a broken one.
   | `ws-app` | i3 named workspaces | special workspaces through hyprctl |
   | `default-browser` | rofi | `dms dmenu` |
 
-- **Not following dux** under Hyprland: btop, yazi, nvim, mpv, zathura, imv, qutebrowser and Firefox keep
-  x11-theme's colours, and GTK's icon theme stays x11-theme's generated one (`settings.ini` is shared).
+- **Not following dux** under Hyprland: satty keeps its own palette (`satty/config-wayland.toml`). Brave Origin
+  goes through the same helper as Chromium but has not been seen with dux's colour. gnome-keyring asks for a
+  password in a session started without ly's password step (the arch0 tests), not after a ly login.
 - **Tested on arch0** (a vanilla Arch VM, 2026-10-24). Hyprland ran on the virtio GPU (llvmpipe). The session was
   started as ly starts it, without typing a password: a PAM login session on tty2,
   `systemd-run -p PAMName=login -p TTYPath=/dev/tty2 -p StandardInput=tty-force --uid=t ... /etc/ly/setup.sh
@@ -422,7 +454,8 @@ omarchy: `lua/plugins/theme.lua` is a link (made by install.sh, not in the repo)
 `~/.local/state/omarchy/current/theme/neovim.lua`, omarchy's template for `aether.nvim` (v3) filled with the
 active palette, and `omarchy-theme-hotreload.lua` re-applies it in running instances when
 lazy.nvim's change detection sees the link's target replaced (its notification is turned off in
-`lazy.lua`). `colors/pinkrot.lua` is kept only as the colourscheme lazy shows while installing. Verified
+`lazy.lua`). Under Hyprland `theme.lua` points at dux's own colourscheme instead (see "Sessions: i3 and
+Hyprland"). `colors/pinkrot.lua` is kept only as the colourscheme lazy shows while installing. Verified
 headless: `colors_name` is `aether` and Normal's background is the theme's. Portable keeps: `snacks-animated-scrolling-off.lua`,
 `disable-news-alert.lua`. `link_nvim_tree()` links each file individually so runtime state
 (`lazyvim.json`, `lazy-lock.json`, `:Mason`, spell, shada) stays out of the repo.
@@ -711,7 +744,8 @@ These were left out while the dots only targeted disposable VMs; they are for da
 Omarchy themes, applied to this i3 stack by `bin/x11-theme`, with omarchy's own formats and paths so any
 omarchy theme repo works and omarchy-style hooks (the qutebrowser and vesktop ones) run unchanged.
 No quickshell, nothing else from omarchy's shell. This is the i3 session's theming: under Hyprland dux themes
-everything it has templates for, and `x11-theme` refuses to change anything (see "Sessions: i3 and Hyprland").
+everything it has templates for, `x11-theme from-dux` renders the rest from dux's palette, and every other
+`x11-theme` command that changes something refuses (see "Sessions: i3 and Hyprland").
 
 - **Commands.** `x11-theme install <git-url>` clones a theme repo into `~/.config/omarchy/themes/<name>` and
   applies it (name rules as omarchy's: `omarchy-foo-theme` -> `foo`). `x11-theme install-omarchy [name]`

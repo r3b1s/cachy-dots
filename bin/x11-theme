@@ -14,6 +14,8 @@
 #   x11-theme menu                pick a theme from a rofi grid ($mod+Shift+Ctrl+space)
 #   x11-theme remove <name>       delete an installed theme (not the current one)
 #   x11-theme add-wallpaper [file]  add an image to the current theme's wallpapers
+#   x11-theme from-dux            under Hyprland: render the apps' templates from
+#                                 dux's palette (run by dux after every colour change)
 #                                 (no file: pick one in yazi, in $TERMINAL)
 #
 # Themes use omarchy's format and paths, so any omarchy theme repo works and
@@ -340,11 +342,12 @@ reload_apps() {
 }
 
 run_hooks() {
-    local name=$1 hook
+    local name=$1 skip=${2:-} hook
     if [[ -f $HOOKS/theme-set ]]; then bash "$HOOKS/theme-set" "$name" || echo "hook failed: $HOOKS/theme-set" >&2; fi
     [[ -d $HOOKS/theme-set.d ]] || return 0
     for hook in "$HOOKS"/theme-set.d/*; do
         [[ -f $hook && $hook != *.sample ]] || continue
+        [[ -n $skip && $(basename "$hook") == "$skip" ]] && continue
         bash "$hook" "$name" || echo "hook failed: $hook" >&2
     done
 }
@@ -357,6 +360,7 @@ apply() {
     rm -rf "$CURRENT"
     mv "$NEXT" "$CURRENT"
     echo "$name" > "$STATE/theme.name"
+    rm -f "$STATE/theme.dux"
     flock -u 9
 
     apply_mode
@@ -370,6 +374,54 @@ apply() {
 }
 
 # ── commands ────────────────────────────────────────────────────────────────
+
+# Under Hyprland, dux's palette is the theme. dux renders hypr/matugen/omarchy-colors.toml
+# into DUX_COLORS after every colour change and then runs this: the apps' templates
+# are rendered from it into the state directory, so everything that reads that
+# directory (Firefox's userChrome, the Chromium and Brave Origin colour, qutebrowser,
+# btop, yazi, tmux, zathura, imv, mpv, Obsidian) follows dux. theme.name, the i3
+# theme, stays as it was: `cachy-session i3` renders that one again (theme.dux marks
+# the render as dux's). What dux themes itself is left to it: GTK, the terminals,
+# Neovim, Vesktop (so its hook is skipped), light or dark, and the icons.
+DUX_COLORS="${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots/dux-colors.toml"
+
+cmd_from_dux() {
+    [[ $(session) == hyprland ]] || die "from-dux is for the Hyprland session (cachy-session hyprland)"
+    [[ -s $DUX_COLORS ]] || die "no $DUX_COLORS yet: dux writes it on its next colour change"
+    exec 9>"$LOCK"
+    flock 9
+    rm -rf "$NEXT"
+    mkdir -p "$NEXT"
+    cp "$DUX_COLORS" "$NEXT/colors.toml"
+    omarchy-theme-set-templates || true
+    [[ -s $NEXT/gtk.css ]] || { rm -rf "$NEXT"; die "rendering dux's palette failed"; }
+    rm -rf "$CURRENT"
+    mv "$NEXT" "$CURRENT"
+    touch "$STATE/theme.dux"
+    flock -u 9
+
+    # qutebrowser's start page shows ~/.config/wallpapers/current, which x11-wallpaper
+    # points at i3's wallpaper: under Hyprland it is dux's, when dux shows an image
+    # (its generated wallpapers are no file).
+    local wp
+    wp=$(jq -r '.wallpaperPath // empty' "${XDG_STATE_HOME:-$HOME/.local/state}/dms/session.json" 2>/dev/null || true)
+    if [[ -f $wp ]]; then
+        ln -sfn "$wp" "$STATE/background"
+        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/wallpapers"
+        ln -sfn "$wp" "${XDG_CONFIG_HOME:-$HOME/.config}/wallpapers/current"
+    fi
+
+    apply_chromium
+    apply_firefox
+    pkill -USR2 -x btop 2>/dev/null || true
+    if tmux list-sessions >/dev/null 2>&1; then
+        tmux source-file "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/tmux.conf" >/dev/null 2>&1 || true
+    fi
+    if pgrep -x qutebrowser >/dev/null 2>&1; then
+        qutebrowser :config-source >/dev/null 2>&1 || true
+    fi
+    run_hooks dux vesktop
+}
 
 cmd_set() {
     local name
@@ -657,12 +709,13 @@ cmd_menu() {
 }
 
 # dux themes the Hyprland session, so while that one is active (bin/cachy-session)
-# the commands that change something refuse: they would recolour Chromium, GTK
-# and the running apps under dux, and reload i3.
+# the commands that change something refuse, all but from-dux: they would recolour
+# Chromium, GTK and the running apps away from dux's palette, and reload i3.
+session() { echo "${SESSION:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/session" 2>/dev/null || true)}"; }
 case "${1:-}" in
-    list|current|grid-theme|"") ;;
+    list|current|grid-theme|from-dux|"") ;;
     *)
-        if [[ ${SESSION:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/session" 2>/dev/null || true)} == hyprland ]]; then
+        if [[ $(session) == hyprland ]]; then
             die "the Hyprland session is active and dux themes it; run \`cachy-session i3\` first"
         fi
         ;;
@@ -684,5 +737,6 @@ case "${1:-}" in
     # root is written only from here on, so it gets the colour without waiting
     # for the next switch.
     apply-chromium) apply_chromium ;;
-    *) sed -n '2,15p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    from-dux) cmd_from_dux ;;
+    *) sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

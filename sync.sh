@@ -115,7 +115,8 @@ if [ "$root" = 1 ]; then
 else
     echo "--no-root: skipped the copies into /etc and /usr/local"
 fi
-if [ "$(active_session)" = i3 ]; then sync_theme; else echo "theme: left to dux (Hyprland session)"; fi
+# Under Hyprland apply_session has rendered dux's palette instead.
+[ "$(active_session)" = i3 ] && sync_theme
 setup_default_apps
 validate_session
 report_missing_packages

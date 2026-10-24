@@ -92,16 +92,20 @@ ini_set() {
 #   * gtk.css: linked from the rendered theme (see install_links).
 setup_gtk() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
-    local dir
+    local dir icons
+    icons=$(session_icon_theme)
     for dir in gtk-3.0 gtk-4.0; do
-        [ "$dir" = gtk-3.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name adw-gtk3-dark
-        [ "$dir" = gtk-4.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name Adwaita
-        ini_set "$cfg/$dir/settings.ini" gtk-icon-theme-name x11-theme
-        ini_set "$cfg/$dir/settings.ini" gtk-application-prefer-dark-theme 1
+        # Under Hyprland dux switches the theme and the dark preference itself.
+        if [ "$(active_session)" = i3 ]; then
+            [ "$dir" = gtk-3.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name adw-gtk3-dark
+            [ "$dir" = gtk-4.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name Adwaita
+            ini_set "$cfg/$dir/settings.ini" gtk-application-prefer-dark-theme 1
+        fi
+        ini_set "$cfg/$dir/settings.ini" gtk-icon-theme-name "$icons"
     done
     # The previous generated icon theme, before x11-theme took it over.
     [ -d "$HOME/.local/share/icons/pinkrot" ] && run rm -rf "$HOME/.local/share/icons/pinkrot"
-    [ "$dry" = 1 ] || echo "gtk: adw-gtk3-dark / Adwaita (dark), icons x11-theme ($cfg/gtk-{3,4}.0/settings.ini)"
+    [ "$dry" = 1 ] || echo "gtk: icons $icons ($cfg/gtk-{3,4}.0/settings.ini)"
 }
 
 # Make the session read as dark.

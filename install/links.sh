@@ -200,11 +200,11 @@ install_links() {
 
     # Neovim is a LazyVim tree (init.lua + lua/config + colors). Individual
     # files are linked so runtime state (lazyvim.json, lazy-lock.json, :Mason,
-    # spell, shada) stays out of the repo. lua/plugins/theme.lua is the rendered
-    # theme (aether.nvim with its palette), as on omarchy; replacing it is what
+    # spell, shada) stays out of the repo. lua/plugins/theme.lua is a slot the
+    # session points (install/session.sh): under i3 the rendered theme
+    # (aether.nvim with its palette), as on omarchy; replacing it is what
     # lazy.nvim's change detection sees, and omarchy-theme-hotreload.lua applies.
     link_nvim_tree
-    link "$th/neovim.lua" "$cfg/nvim/lua/plugins/theme.lua"
     # Links into the repo whose file has since been removed (pinkrot-theme.lua).
     [ "$dry" = 1 ] || find "$cfg/nvim" -xtype l -lname "$REPO/*" -print -delete 2>/dev/null | sed 's/^/removed dangling link /' || true
 

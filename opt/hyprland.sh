@@ -59,6 +59,7 @@ PKGS=(
     wl-clipboard                     # wl-copy/wl-paste: voxtype, screenshot, dictate, nvim, tmux
     wtype                            # dictate's paste keystroke
     ttf-firacode-nerd                # dux's mono font (Fira Code), for the terminals
+    papirus-icon-theme               # Papirus-Dark, the icon theme dux's documentation recommends
 )
 
 remove=0
@@ -203,6 +204,23 @@ else
         { cat "$plugin_cfg" 2>/dev/null || echo '{}'; } | jq '.emojiLauncher.enabled = true' > "$tmp/plugin_settings.json" \
             && install -Dm644 "$tmp/plugin_settings.json" "$plugin_cfg" \
             && echo "enabled dux's emojiLauncher plugin ($plugin_cfg)"
+    fi
+fi
+
+# ── dux's Neovim colourscheme ────────────────────────────────────────────
+# dux's Neovim template (the `dms` colourscheme hypr/nvim-theme.lua loads) is off
+# by default. Turned on through the running shell when there is one, else in its
+# settings file, unless that already says either way (dux stores only what changed).
+dms_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/dms/settings.json"
+if [ "$dry" = 1 ]; then
+    echo "+ turn on dux's Neovim template"
+elif ! jq -e 'has("matugenTemplateNeovim")' "$dms_cfg" >/dev/null 2>&1; then
+    if "$bin" ipc call settings set matugenTemplateNeovim true 2>/dev/null | grep -q SUCCESS; then
+        echo "turned on dux's Neovim template"
+    else
+        { cat "$dms_cfg" 2>/dev/null || echo '{}'; } | jq '.matugenTemplateNeovim = true' > "$tmp/settings.json" \
+            && install -Dm644 "$tmp/settings.json" "$dms_cfg" \
+            && echo "turned on dux's Neovim template ($dms_cfg)"
     fi
 fi
 

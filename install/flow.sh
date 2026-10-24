@@ -40,8 +40,9 @@ install_main() {
     if [ "$do_links" = 1 ]; then
         install_links
         apply_session
-        # x11-theme themes the i3 session; dux themes Hyprland itself.
-        if [ "$(active_session)" = i3 ]; then setup_theme; else echo "theme: left to dux (Hyprland session)"; fi
+        # x11-theme's own themes are the i3 session's; under Hyprland apply_session
+        # has rendered dux's palette instead.
+        [ "$(active_session)" = i3 ] && setup_theme
         setup_default_apps
         setup_voxtype
         validate_session
