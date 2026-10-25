@@ -58,7 +58,7 @@ function M.setup()
   end
 
   vim.g.clipboard = {
-    name = "AthenaClipboard",
+    name = "CachyClipboard",
     copy = { ["+"] = copy("+"), ["*"] = copy("*") },
     paste = { ["+"] = paste("+"), ["*"] = paste("*") },
     cache_enabled = 0,

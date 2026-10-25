@@ -1,10 +1,8 @@
 # pinkrot — a dark, near-black theme in the Caelid register: scarlet, ember,
 # gold, and pink over a red-tinted void, with bruised purples for contrast.
 #
-# Ported from the athena-dots pinkrot palette (i3 / alacritty / kitty / rofi /
-# dunst / nvim) and re-tuned so the accents stay on the pink-red spectrum.
-# There is deliberately no green, blue, teal or brown: every role is either a
-# red/gold or a pink/purple.
+# The accents stay on the pink-red spectrum. There is deliberately no green,
+# blue, teal or brown: every role is either a red/gold or a pink/purple.
 
 mode = "dark"
 

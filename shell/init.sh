@@ -20,9 +20,8 @@ if [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/telemetry.conf" ]]; th
   set +a
 fi
 
-# ble.sh is opt-in (opt/blesh.sh). When installed it is loaded first, as the
-# AthenaOS image did, so starship below registers through blehook instead of
-# PROMPT_COMMAND. Its default --attach=prompt defers attaching to the first
+# ble.sh is opt-in (opt/blesh.sh). When installed it is loaded first, so
+# starship below registers through blehook instead of PROMPT_COMMAND. Its default --attach=prompt defers attaching to the first
 # prompt, so nothing has to run at the end of ~/.bashrc.
 if [[ -r /usr/share/blesh/ble.sh ]]; then
   source /usr/share/blesh/ble.sh
