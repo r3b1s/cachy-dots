@@ -587,7 +587,9 @@ headless: `colors_name` is `aether` and Normal's background is the theme's. Port
 Deltas from the Omarchy source: `lua/config/options.lua` adds `vim.opt.wrap = true`;
 `lua/config/clipboard.lua` replaces `remote_clipboard.lua`'s Wayland path (`wl-copy`/`wl-paste`) with X11
 (`xclip`, already a dependency) while keeping the OSC 52 emit under tmux/SSH; `Visual` is high-contrast
-(`#f17e97` on `#050007`) instead of the low-contrast `#24101a` wash.
+(`#f17e97` on `#050007`) instead of the low-contrast `#24101a` wash; `queries/markdown/highlights.scm` overrides
+Tree-sitter's conceal on `fenced_code_block_delimiter` and `info_string` so code block tickmarks (`` ``` ``) and
+language tags stay visible; `lua/plugins/markdown.lua` sets `code.conceal_delimiters = false` for `render-markdown.nvim`.
 
 One trap in the colours file itself: it set `vim.g.colors_name` before `highlight clear`, and that command
 resets `g:colors_name`, so it read back as nil even though the colours applied. The assignment now comes
