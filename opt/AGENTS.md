@@ -16,7 +16,7 @@ based on the hardware, session, or workflow requirements of a specific host.
 * **`services/`**:
   Opt-in background services, daemons, and systemd units (both system-level and user-level).
   Contains setup scripts, `.service` unit files, and supporting hardware/permission configs
-  such as udev rules and sysusers files (e.g., Kanata key remapping, Paseo daemon). (See `opt/services/AGENTS.md`).
+  such as udev rules and sysusers files (e.g., Kanata key remapping, Paseo daemon, Sunshine GameStream server). (See `opt/services/AGENTS.md`).
 
 ## Standalone Scripts
 

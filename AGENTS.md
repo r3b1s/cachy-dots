@@ -371,9 +371,9 @@ inactive one gives a degraded session, not a broken one.
   Sunshine's docs; `kms` also finds the display on arch0 but warns that the cursor may not show, and `auto`
   picks `wlr` there. A running Sunshine keeps its method until it restarts, so each session ends its login
   commands with `systemctl --user try-restart sunshine.service` (i3's `05-autostart.conf`, `hypr/cachy.lua`; a
-  no-op when it is not running). Neither session reaches `graphical-session.target`, so a `sunshine.service`
-  wanted by it is not started at login by either: start it by hand. Checked on arch0 (Sunshine from the
-  omarchy repo, software encoder, no GPU encode there): x11 fails as above, wlr and kms find the display and
+  no-op when it is not running). `opt/services/sunshine/install.sh` installs `sunshine.service` with
+  `WantedBy=default.target` so Sunshine starts automatically upon login (neither session reaches
+  `graphical-session.target`). Checked on arch0: x11 fails as above, wlr and kms find the display and
   libx264, the key flips both ways and keeps the rest, and `try-restart` restarts a running service and leaves
   a stopped one. **Not checked:** the workstation's AMD VA-API encode through `wlr`, a Moonlight client, and
   `apps.json`: "Low Res Desktop" runs `xrandr --output DP-0`, which is X11 only (and DP-0 is an NVIDIA name; the

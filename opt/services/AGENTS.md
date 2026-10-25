@@ -46,3 +46,11 @@ Supervisor daemon and web UI for AI coding agent environments (`opt/services/pas
 * CLI: `@getpaseo/cli` installed via `mise` (`npm` backend)
 * Unit: Systemd user service (`~/.config/systemd/user/paseo.service`)
 * Features: Foreground runner mode, local web UI on port 6767, remote relay disabled by default
+
+### 3. `sunshine/`
+Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`).
+* Package source:
+  * CachyOS: strictly `cachyos/sunshine` (no fallbacks)
+  * Arch Linux: strictly `lizardbyte/sunshine` via LizardByte's official pacman repo (`https://github.com/LizardByte/pacman-repo/releases/latest/download`) (no fallbacks)
+* Unit: Systemd user service (`~/.config/systemd/user/sunshine.service`, `WantedBy=default.target`)
+* Lifecycle: Starts at graphical/user login. When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland) and session autostart runs `systemctl --user try-restart sunshine.service` to re-bind to the active session.
