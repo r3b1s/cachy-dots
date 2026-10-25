@@ -570,6 +570,23 @@ part of `install.sh`. `[-n] [--yes] [--reconfigure] [--remove]`.
   RetroArch exited at start-up with `video_driver = vulkan`; with `vulkan-swrast` it opened, fullscreen. Software
   Vulkan only shows the rule works, not how crt-royale performs.
 
+## ArtCraft (opt-in)
+
+`opt/install-from-source/artcraft/install.sh` builds and installs [ArtCraft](https://github.com/storytold/artcraft), the IDE for AI image and video creation.
+Not part of `install.sh`. `[--tag <tag>] [--build-dir <dir>] [--clean] [--remove] [-n|--dry-run]`.
+
+- **Source build & mise toolchain:** Upstream publishes release binaries for macOS and Windows only. Build toolchains are managed
+  separately from system packages via `opt/install-from-source/artcraft/mise.toml` (`node = "24"`, `rust = "stable"`,
+  `tauri-cli = "latest"`, `cmake = "latest"` and build env vars). System C libraries and tools are installed via pacman
+  (`mise`, `base-devel`, `git`, `webkit2gtk-4.1`, `gtk3`, `libayatana-appindicator`, `librsvg`, `openssl`, `clang`,
+  `nasm`, `perl`, `xdotool`). The script clones the repo into `~/.cache/artcraft-build` (or `--build-dir`), builds the
+  React/Nx frontend with mise's Node environment (`npm ci`, `npx nx run artcraft:build`), and compiles the Tauri v2 Rust
+  desktop app in release mode.
+- **Desktop integration:** Installs the executable to `/usr/local/bin/artcraft`, the `.desktop` launcher to
+  `/usr/local/share/applications/artcraft.desktop` (`StartupWMClass=artcraft`), and icons (32px to 512px) to
+  `/usr/local/share/icons/hicolor/`, updating the desktop database and GTK icon cache.
+- **Opt-out:** `--remove` deletes the binary, desktop entry, and icons; adding `--clean` drops the build directory.
+
 ## Neovim
 
 `nvim/` is a LazyVim tree ported from the Omarchy host (`init.lua`, `lua/config/lazy.lua`,
