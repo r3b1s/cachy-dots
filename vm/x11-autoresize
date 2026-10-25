@@ -14,7 +14,6 @@
 # VM profile only: install_vm.sh links this into ~/.local/bin (install.sh does not),
 # and i3 starts it only when it is there. The check below is a second guard.
 systemd-detect-virt -q --vm || exit 0
-repo=$(dirname "$(dirname "$(readlink -f "$0")")")
 
 apply() {
     local out
@@ -22,9 +21,9 @@ apply() {
     [ -n "$out" ] || return 0
     # The mode in use is `*`, the preferred one `+`; already the same: done.
     xrandr --query | awk '/^ +[0-9]+x[0-9]+/ && /\*/ && /\+/ { ok = 1 } END { exit !ok }' && return 0
+    # feh painted the old size, but x11-wallpaper watch repaints on the same
+    # output event, so the wallpaper needs nothing here.
     xrandr --output "$out" --auto || return 0
-    # feh painted the old size; the root pixmap would be tiled or cropped.
-    "$repo/bin/x11-wallpaper" current
 }
 
 while xrandr --query >/dev/null 2>&1; do
