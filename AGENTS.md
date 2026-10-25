@@ -256,6 +256,17 @@ inactive one gives a degraded session, not a broken one.
   and quitting back to the client all stay on `special:ctl_m`, on one monitor and on the second of two (a
   headless output). With the class rule commented out, the stream landed on workspace 1. The rule's name must
   match the bind's: a client launched under one name keeps its workspace, and the stream follows the rule.
+  **The class rule also has `suppress_event = "fullscreenoutput"`**, for Moonlight's exclusive "Fullscreen"
+  display mode (`windowmode=0` in `Moonlight.conf`; the tests above ran in the default "Fullscreen desktop").
+  There the stream window asks for fullscreen on a named output, and Hyprland 0.56 honours the output by moving
+  the window to that output's regular workspace: the event socket showed it map on `special:ctl_m`, then
+  `fullscreen>>1`, `fullscreen>>0`, `movewindow>>...,6`. Hit on a one-monitor laptop with that mode, where the
+  stream kept opening on the regular workspace. Suppressing only the output keeps the fullscreen and the
+  workspace. Checked on that laptop (Hyprland 0.56.2, the same Moonlight build, native Wayland, `windowmode=0`):
+  streams started from the client and `moonlight stream <host> Desktop` stay on `special:ctl_m`, fullscreen,
+  and Ctrl+Alt+Shift+Q brings the client back there. Ending the stream from a second process
+  (`moonlight quit <host>`) once left the client process running with no window; that is Moonlight's, not
+  the rule's. i3 is untested in that mode.
 - **`$mod+Shift+Space` hides and shows dux's bar** (`dms ipc call bar toggle index 0`, the first bar; checked on arch0 with
   `bar status`, and the windows take its space).
 - **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single

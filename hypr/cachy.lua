@@ -76,8 +76,10 @@ hl.window_rule({ match = { class = "^(com.libretro.RetroArch)$" }, fullscreen = 
 -- Every Moonlight window belongs to special:ctl_m. The client closes when a stream starts
 -- and comes back when it ends, and each time the workspace has closed with the window
 -- before the other one opens, so without this the stream window and the client would
--- land on the regular workspace underneath.
-hl.window_rule({ match = { class = "^(com.moonlight_stream.Moonlight)$" }, workspace = "special:ctl_m" })
+-- land on the regular workspace underneath. In Moonlight's exclusive "Fullscreen" display
+-- mode the stream window asks for fullscreen on a named output, and Hyprland honours
+-- that by moving it to the output's regular workspace, so that part is ignored.
+hl.window_rule({ match = { class = "^(com.moonlight_stream.Moonlight)$" }, workspace = "special:ctl_m", suppress_event = "fullscreenoutput" })
 -- Moonlight ($mod+Ctrl+m): the stream window is fullscreen with no idle lock, as Omarchy's
 -- default/hypr/apps/moonlight.lua, but not the client. Both share a class; the stream
 -- window's title is "<host> - Moonlight" (session.cpp), the client's plain "Moonlight".
