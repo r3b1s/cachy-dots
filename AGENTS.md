@@ -246,7 +246,10 @@ inactive one gives a degraded session, not a broken one.
   Hyprland only: a window rule in `hypr/cachy.lua` makes the *stream* window fullscreen
   and idle-inhibiting, as Omarchy's `default/hypr/apps/moonlight.lua`, but not the client: both have class
   `com.moonlight_stream.Moonlight`, so it also matches the title, `<host> - Moonlight` for the stream (from
-  moonlight-qt's `session.cpp`) against plain `Moonlight`. **Not run on a live session.**
+  moonlight-qt's `session.cpp`) against plain `Moonlight`. Every window of that class is also sent to
+  `special:moonlight`: the client reappears when a stream ends, and the workspace closes with the stream window,
+  so without the rule it opened on the regular workspace. i3 has the same as an `assign` to
+  the `moonlight` workspace. **Not run on a live session.**
 - **`$mod+Shift+Space` hides and shows dux's bar** (`dms ipc call bar toggle index 0`, the first bar; checked on arch0 with
   `bar status`, and the windows take its space).
 - **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single

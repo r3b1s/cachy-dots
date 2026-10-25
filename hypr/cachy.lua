@@ -73,6 +73,10 @@ hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "sp
 -- RetroArch (opt/omarchy-retroarch.sh): fullscreen, and no idle lock while it is, as
 -- Omarchy's default/hypr/apps/retroarch.lua.
 hl.window_rule({ match = { class = "^(com.libretro.RetroArch)$" }, fullscreen = true, idle_inhibit = "fullscreen" })
+-- Every Moonlight window belongs to special:moonlight: the client comes back by itself when a
+-- stream ends, and the workspace closes with the stream window, so it would land on the
+-- regular workspace underneath.
+hl.window_rule({ match = { class = "^(com.moonlight_stream.Moonlight)$" }, workspace = "special:moonlight" })
 -- Moonlight ($mod+Ctrl+m): the stream window is fullscreen with no idle lock, as Omarchy's
 -- default/hypr/apps/moonlight.lua, but not the client. Both share a class; the stream
 -- window's title is "<host> - Moonlight" (session.cpp), the client's plain "Moonlight".
