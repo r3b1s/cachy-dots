@@ -242,14 +242,20 @@ inactive one gives a degraded session, not a broken one.
   comment), because an edit in dux's Settings rewrites it through the link: git then shows just that change.
   Checked with `dms keybinds set`: every other bind came back unchanged. Not bound yet: `$mod+Ctrl+w` (next
   wallpaper), the 2000K nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
-- **`$mod+Ctrl+m` is the Moonlight workspace** in both sessions (`ws-app moonlight moonlight`; `moonlight-qt` is in `PKGS`).
+- **`$mod+Ctrl+m` is the Moonlight workspace** in both sessions (`ws-app ctl_m moonlight`, see "Named workspaces" for the name; `moonlight-qt` is in `PKGS`).
   Hyprland only: a window rule in `hypr/cachy.lua` makes the *stream* window fullscreen
   and idle-inhibiting, as Omarchy's `default/hypr/apps/moonlight.lua`, but not the client: both have class
   `com.moonlight_stream.Moonlight`, so it also matches the title, `<host> - Moonlight` for the stream (from
   moonlight-qt's `session.cpp`) against plain `Moonlight`. Every window of that class is also sent to
-  `special:moonlight`: the client reappears when a stream ends, and the workspace closes with the stream window,
-  so without the rule it opened on the regular workspace. i3 has the same as an `assign` to
-  the `moonlight` workspace. **Not run on a live session.**
+  `special:ctl_m`: the client window closes when a stream starts and comes back when it ends, and each time
+  the special workspace is destroyed with the closing window before the new one maps. Without the rule the
+  stream window opened fullscreen on the regular workspace (Moonlight's own fullscreen setting, so that
+  much looked right), and the client came back there too. i3 has the same as an `assign` to the `ctl_m`
+  workspace. Checked on arch0 with real Moonlight 6.2.0 (sdl2-compat on SDL3, native Wayland) streaming
+  from arch0's own Sunshine: the stream window has its class and title when it maps, and opening, streaming
+  and quitting back to the client all stay on `special:ctl_m`, on one monitor and on the second of two (a
+  headless output). With the class rule commented out, the stream landed on workspace 1. The rule's name must
+  match the bind's: a client launched under one name keeps its workspace, and the stream follows the rule.
 - **`$mod+Shift+Space` hides and shows dux's bar** (`dms ipc call bar toggle index 0`, the first bar; checked on arch0 with
   `bar status`, and the windows take its space).
 - **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single
@@ -281,7 +287,10 @@ inactive one gives a degraded session, not a broken one.
   `hypr/cachy.lua` sends every `vesktop`-class window to `special:slash` (i3: `assign [class="^vesktop$"] slash`).
   Checked on arch0: the 300x350 loading window opened there, and the main window replaced it there.
 - **Named workspaces** are special workspaces with i3's names, so they overlay the current workspace rather
-  than replace it. The app ones go through `bin/ws-app`, which toggles and, when the workspace is empty,
+  than replace it. A name is the chord that reaches it, condensed: Super is implied, any other modifier is a
+  three-letter prefix joined with `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key
+  is its keysym name (`slash`, `equal`; `plus`, `$mod+Shift+=`, predates the prefixes). The same names are
+  i3's workspace names (`i3/conf.d/20-workspaces.conf` says so too). The app ones go through `bin/ws-app`, which toggles and, when the workspace is empty,
   launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`: a window the script started itself
   would open on the regular workspace underneath, and a workspace rule's `on_created_empty` cannot live in
   `binds-user.lua`. (Hyprland's Lua mode rejects the old `exec [rules] cmd` syntax.)

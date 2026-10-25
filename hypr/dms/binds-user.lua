@@ -21,7 +21,7 @@ hl.bind("SUPER + CTRL + Escape", hl.dsp.exec_cmd("dms ipc call lock lock"), { de
 hl.unbind("SUPER + CTRL + I")
 hl.bind("SUPER + CTRL + I", hl.dsp.exec_cmd("dms ipc call inhibit toggle"), { description = "Toggle idle inhibit" })
 hl.unbind("SUPER + CTRL + M")
-hl.bind("SUPER + CTRL + M", hl.dsp.exec_cmd("~/.local/bin/ws-app moonlight moonlight"), { description = "Moonlight workspace" })
+hl.bind("SUPER + CTRL + M", hl.dsp.exec_cmd("~/.local/bin/ws-app ctl_m moonlight"), { description = "Moonlight workspace" })
 hl.unbind("SUPER + CTRL + N")
 hl.bind("SUPER + CTRL + N", hl.dsp.exec_cmd("dms ipc call night toggle"), { description = "Toggle night mode" })
 hl.unbind("SUPER + CTRL + V")
