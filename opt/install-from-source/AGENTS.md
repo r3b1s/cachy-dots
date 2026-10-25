@@ -85,4 +85,4 @@ Every installer in this folder should follow these standards:
 
 ### 4. Testing Rules
 
-As noted in the root `AGENTS.md`, **never run the actual build or installer scripts on the AthenaOS host where dotfiles are edited**. Testing live builds belongs on the separate CachyOS VM. Dry-run mode (`-n`) and syntax checks (`bash -n`) can and should be verified locally.
+As the root `AGENTS.md` says, **never run the build or installer scripts on the machine you edit the repo on**. Live builds belong on a test VM. Dry-run mode (`-n`) and syntax checks (`bash -n`) can and should be verified locally.
