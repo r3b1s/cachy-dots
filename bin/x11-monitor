@@ -3,8 +3,10 @@
 #
 # i3 does no mode-setting, so this is xrandr's job. A headless VM in SPICE often
 # comes up at whatever size the last client asked for, which leaves the desktop
-# at an arbitrary resolution. Run from i3's exec_always, so it must be quiet
-# when nothing needs doing and must never fail a reload.
+# at an arbitrary resolution. Run by bin/x11-display in a VM, from i3's
+# exec_always when that line is enabled (it is commented out in
+# 05-autostart.conf: the layout is per host, in conf.d/04-monitors.conf), so it
+# must be quiet when nothing needs doing and must never fail a reload.
 #
 # Just the resolution. An earlier version also switched off extra and stale
 # outputs and resized the framebuffer, to chase a wallpaper problem that was

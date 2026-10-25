@@ -18,8 +18,8 @@
 #
 # Deliberately plain: just fill the root window. An earlier version also cleared
 # the root window first and passed --bg-size, both to work around a geometry
-# problem that turned out to be a second X screen; --bg-size left a seam and
-# neither is needed now that bin/x11-monitor keeps one screen at one size.
+# problem that turned out to be a second X screen; --bg-size left a seam, and
+# with one X screen neither is needed.
 set -u
 
 mode="${1:-random}"

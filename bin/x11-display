@@ -1,6 +1,7 @@
 #!/bin/sh
-# x11-display — set up the outputs, then the wallpaper. Run by i3 (exec_always)
-# on every start and reload.
+# x11-display — set up the outputs, then the wallpaper. Meant for i3's
+# exec_always (every start and reload), but that line in 05-autostart.conf is
+# commented out: the monitor layout is per host now, in conf.d/04-monitors.conf.
 #
 #   in a VM:      bin/x11-monitor pins 1920x1080 (the SPICE display otherwise comes
 #                 up at whatever size the last client asked for)
