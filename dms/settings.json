@@ -7,7 +7,6 @@
       "screenPreferences": [
         "all"
       ],
-      "showOnLastDisplay": true,
       "position": 1,
       "mode": "compact",
       "taskbarAlign": "center",
@@ -82,7 +81,6 @@
       "screenPreferences": [
         "all"
       ],
-      "showOnLastDisplay": false,
       "leftWidgets": [
         "launcherButton",
         {
@@ -136,7 +134,6 @@
       "popupGapsManual": 4,
       "followInterfaceStyle": true,
       "widgetFollowInterfaceStyle": true,
-      "hideOnLastDisplay": true,
       "hoverPopouts": false,
       "widgetStyle": "segments",
       "barInsetPadding": 5
@@ -204,5 +201,7 @@
     ]
   },
   "displayNameMode": "system",
-  "mouseNaturalScroll": true
+  "mouseNaturalScroll": true,
+  "configVersion": 42,
+  "touchpadNaturalScroll": true
 }

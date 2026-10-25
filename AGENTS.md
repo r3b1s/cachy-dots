@@ -208,7 +208,10 @@ inactive one gives a degraded session, not a broken one.
   `~/.config/hypr/.dms-backups/`); `cachy-session hyprland` re-adds our line afterwards.
 - **dux's settings start from a snapshot.** `dms/settings.json` is `~/.config/dms/settings.json` as dux wrote
   it on the workstation (2026-10-24: bar and dock layout, master layout, natural scroll, launcher), less
-  `configVersion` and `dmsWindowsFloatingSeeded` (dux's own bookkeeping). `opt/dux-settings.sh` (which
+  `dmsWindowsFloatingSeeded` (dux's one-time seed marker) and the `hideOnLastDisplay`/`showOnLastDisplay` keys of the bar
+  and dock: the former hides the bar when a host has exactly one display (it did, on a one-monitor PC, until the
+  snapshot dropped it), so nothing that depends on how many displays a host has may be in it. `configVersion`
+  stays: without it dux runs every migration over already-current keys. `opt/dux-settings.sh` (which
   `opt/hyprland.sh` calls) merges it **under** the host's file with `jq` (the host's values win), once:
   `~/.config/cachy-dots/dux-settings-seeded` stops a re-run from restoring a key reset in dux's Settings.
   **`opt/dux-settings.sh --reset` restores the baseline**: the snapshot wins over every key it holds (keys it
