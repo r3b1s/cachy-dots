@@ -201,7 +201,7 @@
     ]
   },
   "displayNameMode": "system",
-  "mouseNaturalScroll": true,
+  "mouseNaturalScroll": false,
   "configVersion": 42,
-  "touchpadNaturalScroll": true
+  "touchpadNaturalScroll": false
 }

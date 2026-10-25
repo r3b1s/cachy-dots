@@ -207,7 +207,7 @@ inactive one gives a degraded session, not a broken one.
   keyboard, and headless does not.) `--force` would replace `hyprland.lua` (backup under
   `~/.config/hypr/.dms-backups/`); `cachy-session hyprland` re-adds our line afterwards.
 - **dux's settings start from a snapshot.** `dms/settings.json` is `~/.config/dms/settings.json` as dux wrote
-  it on the workstation (2026-10-24: bar and dock layout, master layout, natural scroll, launcher), less
+  it on the workstation (2026-10-24: bar and dock layout, master layout, natural scroll off for mouse and touchpad, launcher), less
   `dmsWindowsFloatingSeeded` (dux's one-time seed marker) and the `hideOnLastDisplay`/`showOnLastDisplay` keys of the bar
   and dock: the former hides the bar when a host has exactly one display (it did, on a one-monitor PC, until the
   snapshot dropped it), so nothing that depends on how many displays a host has may be in it. `configVersion`
