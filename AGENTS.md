@@ -515,8 +515,8 @@ Push-to-talk dictation. `voxtype/config.toml` is a Hyprland config ported to X11
 
 ## kanata (opt-in)
 
-`opt/kanata/install.sh` is not part of `install.sh`. It makes kanata a system service that runs as its own
-user, and installs the keyboard config in `opt/kanata/enthium.kbd`. That file is a verbatim copy of
+`opt/services/kanata/install.sh` is not part of `install.sh`. It makes kanata a system service that runs as its own
+user, and installs the keyboard config in `opt/services/kanata/enthium.kbd`. That file is a verbatim copy of
 `r3b1s/kanata-enthium` at commit `4a4fd03`, tracked here. The installer never clones that repo, and the upstream
 `.claude/`, `openspec/` and `qubes/` are not copied. To update the layout, copy the file again and re-run the script.
 

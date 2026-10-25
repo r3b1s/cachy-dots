@@ -24,7 +24,7 @@
 # Re-run after editing enthium.kbd. Run it as your own user: sudo is used for the
 # root steps.
 #
-# Usage: opt/kanata/install.sh [-n|--dry-run]
+# Usage: opt/services/kanata/install.sh [-n|--dry-run]
 set -euo pipefail
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)

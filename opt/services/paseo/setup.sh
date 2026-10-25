@@ -10,7 +10,7 @@
 # Detailed instructions for configuring Paseo and enabling the service
 # are printed upon completion.
 #
-# Usage: opt/paseo/setup.sh [--remove] [-n|--dry-run] [-h|--help]
+# Usage: opt/services/paseo/setup.sh [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
