@@ -208,10 +208,12 @@ inactive one gives a degraded session, not a broken one.
   `~/.config/hypr/.dms-backups/`); `cachy-session hyprland` re-adds our line afterwards.
 - **dux's settings start from a snapshot.** `dms/settings.json` is `~/.config/dms/settings.json` as dux wrote
   it on the workstation (2026-10-24: bar and dock layout, master layout, natural scroll, launcher), less
-  `configVersion` and `dmsWindowsFloatingSeeded` (dux's own bookkeeping). `opt/hyprland.sh` merges it **under** the
-  host's file with `jq` (the host's values win), once: `~/.config/cachy-dots/dux-settings-seeded` stops a re-run
-  from restoring a key reset in dux's Settings. It is a copy, not a link, because dux rewrites the file from its
-  Settings; it does not run while `dms` is running, which would overwrite it. Left out on purpose: `hypr/dms/outputs.lua`
+  `configVersion` and `dmsWindowsFloatingSeeded` (dux's own bookkeeping). `opt/dux-settings.sh` (which
+  `opt/hyprland.sh` calls) merges it **under** the host's file with `jq` (the host's values win), once:
+  `~/.config/cachy-dots/dux-settings-seeded` stops a re-run from restoring a key reset in dux's Settings.
+  **`opt/dux-settings.sh --reset` restores the baseline**: the snapshot wins over every key it holds (keys it
+  lacks stay), and the old file is kept as `settings.json.bak-<timestamp>`. It is a copy, not a link, because dux rewrites the file from its
+  Settings; it replaces the file by a rename, and a running dux watches `settings.json` and reloads on an outside change (`watchChanges` in its `SettingsData.qml`; not seen live). Left out on purpose: `hypr/dms/outputs.lua`
   (monitors) and `colors.lua` (matugen output); `layout`, `input` and `cursor` are generated from settings.json, and
   `windowrules.lua` is dux's own seed. Read from dux's source (v2.0.0): `deployHyprlandDmsConfigs` writes each
   `hypr/dms/*.lua` only when it is missing or empty, except `binds.lua`, which it always replaces. The merge was
