@@ -34,10 +34,11 @@ check_cachy_repos() {
     say "CachyOS repos: $(printf '%s\n' "$repos" | grep '^cachyos' | paste -sd' ')"
 }
 
-# chaotic-aur exists here for qutebrowser-git alone (and blesh-git, if opted in
-# with opt/blesh.sh); nothing else is installed from it. It is appended at the
-# END of pacman.conf, below the Cachy and Arch repos, so it can never shadow
-# their builds of anything: packages are only taken from it by qualified name.
+# chaotic-aur supplies what no Cachy or Arch repo builds: qutebrowser-git and
+# yaru-icon-theme, the fallback for the other pins (yay, i3lock-color, vesktop),
+# and the opt-in blesh-git and kanata. It is appended at the END of pacman.conf,
+# below the Cachy and Arch repos, so it can never shadow their builds of
+# anything: packages are only taken from it by qualified name.
 #
 # Setup follows https://aur.chaotic.cx/docs: trust the signing key, install the
 # keyring and mirrorlist packages from its CDN, then add the repo. A repo that
@@ -50,7 +51,7 @@ setup_chaotic_aur() {
     command -v pacman >/dev/null || return 0
 
     if ! pacman-conf --repo-list 2>/dev/null | grep -qx chaotic-aur; then
-        say "Adding the chaotic-aur repo (for qutebrowser-git)"
+        say "Adding the chaotic-aur repo"
         # One -U for both packages: every pacman transaction costs a pre/post
         # snapper snapshot pair on CachyOS (cachyos-snapper-support).
         local pkgs=()

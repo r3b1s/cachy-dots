@@ -7,9 +7,9 @@
 #
 # /etc/firefox/policies/policies.json is the documented system-wide location on
 # Linux (the install-directory alternative under /usr/lib/firefox would be
-# clobbered by package upgrades). The policy installs both add-ons from AMO at
-# startup, so this needs network on first run, and activates the theme through
-# the pref its manifest declares.
+# clobbered by package upgrades). The policy installs Vimium from AMO at
+# startup, so this needs network on first run, uninstalls the Flame theme that
+# earlier versions installed, and activates the default theme through its pref.
 #
 # Vimium's options cannot be installed this way: its settings live in the
 # extension's own browser storage, the only import path is the Restore control
