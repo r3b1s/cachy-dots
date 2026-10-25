@@ -71,6 +71,7 @@ Never test the scripts on the AthenaOS machine this repo is edited on; the test 
 | Sync, notes and mail | `rclone`, `obsidian`, `thunderbird` (`$mod+=`) |
 | Clipboard, screenshots | `copyq` (history, `bin/x11-clipboard`), `satty` (annotation), `maim`, `xclip` |
 | Lock, nightlight | `i3lock-color` (`cachyos/`, else `chaotic-aur/`) + `xss-lock` + `xorg-xset` (the idle timer), `gammastep` |
+| Game streaming | `moonlight-qt` (`$mod+Ctrl+m`; see "Sessions: i3 and Hyprland") |
 | Bluetooth | `blueman`, `bluez`, `bluez-utils` (`bluetooth.service` enabled) |
 | Files, build | `nautilus` + `gvfs`, `yazi` (+ previewers: `7zip`, `poppler`, `ffmpegthumbnailer`, `resvg`, `imagemagick`, `fd`, `ripgrep`), `base-devel` |
 | Theming | `adw-gtk-theme` (adw-gtk3), `chaotic-aur/yaru-icon-theme`; see "Theming" |
@@ -205,6 +206,16 @@ inactive one gives a degraded session, not a broken one.
   `dms setup` also runs `usermod -aG input` through sudo, for a Caps Lock indicator; that group can read every
   keyboard, and headless does not.) `--force` would replace `hyprland.lua` (backup under
   `~/.config/hypr/.dms-backups/`); `cachy-session hyprland` re-adds our line afterwards.
+- **dux's settings start from a snapshot.** `dms/settings.json` is `~/.config/dms/settings.json` as dux wrote
+  it on the workstation (2026-10-24: bar and dock layout, master layout, natural scroll, launcher), less
+  `configVersion` and `dmsWindowsFloatingSeeded` (dux's own bookkeeping). `opt/hyprland.sh` merges it **under** the
+  host's file with `jq` (the host's values win), once: `~/.config/cachy-dots/dux-settings-seeded` stops a re-run
+  from restoring a key reset in dux's Settings. It is a copy, not a link, because dux rewrites the file from its
+  Settings; it does not run while `dms` is running, which would overwrite it. Left out on purpose: `hypr/dms/outputs.lua`
+  (monitors) and `colors.lua` (matugen output); `layout`, `input` and `cursor` are generated from settings.json, and
+  `windowrules.lua` is dux's own seed. Read from dux's source (v2.0.0): `deployHyprlandDmsConfigs` writes each
+  `hypr/dms/*.lua` only when it is missing or empty, except `binds.lua`, which it always replaces. The merge was
+  run on a scratch copy; **not run on a fresh host**.
 - **What the repo adds** are three Hyprland-owned links, `hypr/dms/binds-user.lua`, `hypr/cachy.lua` and
   `hypr/hyprland-mimeapps.list`, and one line `cachy-session` appends to dux's `hyprland.lua`, after dux's own
   requires: `require("cachy")`.
@@ -226,6 +237,11 @@ inactive one gives a degraded session, not a broken one.
   comment), because an edit in dux's Settings rewrites it through the link: git then shows just that change.
   Checked with `dms keybinds set`: every other bind came back unchanged. Not bound yet: `$mod+Ctrl+w` (next
   wallpaper), the 2000K nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
+- **`$mod+Ctrl+m` is the Moonlight workspace** in both sessions (`ws-app moonlight moonlight`; `moonlight-qt` is in `PKGS`).
+  Hyprland only: a window rule in `hypr/cachy.lua` makes the *stream* window fullscreen
+  and idle-inhibiting, as Omarchy's `default/hypr/apps/moonlight.lua`, but not the client: both have class
+  `com.moonlight_stream.Moonlight`, so it also matches the title, `<host> - Moonlight` for the stream (from
+  moonlight-qt's `session.cpp`) against plain `Moonlight`. **Not run on a live session.**
 - **`$mod+Shift+Space` hides and shows dux's bar** (`dms ipc call bar toggle index 0`, the first bar; checked on arch0 with
   `bar status`, and the windows take its space).
 - **Fullscreen mirrors the reference Hyprland config** (quattro-dots' `hypr/bindings.lua`), not i3's single

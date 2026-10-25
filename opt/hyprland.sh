@@ -207,6 +207,29 @@ else
     fi
 fi
 
+# ── dux's settings, from a snapshot ──────────────────────────────────────
+# dms/settings.json is ~/.config/dms/settings.json as dux wrote it on the
+# workstation, less what is dux's own bookkeeping (configVersion, the one-time
+# window-rule seed marker) and anything about displays. Merged under what is there
+# (the host's values win), once: the marker means a later run cannot put back a key
+# changed or reset in dux's Settings. Delete the marker to apply it again.
+# A copy, never a link: dux rewrites settings.json from its Settings pages.
+seed_marker="${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/dux-settings-seeded"
+seed_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dms/settings.json"
+dms_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/dms/settings.json"
+if [ -e "$seed_marker" ]; then
+    echo "dux's settings snapshot already applied ($seed_marker)"
+elif [ "$dry" = 1 ]; then
+    echo "+ merge $seed_src into $dms_cfg"
+elif pgrep -x dms >/dev/null; then
+    warn "dux is running and would overwrite settings.json; log out of Hyprland and re-run to apply the snapshot"
+else
+    { cat "$dms_cfg" 2>/dev/null || echo '{}'; } | jq -s '.[0] * .[1]' "$seed_src" - > "$tmp/settings.json" \
+        && install -Dm644 "$tmp/settings.json" "$dms_cfg" \
+        && install -Dm644 /dev/null "$seed_marker" \
+        && echo "applied dux's settings snapshot ($dms_cfg)"
+fi
+
 # ── dux's Neovim colourscheme ────────────────────────────────────────────
 # dux's Neovim template (the `dms` colourscheme hypr/nvim-theme.lua loads) is off
 # by default. Turned on through the running shell when there is one, else in its

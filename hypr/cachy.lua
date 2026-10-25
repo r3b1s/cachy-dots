@@ -73,6 +73,10 @@ hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "sp
 -- RetroArch (opt/omarchy-retroarch.sh): fullscreen, and no idle lock while it is, as
 -- Omarchy's default/hypr/apps/retroarch.lua.
 hl.window_rule({ match = { class = "^(com.libretro.RetroArch)$" }, fullscreen = true, idle_inhibit = "fullscreen" })
+-- Moonlight ($mod+Ctrl+m): the stream window is fullscreen with no idle lock, as Omarchy's
+-- default/hypr/apps/moonlight.lua, but not the client. Both share a class; the stream
+-- window's title is "<host> - Moonlight" (session.cpp), the client's plain "Moonlight".
+hl.window_rule({ match = { class = "^(com.moonlight_stream.Moonlight)$", title = "^.+ - Moonlight$" }, fullscreen = true, idle_inhibit = "fullscreen" })
 
 -- ── submaps ──────────────────────────────────────────────────────────────
 local function notify(title, body)
