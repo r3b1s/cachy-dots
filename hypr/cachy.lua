@@ -1,6 +1,7 @@
--- cachy-dots' additions to dux's Hyprland config. Linked to
--- ~/.config/hypr/cachy.lua and loaded by the one line cachy-session appends to
--- dux's hyprland.lua, require("cachy"), after dux's own modules.
+-- cachy-dots' additions to dux's Hyprland config. Copied to
+-- ~/.config/hypr/cachy.lua (by import_cachy_lua in install/session.sh) and loaded
+-- by the one line cachy-session appends to dux's hyprland.lua, require("cachy"),
+-- after dux's own modules.
 --
 -- Binds that only map a chord to an action are in dms/binds-user.lua, dux's own
 -- override file (loaded after its stock dms/binds.lua), so its keybind editor can
@@ -44,9 +45,8 @@ hl.on("hyprland.start", function()
 	-- seconds, so a quick switch from i3 finds its DISPLAY and its portals still
 	-- there: drop i3's display first (XWayland's, if Hyprland has one, comes back
 	-- with --all), and stop the portals so the next request starts them with this
-	-- session's environment and portal config. A running Sunshine is restarted last,
-	-- for this session's display and capture method (install/session.sh).
-	hl.exec_cmd("systemctl --user unset-environment DISPLAY XAUTHORITY; dbus-update-activation-environment --systemd --all; systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-hyprland.service; systemctl --user try-restart sunshine.service")
+	-- session's environment and portal config.
+	hl.exec_cmd("systemctl --user unset-environment DISPLAY XAUTHORITY; dbus-update-activation-environment --systemd --all; systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-hyprland.service")
 	-- Dictation (bin/dictate). voxtype.service hangs off
 	-- graphical-session.target, which this session does not reach. A daemon left
 	-- by an i3 session outlives it, with i3's environment, so it is replaced.
@@ -58,6 +58,13 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("command -v dfiles >/dev/null && exec dfiles run --session --hidden")
 	hl.exec_cmd("command -v dcal >/dev/null && exec dcal run --session --hidden")
 	hl.exec_cmd("command -v dsearch >/dev/null && exec dsearch serve")
+	-- Opt-in services (opt/services/*).
+	local services_file = home .. "/.config/hypr/cachy-services.lua"
+	local sf = io.open(services_file, "r")
+	if sf then
+		sf:close()
+		pcall(dofile, services_file)
+	end
 end)
 
 -- ── window rules ─────────────────────────────────────────────────────────

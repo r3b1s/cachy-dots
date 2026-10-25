@@ -7,13 +7,15 @@
 #   - Arch Linux: adds LizardByte's official pacman repo and installs strictly
 #     from `lizardbyte/sunshine` (no fallbacks).
 #
-# Systemd User Service:
-#   Installs ~/.config/systemd/user/sunshine.service (WantedBy=default.target)
-#   so Sunshine automatically starts upon graphical session login (i3 or Hyprland).
-#   The session's autostart (05-autostart.conf or cachy.lua) updates the
-#   activation environment and runs `systemctl --user try-restart sunshine.service`,
-#   ensuring Sunshine connects to the active session and matches the capture
-#   method (x11 or wlr) configured by cachy-session.
+# Systemd User Service & Session Autostart:
+#   Installs ~/.config/systemd/user/sunshine.service (managed by session autostarts,
+#   without WantedBy so it only starts when a graphical session is up).
+#   Configures graphical autostarts:
+#     - i3: ~/.config/i3/conf.d/06-services.conf
+#     - Hyprland: ~/.config/hypr/cachy-services.lua
+#   Each starts sunshine via `systemctl --user start sunshine.service`.
+#   The capture method (x11 or wlr) in sunshine.conf is updated on session switch
+#   by cachy-session (install/session.sh).
 #
 # Usage: opt/services/sunshine/install.sh [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
@@ -56,13 +58,43 @@ user_service_dst="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/sunshine.servic
 # Removal
 # -----------------------------------------------------------------------------
 if [ "$remove" = 1 ]; then
-    say "Disabling and removing Sunshine systemd user service..."
+    say "Stopping and removing Sunshine systemd user service..."
     if command -v systemctl >/dev/null 2>&1; then
-        run systemctl --user disable --now sunshine.service 2>/dev/null || true
+        run systemctl --user stop sunshine.service 2>/dev/null || true
     fi
     if [ -f "$user_service_dst" ]; then
         run rm -f "$user_service_dst"
-        [ command -v systemctl >/dev/null 2>&1 ] && run systemctl --user daemon-reload 2>/dev/null || true
+        command -v systemctl >/dev/null 2>&1 && run systemctl --user daemon-reload 2>/dev/null || true
+    fi
+
+    # Remove from i3 06-services.conf
+    i3_services="${XDG_CONFIG_HOME:-$HOME/.config}/i3/conf.d/06-services.conf"
+    if [ -f "$i3_services" ] && grep -qF "sunshine.service" "$i3_services"; then
+        say "Removing sunshine autostart from $i3_services..."
+        if [ "$dry" = 1 ]; then
+            echo "+ remove sunshine from $i3_services"
+        else
+            sed -i '/sunshine\.service/d' "$i3_services"
+            if ! grep -qvE '^[[:space:]]*(#.*)?$' "$i3_services"; then
+                rm -f "$i3_services"
+                echo "removed empty $i3_services"
+            fi
+        fi
+    fi
+
+    # Remove from Hyprland cachy-services.lua
+    hypr_services="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/cachy-services.lua"
+    if [ -f "$hypr_services" ] && grep -qF "sunshine.service" "$hypr_services"; then
+        say "Removing sunshine autostart from $hypr_services..."
+        if [ "$dry" = 1 ]; then
+            echo "+ remove sunshine from $hypr_services"
+        else
+            sed -i '/sunshine\.service/d' "$hypr_services"
+            if ! grep -qvE '^[[:space:]]*(--.*)?$' "$hypr_services"; then
+                rm -f "$hypr_services"
+                echo "removed empty $hypr_services"
+            fi
+        fi
     fi
 
     if pacman -Qq sunshine >/dev/null 2>&1; then
@@ -147,7 +179,45 @@ run cp "$SCRIPT_DIR/sunshine.service" "$user_service_dst"
 
 if command -v systemctl >/dev/null 2>&1; then
     run systemctl --user daemon-reload
-    run systemctl --user enable sunshine.service
+fi
+
+# -----------------------------------------------------------------------------
+# Session Autostart Setup (i3 and Hyprland)
+# -----------------------------------------------------------------------------
+say "Configuring graphical session autostarts..."
+# i3 autostart (06-services.conf)
+i3_services="${XDG_CONFIG_HOME:-$HOME/.config}/i3/conf.d/06-services.conf"
+if [ "$dry" = 1 ]; then
+    echo "+ add sunshine to $i3_services"
+else
+    mkdir -p "$(dirname "$i3_services")"
+    if [ ! -f "$i3_services" ]; then
+        cat > "$i3_services" << 'EOF'
+# Opt-in service autostarts (managed by opt/services/*)
+EOF
+    fi
+    if ! grep -qF "sunshine.service" "$i3_services"; then
+        echo "exec --no-startup-id systemctl --user start sunshine.service" >> "$i3_services"
+        echo "added sunshine to $i3_services"
+    fi
+fi
+
+# Hyprland autostart (cachy-services.lua)
+hypr_services="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/cachy-services.lua"
+if [ "$dry" = 1 ]; then
+    echo "+ add sunshine to $hypr_services"
+else
+    mkdir -p "$(dirname "$hypr_services")"
+    if [ ! -f "$hypr_services" ]; then
+        cat > "$hypr_services" << 'EOF'
+-- Opt-in service autostarts (managed by opt/services/*)
+-- Sourced by ~/.config/hypr/cachy.lua during hyprland.start
+EOF
+    fi
+    if ! grep -qF "sunshine.service" "$hypr_services"; then
+        echo 'hl.exec_cmd("systemctl --user start sunshine.service")' >> "$hypr_services"
+        echo "added sunshine to $hypr_services"
+    fi
 fi
 
 # -----------------------------------------------------------------------------

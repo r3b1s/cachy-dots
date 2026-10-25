@@ -56,8 +56,8 @@ session_links() {
             done
             ;;
         hyprland)
-            # dux owns hyprland.lua and the rest of hypr/dms/; these two are ours.
-            printf '%s\t%s\n' "$REPO/hypr/cachy.lua" "$cfg/hypr/cachy.lua"
+            # dux owns hyprland.lua and the rest of hypr/dms/; binds-user is ours.
+            # hypr/cachy.lua is a per-host copy (import_cachy_lua), not linked.
             printf '%s\t%s\n' "$REPO/hypr/dms/binds-user.lua" "$cfg/hypr/dms/binds-user.lua"
             # Read only when XDG_CURRENT_DESKTOP is Hyprland: folders open in Dux Files.
             printf '%s\t%s\n' "$REPO/hypr/hyprland-mimeapps.list" "$cfg/hyprland-mimeapps.list"
@@ -79,6 +79,28 @@ unlink_session() {
     done < <(session_links "$1")
 }
 
+# cachy.lua holds Hyprland environment, submaps, and autostart. It is per host,
+# so it is copied from hypr/cachy.lua once and left alone (not symlinked):
+# neither install.sh nor sync.sh overwrites it, and a host can edit its startup
+# without touching the repo.
+import_cachy_lua() {
+    local dst="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/cachy.lua"
+    local src="$REPO/hypr/cachy.lua"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+        run rm "$dst"
+        if [ "$dry" = 1 ]; then
+            echo "+ install -m 644 $src $dst"
+            return 0
+        fi
+    fi
+    if [ -e "$dst" ] || [ -L "$dst" ]; then
+        return 0
+    fi
+    run mkdir -p "$(dirname "$dst")"
+    run install -m 644 "$src" "$dst"
+    echo "copied $src -> $dst (this host's hypr/cachy.lua; edit it there)"
+}
+
 link_session() {
     local src dst
     if [ "$1" = i3 ]; then
@@ -96,6 +118,7 @@ link_session() {
         link "$src" "$dst"
     done < <(session_links "$1")
     [ "$1" = i3 ] && import_monitors_conf
+    [ "$1" = hyprland ] && import_cachy_lua
     return 0
 }
 
@@ -248,8 +271,8 @@ MATUGEN_DROPIN_MARK="# cachy-dots: written by install/session.sh (cachy-session)
 # wlr-screencopy protocol, is what Hyprland offers. The rest of the file (the
 # display, the GPU, the encoder, what its web UI saved) belongs to the host and
 # is left alone. Only when Sunshine is installed or already has a config. A
-# running Sunshine keeps its method until it restarts, which each session does
-# at login (try-restart in i3's 05-autostart.conf and hypr/cachy.lua).
+# running Sunshine keeps its method until restarted; opt-in service autostarts
+# start it at session login (06-services.conf under i3, cachy-services.lua under Hyprland).
 point_sunshine() {
     local conf="${XDG_CONFIG_HOME:-$HOME/.config}/sunshine/sunshine.conf" want=x11 tmp
     [ "$1" = hyprland ] && want=wlr

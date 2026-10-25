@@ -9,5 +9,3 @@ Restart=on-failure
 RestartSec=3s
 Slice=app.slice
 
-[Install]
-WantedBy=default.target

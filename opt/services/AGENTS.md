@@ -25,10 +25,15 @@ opt/services/
     * System unit installed to `/etc/systemd/system/<service>.service`
     * Dedicated unprivileged user configured via `/etc/sysusers.d/<service>.conf`
     * Device nodes/permissions configured via `/etc/udev/rules.d/`
-  * **User services** (e.g., Paseo) run under the user's session (`systemctl --user`):
+  * **User services** (e.g., Paseo, Sunshine) run under the user's session (`systemctl --user`):
     * User unit installed to `~/.config/systemd/user/<service>.service`
     * Environment variables configured via unit `Environment=` directives
     * Managed without sudo
+* **Modular Session Autostart Pattern:**
+  * To avoid poluting base repository dotfiles (`hypr/cachy.lua` and `i3/conf.d/05-autostart.conf`) with autostarts for opt-in services, each graphical session provides a per-host modular hook:
+    * **Hyprland**: `~/.config/hypr/cachy.lua` (copied once per host via `import_cachy_lua`) dynamically checks for and loads `~/.config/hypr/cachy-services.lua` during `hyprland.start`. Service scripts add `hl.exec_cmd("systemctl --user start <service>.service")`.
+    * **i3**: `~/.config/i3/config` includes `conf.d/*.conf`. Service scripts add `exec --no-startup-id systemctl --user start <service>.service` to `~/.config/i3/conf.d/06-services.conf`.
+  * Services that require a running graphical display server (e.g. Sunshine) omit `WantedBy=default.target` from their systemd service file so they never start on headless/TTY/SSH logins. Instead, they are started by these session autostart hooks. Systemd's `Restart=on-failure` monitors and restarts the service if it crashes during the session.
 * **Clean Uninstallation:** Every script should support `--remove` to disable/stop the service, remove the unit file, and delete system configuration files.
 * **Dry-Run Support:** Scripts support `-n|--dry-run` and `-h|--help`.
 
@@ -52,5 +57,5 @@ Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`)
 * Package source:
   * CachyOS: strictly `cachyos/sunshine` (no fallbacks)
   * Arch Linux: strictly `lizardbyte/sunshine` via LizardByte's official pacman repo (`https://github.com/LizardByte/pacman-repo/releases/latest/download`) (no fallbacks)
-* Unit: Systemd user service (`~/.config/systemd/user/sunshine.service`, `WantedBy=default.target`)
-* Lifecycle: Starts at graphical/user login. When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland) and session autostart runs `systemctl --user try-restart sunshine.service` to re-bind to the active session.
+* Unit: Systemd user service (`~/.config/systemd/user/sunshine.service`, targetless / no `WantedBy=default.target` to avoid premature headless crashes)
+* Lifecycle: Started by graphical session hooks (`06-services.conf` in i3, `cachy-services.lua` in Hyprland) via `systemctl --user start sunshine.service`. Supervised by systemd (`Restart=on-failure`). When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland).

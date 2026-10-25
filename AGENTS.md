@@ -221,9 +221,10 @@ inactive one gives a degraded session, not a broken one.
   `windowrules.lua` is dux's own seed. Read from dux's source (v2.0.0): `deployHyprlandDmsConfigs` writes each
   `hypr/dms/*.lua` only when it is missing or empty, except `binds.lua`, which it always replaces. The merge was
   run on a scratch copy; **not run on a fresh host**.
-- **What the repo adds** are three Hyprland-owned links, `hypr/dms/binds-user.lua`, `hypr/cachy.lua` and
-  `hypr/hyprland-mimeapps.list`, and one line `cachy-session` appends to dux's `hyprland.lua`, after dux's own
-  requires: `require("cachy")`.
+- **What the repo adds** are two Hyprland-owned links (`hypr/dms/binds-user.lua` and
+  `hypr/hyprland-mimeapps.list`), a per-host copy of `hypr/cachy.lua` (`import_cachy_lua` in `install/session.sh`,
+  not linked, so host-specific startups can be configured without dirtying the repo), and one line `cachy-session`
+  appends to dux's `hyprland.lua`, after dux's own requires: `require("cachy")`.
 - **Keybinds: the i3 meanings win.** `binds-user.lua` is dux's override file, loaded after its stock
   `dms/binds.lua`. Every dux chord whose i3 meaning has a Hyprland port is an `hl.unbind` + `hl.bind` pair to that
   meaning: `$mod+d` dictation, `$mod+w` close, `$mod+Shift+e` yazi (dux's stock chord exits Hyprland with no
@@ -290,7 +291,8 @@ inactive one gives a degraded session, not a broken one.
   X sessions only): `~/.local/bin` on PATH, `XDG_SESSION_TYPE=wayland`, the telemetry opt-outs from
   `environment.d`. The startup programs, whose own units hang off `graphical-session.target`, which this session
   does not reach: voxtype's daemon, `dfiles run --session --hidden`, `dcal run --session --hidden`,
-  `dsearch serve`. The submaps: `passthru` (`$mod+Delete`, Delete leaves), `gaps` (`$mod+Ctrl+g`; h/l and j/k
+  `dsearch serve`, and sourcing `~/.config/hypr/cachy-services.lua` if present for opt-in services (`opt/services/*`).
+  The submaps: `passthru` (`$mod+Delete`, Delete leaves), `gaps` (`$mod+Ctrl+g`; h/l and j/k
   the outer gaps by 20, arrows the inner by 2, Escape leaves; a reload restores dux's values) and
   `dictate_suppress` (see "Voxtype").
 - **Apps that belong to a workspace.** `ws-app` launches one only into an empty workspace, and its launch rule
@@ -369,13 +371,14 @@ inactive one gives a degraded session, not a broken one.
   initialize capture method`, then `Unable to find display or encoder during startup`), which is what a
   Moonlight client then runs into: hit on the workstation. `wlr` is wlr-screencopy, named for Hyprland in
   Sunshine's docs; `kms` also finds the display on arch0 but warns that the cursor may not show, and `auto`
-  picks `wlr` there. A running Sunshine keeps its method until it restarts, so each session ends its login
-  commands with `systemctl --user try-restart sunshine.service` (i3's `05-autostart.conf`, `hypr/cachy.lua`; a
-  no-op when it is not running). `opt/services/sunshine/install.sh` installs `sunshine.service` with
-  `WantedBy=default.target` so Sunshine starts automatically upon login (neither session reaches
-  `graphical-session.target`). Checked on arch0: x11 fails as above, wlr and kms find the display and
-  libx264, the key flips both ways and keeps the rest, and `try-restart` restarts a running service and leaves
-  a stopped one. **Not checked:** the workstation's AMD VA-API encode through `wlr`, a Moonlight client, and
+  picks `wlr` there. A running Sunshine keeps its method until it restarts.
+  Sunshine's service (`opt/services/sunshine/sunshine.service`) is targetless (no `WantedBy=default.target`),
+  preventing early crashes on headless or TTY logins where no display server is present. Instead, it is started
+  at graphical session login via the modular session autostart hooks: `06-services.conf` under i3 and
+  `cachy-services.lua` under Hyprland, both using `systemctl --user start sunshine.service`. Once started,
+  systemd's `Restart=on-failure` supervises and restarts Sunshine if it crashes.
+  Checked on arch0: x11 fails as above, wlr and kms find the display and
+  libx264, the key flips both ways and keeps the rest. **Not checked:** the workstation's AMD VA-API encode through `wlr`, a Moonlight client, and
   `apps.json`: "Low Res Desktop" runs `xrandr --output DP-0`, which is X11 only (and DP-0 is an NVIDIA name; the
   connector is DP-3).
 - **The user manager outlives a logout** by a few seconds (indefinitely with another session open), with the
