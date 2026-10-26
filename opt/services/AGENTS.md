@@ -51,6 +51,11 @@ Supervisor daemon and web UI for AI coding agent environments (`opt/services/pas
 * CLI: `@getpaseo/cli` installed via `mise` (`npm` backend)
 * Unit: Systemd user service (`~/.config/systemd/user/paseo.service`)
 * Features: Foreground runner mode, local web UI on port 6767, remote relay disabled by default
+* Desktop app: `appimage.sh` installs the latest release's `Paseo-x86_64.AppImage` (checked against the sha256
+  GitHub publishes) through `bin/install-appimage`, renamed `Paseo-<version>-x86_64.AppImage`: upstream's name has
+  no version, from which `install-appimage` would make "Paseo x86 64". It then rewrites `paseo.desktop` from the
+  entry inside the AppImage (hicolor icons, `--class`, `StartupWMClass`, the `paseo://` handler) and removes the
+  Paseo AppImages it replaces, with their entries. Starting it needs `fuse2` (`libfuse.so.2`).
 
 ### 3. `sunshine/`
 Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`).
