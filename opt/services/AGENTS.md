@@ -59,3 +59,32 @@ Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`)
   * Arch Linux: strictly `lizardbyte/sunshine` via LizardByte's official pacman repo (`https://github.com/LizardByte/pacman-repo/releases/latest/download`) (no fallbacks)
 * Unit: Systemd user service (`~/.config/systemd/user/sunshine.service`, targetless / no `WantedBy=default.target` to avoid premature headless crashes)
 * Lifecycle: Started by graphical session hooks (`06-services.conf` in i3, `cachy-services.lua` in Hyprland) via `systemctl --user start sunshine.service`. Supervised by systemd (`Restart=on-failure`). When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland).
+
+### 4. `rakazo/`
+[Rakazo](https://github.com/elie222/rakazo) in an Arch Linux VM of its own (`opt/services/rakazo/`). The
+scripts' headers have the details; this is what they cannot show.
+* **Two steps, one root.** `host-setup.sh` is the only part that needs root, run once (the pattern hitkit
+  uses): the libvirt network `rakazo` (bridge `rakazo0`, `10.41.41.0/30`, the host `.1`, one static DHCP lease
+  `.2` for the VM's MAC), `allow rakazo0` in a managed block of `/etc/qemu/bridge.conf`, `rakazo-guard.service`,
+  the ufw rules, `virtnetworkd.service` enabled and lingering. `install.sh` runs as the user: the VM lives in
+  `qemu:///session` (a QEMU escape lands in the user's account, not root's), plugged into the bridge by the
+  setuid `qemu-bridge-helper`. Note that a user in the `libvirt` group is root-equivalent anyway.
+* **Network calls use `network:///system`.** `qemu:///system` goes through `virtqemud`, which a host with
+  only the network daemon does not run.
+* **The guard** is an nftables table of its own (`inet cachy_rakazo`), so it holds with ufw off: from `rakazo0`
+  the host takes DHCP and DNS and nothing else, forwarding goes to public IPv4 only, and nothing opens a
+  connection into the bridge. `install.sh` refuses to start the VM without it.
+* **Access** is the host's: `rakazo-web.socket` (user unit, `FreeBind=yes` so it binds before NetBird is up)
+  listens on `127.0.0.1:15173` and wt0's address and hands off to `systemd-socket-proxyd`, which forwards to
+  the VM's port 5173. ufw opens the port on `wt0` only. Port 5173 on the host is Vite's.
+* **One origin.** Rakazo takes a single `WEB_ORIGIN`/`BETTER_AUTH_URL`, and Better Auth refuses a sign-in
+  from any other, so the origin is the NetBird address, also on the host. Re-run `install.sh` when it changes.
+* **The release** is the newest `vX.Y.Z` that GHCR has for both `app` and `computer`; GitHub's releases are the
+  desktop app's and can be ahead of the images. The compose files come from the same git tag, not `main`.
+* **The guest** (`guest.sh`, piped over SSH as one `main` so nothing eats the rest of it from stdin): rootful
+  Docker, because upstream's bot-computer egress rules need the `DOCKER-USER` chain (rootless forces
+  `SANDBOX_COMPUTER_EGRESS=open`). Bot DNS goes to Quad9 (9.9.9.9, then 149.112.112.112), because the VM's
+  resolver is the host's dnsmasq, a private address those rules drop. The secrets stay in the VM's
+  `/home/rakazo/rakazo/.env`.
+* **Signups** are open on a fresh install; `install.sh --close-signups` sets `SIGNUPS_ENABLED=false` once your
+  account exists. Upstream reads it on every start.

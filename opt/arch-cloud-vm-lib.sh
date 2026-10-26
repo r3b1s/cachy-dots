@@ -11,6 +11,8 @@
 #   acv_check         validates, finds libvirt, opens the lab firewall
 #   acv_image         replaces an existing VM, fetches and verifies the image,
 #                     makes the overlay
+#   acv_fetch_image   only the fetch and check, into $CACHE (also used by
+#                     opt/services/rakazo); sets ACV_IMAGE and ACV_SHA
 #   acv_credentials   the SSH key (imported or generated) and the password
 #   acv_seed          the cloud-init seed; ACV_USERDATA_EXTRA is appended to the
 #                     user-data (more top-level cloud-config keys)
@@ -122,19 +124,9 @@ acv_check() {
 
 vsys() { $SUDO virsh -c qemu:///system "$@"; }
 
-acv_image() {
-    # ── an existing VM of this name ────────────────────────────────────────
-    if vsys dominfo "$NAME" >/dev/null 2>&1; then
-        [ "$REPLACE" = 1 ] || die "domain $NAME exists; remove it or pass --replace"
-        say "Replacing $NAME"
-        [ "$(vsys domstate "$NAME")" = "shut off" ] || vsys destroy "$NAME" >/dev/null
-        vsys undefine "$NAME" --nvram >/dev/null
-        $SUDO rm -f "$OVERLAY" "$SEED"
-    elif $SUDO test -e "$OVERLAY"; then
-        die "$OVERLAY exists without a domain; remove it or pick another --name"
-    fi
-
-    # ── the image, verified ────────────────────────────────────────────────
+# ── the image, verified ────────────────────────────────────────────────
+# The latest image in $CACHE, checked against its SHA256 and the arch-boxes key.
+acv_fetch_image() {
     say "Fetching the image checksum"
     curl -fsSL -o "$CACHE/$IMG.SHA256" "$BASE_URL/$IMG.SHA256"
     local latest progress gh keyfile status
@@ -163,11 +155,28 @@ acv_image() {
         mv "$tmp" "$image"
         trap - EXIT
     fi
+    ACV_IMAGE=$image
+    ACV_SHA=$latest
+}
 
-    local base="$POOL/arch-cloud-base-${latest:0:12}.qcow2"
+acv_image() {
+    # ── an existing VM of this name ────────────────────────────────────────
+    if vsys dominfo "$NAME" >/dev/null 2>&1; then
+        [ "$REPLACE" = 1 ] || die "domain $NAME exists; remove it or pass --replace"
+        say "Replacing $NAME"
+        [ "$(vsys domstate "$NAME")" = "shut off" ] || vsys destroy "$NAME" >/dev/null
+        vsys undefine "$NAME" --nvram >/dev/null
+        $SUDO rm -f "$OVERLAY" "$SEED"
+    elif $SUDO test -e "$OVERLAY"; then
+        die "$OVERLAY exists without a domain; remove it or pick another --name"
+    fi
+
+    acv_fetch_image
+
+    local base="$POOL/arch-cloud-base-${ACV_SHA:0:12}.qcow2"
     if ! $SUDO test -e "$base"; then
         say "Installing the base image in $POOL"
-        $SUDO install -m 0644 "$image" "$base"
+        $SUDO install -m 0644 "$ACV_IMAGE" "$base"
     fi
 
     # ── the overlay disk ───────────────────────────────────────────────────
