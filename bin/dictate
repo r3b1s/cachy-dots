@@ -1,14 +1,27 @@
 #!/bin/sh
-# dictate toggle | pre | paste
+# dictate daemon | toggle | pre | paste
 #
+# voxtype is opt-in: opt/services/voxtype/install.sh installs it.
+#
+#   daemon  start voxtype's daemon for this session. Run at login by the session
+#           hooks the installer writes (06-services.conf, cachy-services.lua), not
+#           by voxtype.service, which hangs off graphical-session.target, and
+#           neither session reaches it. A daemon left by the other session
+#           carries that session's environment, so it is stopped first, and the
+#           new one starts only once it has gone: voxtype holds a lock until it
+#           exits, and refuses to start while another holds it. It then waits
+#           for WirePlumber's default sink (up to 5 s): voxtype opens its sound
+#           output once, at start, and opened before there is a sink, PipeWire's
+#           ALSA plugin negotiates the stream at 1 Hz, so the start and stop
+#           sounds are never heard.
 #   toggle  start or stop a dictation (`voxtype record toggle`), silently: voxtype's
 #           own sounds mark the start and the end (its notifications are off in
-#           voxtype/config.toml too). $mod+d in both sessions.
-#   pre     voxtype's pre_output_command (voxtype/config.toml). Under Hyprland it
-#           enters the dictate_suppress submap (hypr/cachy.lua), which swallows
-#           the modifier keys while the text is pasted, since wtype cannot clear
-#           physically held ones the way xdotool --clearmodifiers does. Delete
-#           leaves the submap by hand. Nothing to do on X11.
+#           opt/services/voxtype/config.toml too). $mod+d in both sessions.
+#   pre     voxtype's pre_output_command (opt/services/voxtype/config.toml). Under
+#           Hyprland it enters the dictate_suppress submap (hypr/cachy.lua), which
+#           swallows the modifier keys while the text is pasted, since wtype
+#           cannot clear physically held ones the way xdotool --clearmodifiers
+#           does. Delete leaves the submap by hand. Nothing to do on X11.
 #   paste   voxtype's post_output_command. The text is already in the CLIPBOARD
 #           (voxtype's wl-copy or xclip driver); copy it to PRIMARY as well, since
 #           terminals paste one and GTK the other, and send Shift+Insert, which
@@ -20,8 +33,26 @@ wayland=false
 [ "${XDG_SESSION_TYPE:-}" = wayland ] && wayland=true
 
 case "${1:-}" in
+    daemon)
+        command -v voxtype >/dev/null || exit 0
+        uid=$(id -u)
+        if pkill -x -u "$uid" voxtype; then
+            i=0
+            while pgrep -x -u "$uid" voxtype >/dev/null; do
+                [ "$i" -lt 50 ] || { pkill -KILL -x -u "$uid" voxtype || true; sleep 0.2; break; }
+                sleep 0.1; i=$((i + 1))
+            done
+        fi
+        if command -v wpctl >/dev/null; then
+            i=0
+            until wpctl get-volume @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1 || [ "$i" -ge 50 ]; do
+                sleep 0.1; i=$((i + 1))
+            done
+        fi
+        exec voxtype -q daemon
+        ;;
     toggle)
-        command -v voxtype >/dev/null || { dunstify -a dictate -u critical "voxtype is not installed"; exit 1; }
+        command -v voxtype >/dev/null || { dunstify -a dictate -u critical "voxtype is not installed (opt/services/voxtype/install.sh)"; exit 1; }
         exec voxtype record toggle
         ;;
     pre)
@@ -46,5 +77,5 @@ case "${1:-}" in
             | xclip -selection primary -i >/dev/null 2>&1 || true
         exec xdotool key --clearmodifiers shift+Insert
         ;;
-    *) echo "usage: dictate toggle|pre|paste" >&2; exit 1 ;;
+    *) echo "usage: dictate daemon|toggle|pre|paste" >&2; exit 1 ;;
 esac

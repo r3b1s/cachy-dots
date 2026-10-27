@@ -13,8 +13,9 @@
 #      the GTK settings, the managed ~/.bashrc block
 #   3. re-renders the current theme (templates, the files rendered from them)
 #   4. re-applies the default apps, keeping the browser chosen in the menu
-#   5. validates the active session's config (i3 or Hyprland), and lists packages
-#      the repo wants that are missing
+#   5. validates the active session's config (i3 or Hyprland), lists packages
+#      the repo wants that are missing, and warns when voxtype is installed
+#      without the hooks and config link opt/services/voxtype/install.sh makes
 #
 # The links and colours of the active session (bin/cachy-session) are re-applied
 # too; x11-theme's re-render is skipped while Hyprland is active (dux themes it).
@@ -37,7 +38,7 @@ for arg in "$@"; do
         -n|--dry-run) dry=1 ;;
         --no-root)    root=0 ;;
         --themes)     themes=1 ;;
-        -h|--help)    sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)    sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -66,7 +67,7 @@ prune_dangling() {
 report_missing_packages() {
     command -v pacman >/dev/null || return 0
     local p entry c have missing=()
-    for p in "${PKGS[@]}" "${AUR_PKGS[@]}"; do
+    for p in "${PKGS[@]}"; do
         pacman -Qq "$p" >/dev/null 2>&1 || missing+=("$p")
     done
     for entry in "${PINNED[@]}"; do
@@ -77,6 +78,21 @@ report_missing_packages() {
     if [ "${#missing[@]}" -gt 0 ]; then
         warn "packages the repo wants that are not installed: ${missing[*]}"
         warn "run ./install.sh to install them"
+    fi
+}
+
+# voxtype is opt-in (opt/services/voxtype). A host that has it from an older
+# install.sh has no session hook to start its daemon, or an older one, and its
+# config link points where the config no longer is (prune_dangling removed it).
+report_voxtype() {
+    command -v voxtype >/dev/null || return 0
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}" f
+    for f in "$cfg/i3/conf.d/06-services.conf" "$cfg/hypr/cachy-services.lua"; do
+        grep -qsF 'dictate daemon' "$f" && continue
+        warn "voxtype is installed, but $f does not start it: run opt/services/voxtype/install.sh"
+    done
+    if [ "$(readlink "$cfg/voxtype/config.toml" 2>/dev/null)" != "$REPO/opt/services/voxtype/config.toml" ]; then
+        warn "voxtype is installed, but $cfg/voxtype/config.toml is not linked: run opt/services/voxtype/install.sh"
     fi
 }
 
@@ -120,6 +136,7 @@ fi
 setup_default_apps
 validate_session
 report_missing_packages
+report_voxtype
 
 echo
 if [ "$FAILED" = 1 ]; then

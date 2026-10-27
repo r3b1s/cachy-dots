@@ -78,10 +78,4 @@ apply_profile() {
         [ "$skip" = 1 ] || keep+=("$entry")
     done
     PINNED=("${keep[@]}")
-
-    keep=()
-    for p in "${AUR_PKGS[@]}"; do
-        in_list "$p" ${PROFILE_SKIP_AUR[@]+"${PROFILE_SKIP_AUR[@]}"} || keep+=("$p")
-    done
-    AUR_PKGS=(${keep[@]+"${keep[@]}"})
 }

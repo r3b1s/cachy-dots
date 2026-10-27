@@ -1,12 +1,12 @@
 # Voxtype Configuration
 #
 # Used by both sessions, i3 and Hyprland. Linked to
-# ~/.config/voxtype/config.toml by install.sh; `voxtype setup model` edits it in
-# place, so those changes show up in the repo.
+# ~/.config/voxtype/config.toml by install.sh in this folder; `voxtype setup model`
+# edits it in place, so those changes show up in the repo.
 #
 # Dictation: $mod+d (i3/conf.d/30-apps.conf, hypr/dms/binds-user.lua) runs
-# bin/dictate toggle. The daemon is started by the session (i3's 05-autostart.conf,
-# hypr/cachy.lua), not by voxtype.service, which hangs off graphical-session.target,
+# bin/dictate toggle. The daemon is started at login by `dictate daemon` (see
+# bin/dictate), not by voxtype.service, which hangs off graphical-session.target,
 # and neither session reaches it.
 #
 # Location: ~/.config/voxtype/config.toml

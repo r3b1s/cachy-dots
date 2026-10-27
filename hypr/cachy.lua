@@ -47,10 +47,6 @@ hl.on("hyprland.start", function()
 	-- with --all), and stop the portals so the next request starts them with this
 	-- session's environment and portal config.
 	hl.exec_cmd("systemctl --user unset-environment DISPLAY XAUTHORITY; dbus-update-activation-environment --systemd --all; systemctl --user stop xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-hyprland.service")
-	-- Dictation (bin/dictate). voxtype.service hangs off
-	-- graphical-session.target, which this session does not reach. A daemon left
-	-- by an i3 session outlives it, with i3's environment, so it is replaced.
-	hl.exec_cmd('command -v voxtype >/dev/null || exit 0; pkill -x -u "$(id -u)" voxtype && sleep 1; exec voxtype -q daemon')
 	-- dux's apps (opt/hyprland.sh), as their own units would start them, for the
 	-- same reason: Dux Files hidden in the tray, so $mod+e opens a window at
 	-- once; Dux Calendar, which syncs and reminds, and feeds dux's dash; Dux

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cachy-dots installer, vm profile: a lean desktop for a throwaway guest. The same
 # steps as install.sh, minus what a VM has no use for (Vesktop, rclone, bluetooth,
-# backlight and power profiles, voxtype, the touchpad config...). The list is
+# backlight and power profiles, the touchpad config...). The list is
 # install/profile-vm.sh, and only that.
 #
 # Meant for a VM: the guest agents (spice-vdagent, qemu-guest-agent) go in

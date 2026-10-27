@@ -375,7 +375,7 @@ mask_units() {
 }
 
 # The one line cachy-dots adds to dux's hyprland.lua: it loads hypr/cachy.lua
-# (submaps, the session environment, voxtype's daemon) after dux's own modules.
+# (submaps, the session environment, the startup programs) after dux's own modules.
 # Re-added if a `dms setup` that replaced hyprland.lua dropped it.
 CACHY_REQUIRE='require("cachy") -- cachy-dots: hypr/cachy.lua (added by cachy-session)'
 

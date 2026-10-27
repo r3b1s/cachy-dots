@@ -61,7 +61,7 @@ PKGS+=(
     rclone                           # cloud storage sync
     obsidian                         # notes
     thunderbird                      # mail; the `equal` workspace ($mod+=)
-    base-devel                       # makepkg and the toolchain, for yay and AUR builds
+    base-devel                       # makepkg and the toolchain, for yay's AUR builds
 )
 
 # Desktop tools for daily use (not just disposable VMs).
@@ -152,15 +152,3 @@ PINNED=(
 # Plain package each pinned one conflicts with: the plain one is removed first
 # when the pin is chosen (--noconfirm would answer the conflict prompt with No).
 PINNED_REPLACES=(qutebrowser:qutebrowser-git i3lock:i3lock-color vesktop:vesktop-bin)
-
-# AUR packages: the few that no pacman repo carries. A repo build always wins:
-# when pacman can see the package in an enabled repo (Cachy, Arch, chaotic-aur)
-# it is installed from there like any other; yay builds it only otherwise.
-#   voxtype-bin  push-to-talk dictation (voxtype/, bin/dictate). The AUR
-#                package is kept by voxtype's own authors.
-# makepkg refuses to run as root, so yay runs as the invoking user (yay itself
-# is pinned above and installed first).
-AUR_PKGS=(voxtype-bin)
-# Signing keys the AUR packages above verify their sources with (from their
-# PKGBUILDs: validpgpkeys), imported best effort before the build.
-AUR_KEYS=(E79F5BAF8CD51A806AA27DBB7DA2709247D75BC6 9CCF7915B750CAE8B095ED1AA3FC9F33FD209279)

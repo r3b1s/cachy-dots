@@ -73,17 +73,17 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
   `pacman.conf`, so it can never shadow a Cachy or Arch build. It is the only source of `qutebrowser-git` and
   `yaru-icon-theme`, and the fallback for `yay`, `i3lock-color` and `vesktop`. The opt-in `blesh-git` and
   `kanata` come from it too.
-- **The AUR is used for `voxtype-bin` only** (`AUR_PKGS`). `install_aur()` takes it from a pacman repo when one
-  has it, and otherwise builds it with `yay` as the invoking user (makepkg refuses root). `bin/default-browser`
-  installs `brave-origin-bin` on demand: `cachyos/` when a Cachy repo has it, else the AUR.
+- **The installer takes nothing from the AUR.** `yay` is there for the opt-ins that do:
+  `opt/services/voxtype/install.sh` builds `voxtype-bin` as the invoking user (makepkg refuses root), and
+  `bin/default-browser` installs `brave-origin-bin` on demand: `cachyos/` when a Cachy repo has it, else the AUR.
 - **Other repos are opt-in and also go last:** Omarchy's (`opt/omarchy-repo.sh`; take its packages by qualified
   name, since some share a name with Arch's or chaotic-aur's), and on vanilla Arch LizardByte's for Sunshine
   (`opt/services/sunshine/install.sh`, `SigLevel = Optional`).
 - **Never `-S` against a stale database.** A fresh repo, or anything missing, triggers a full `pacman -Syu`
   first; `-Sy` followed by `-S` is a partial upgrade. Every pacman transaction also takes a snapper snapshot
   pair on CachyOS (`cachyos-snapper-support`), so the installer batches: one `-U` for the chaotic keyring and
-  mirrorlist, the `-Syu`, then one `-S` for everything missing, pins included. Only an AUR build or a Qt
-  fix-up adds another.
+  mirrorlist, the `-Syu`, then one `-S` for everything missing, pins included. Only a Qt fix-up adds
+  another.
 - **Qt.** Cachy can lag Arch on a Qt minor, and every `qt6-*` module must match `qt6-base`'s minor (they link
   its versioned private API). `sync_qt_stack()` runs after every install and takes lagging modules from `extra`;
   `install/pacman.sh` explains the rule. A Qt app installed by hand while Cachy is mid-rebuild can pull a stale
@@ -94,7 +94,7 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
 - **Flow.** `install.sh`/`install_vm.sh` set `PROFILE`, source `install/lib.sh` and run `install_main`
   (`install/flow.sh`, the steps in order). Flags: `--packages-only`, `--links-only`, `-n`.
 - **Profiles.** The lists in `packages.sh` stay complete; `install/profile-<name>.sh` names what a profile leaves
-  out (`PROFILE_SKIP_PKGS`, `PROFILE_SKIP_PINNED`, `PROFILE_SKIP_AUR`, and `PROFILE_SKIP_FEATURES`, checked with
+  out (`PROFILE_SKIP_PKGS`, `PROFILE_SKIP_PINNED`, and `PROFILE_SKIP_FEATURES`, checked with
   `want <feature>`), and `apply_profile()` removes it. The workstation skips only `vm-scripts`. The vm profile's
   list lives in `profile-vm.sh` alone; it also forces the guest agents (`PROFILE_FORCE_VM`) and sets
   `PROFILE_NO_SLEEP` (`setup_no_sleep()`: a logind drop-in, masked sleep targets, X without blanking). Each run
@@ -105,8 +105,8 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
   VM); sets up nix (`nix-daemon.socket` and `.service`, the `nix-users` group, a managed block of `extra-*`
   settings in `nix.conf`, no channels); writes `TERMINAL=alacritty` into `/etc/environment`; sets ufw to deny
   incoming (SSH rate-limited first when sshd is enabled); copies the touchpad and policy files; installs the
-  theme helper; writes the GTK settings and dark mode; applies a theme; sets the default apps; fetches voxtype's
-  model; and validates the active session's config.
+  theme helper; writes the GTK settings and dark mode; applies a theme; sets the default apps; and validates
+  the active session's config.
 - **sshd is not touched.** `setup_ssh()` scaffolds `~/.ssh`, an empty `authorized_keys` and a managed
   `~/.ssh/config` block for github.com and gitlab.com, appended only when neither host has an entry yet. The
   hardened drop-in `ssh/sshd_config.d/10-cachy-safe.conf` is copied by hand; it turns password logins off, so a
@@ -114,7 +114,7 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
 - **`sync.sh`** installs nothing, enables nothing and stays off the network (unless `--themes`). It makes the
   links, applies the session, removes dangling links into the repo, writes the root copies when they differ
   (`--no-root` skips them), re-renders the theme (i3 only), re-applies the default apps, validates, and lists
-  missing packages. Services, the firewall and AUR builds stay `install.sh`'s job.
+  missing packages. Services and the firewall stay `install.sh`'s job.
 - **A kernel upgraded during the run** leaves the running kernel without modules: ufw cannot load until a reboot,
   so `setup_firewall` warns instead of stopping and the run ends with "reboot needed".
 
@@ -155,7 +155,7 @@ not "Hyprland (uwsm-managed)": uwsm is not installed.
   nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
 - **`hypr/cachy.lua`** holds what dux's editor would drop: the session environment (`~/.local/bin` on PATH,
   `XDG_SESSION_TYPE=wayland`, the telemetry opt-outs); the startup programs, whose own units hang off
-  `graphical-session.target`, which this session never reaches (voxtype, `dfiles`, `dcal`, `dsearch`, and
+  `graphical-session.target`, which this session never reaches (`dfiles`, `dcal`, `dsearch`, and
   `~/.config/hypr/cachy-services.lua` for opt-in services); the window rules; and the `passthru`, `gaps` and
   `dictate_suppress` submaps.
 - **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a
@@ -199,7 +199,8 @@ not "Hyprland (uwsm-managed)": uwsm is not installed.
   Sunshine fails at start. A running Sunshine keeps its method until it restarts. The service itself is in
   [opt/services/AGENTS.md](opt/services/AGENTS.md).
 - **Daemons that outlive a session** (voxtype is no X client) are replaced at login (`pkill -x`), since they
-  would carry the other session's environment.
+  would carry the other session's environment. The new one starts only once the old one has exited: voxtype
+  holds a lock until then (`dictate daemon`).
 
 ## i3
 
@@ -323,10 +324,14 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
   Hyprland), applied live by `omarchy-theme-hotreload.lua`. `lua/config/clipboard.lua` uses xclip, plus OSC 52
   under tmux or SSH. Markdown code fences stay visible. `colors/pinkrot.lua` is only what lazy shows while
   installing.
-- **Voxtype** (push-to-talk, `$mod+d` -> `bin/dictate toggle`): `voxtype/config.toml` is linked, and `voxtype setup
-  model` edits it in place. The daemon is started by each session, not `voxtype.service`, which hangs off
-  `graphical-session.target`. Output is `mode = "clipboard"`; `post_output_command` (`dictate paste`) copies to
-  PRIMARY and sends Shift+Insert. The built-in hotkey is off, so the `input` group is not needed.
+- **Voxtype** (push-to-talk, `$mod+d` -> `bin/dictate toggle`) is opt-in: `opt/services/voxtype/install.sh`
+  (`voxtype-bin` is AUR-only). It links its `config.toml`, which `voxtype setup model` edits in place. The
+  daemon is started by `dictate daemon` from each session's per-host hook (`06-services.conf` under i3,
+  `cachy-services.lua` under Hyprland), not `voxtype.service`, which hangs off `graphical-session.target`. It
+  waits for WirePlumber's default sink: voxtype opens its sound output once, at start, and one opened before
+  the sink exists is negotiated at 1 Hz, which plays no sound. Output is `mode = "clipboard"`;
+  `post_output_command` (`dictate paste`) copies to PRIMARY and sends Shift+Insert. The built-in hotkey is off,
+  so the `input` group is not needed. `bin/dictate` and the binds stay in every install.
 - **Shell.** A managed `~/.bashrc` block sources `shell/init.sh`: PATH, telemetry, then `aliases` and
   `integrations` (mise with `set +h`, so bash does not cache paths ahead of its shims; starship wraps an existing
   `PROMPT_COMMAND`; zoxide, fzf). Definitions are guarded by `command -v`. ble.sh is opt-in (`opt/blesh.sh`) and
@@ -347,7 +352,7 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   `default` storage pool; `qemu:///session` needs no setup. The `libvirt` group is root-equivalent. `opt/lab-firewall.sh` adds the ufw rules `labbr0` needs, and only while ufw is
   active; re-run it after enabling ufw.
 - `opt/arch-cloud-vm.sh` and `opt/arch-cloud-vm-dots.sh` make test VMs (see "Testing").
-- `opt/services/` (kanata, paseo, sunshine, rakazo) and `opt/install-from-source/` (ArtCraft) have their own AGENTS.md.
+- `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype) and `opt/install-from-source/` (ArtCraft) have their own AGENTS.md.
 - `podman-services/syncthing/install.sh`: a rootless Syncthing Quadlet bound to the host's NetBird address.
 
 ## Testing
@@ -364,5 +369,5 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   TTYPath=/dev/tty2 -p StandardInput=tty-force --uid=<user> /etc/ly/setup.sh /usr/bin/start-hyprland`, after
   `chvt 2`. Keys go in with `virsh send-key`, and `virsh screenshot` captures the screen.
 - **Not verified on a live system:** the `opt/lab-firewall.sh` rules against a running ufw, kanata's unit
-  hardening, `opt/dux-settings.sh` on a fresh host, where the idle-inhibit pill lands on screen, and the
-  login wallpaper watcher (`x11-wallpaper watch`).
+  hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` at a real login and on a session switch,
+  where the idle-inhibit pill lands on screen, and the login wallpaper watcher (`x11-wallpaper watch`).

@@ -34,9 +34,6 @@ PROFILE_SKIP_PINNED=(
     i3lock-color                     # the screen locker (x11-lock, $mod+Ctrl+Escape, the power menu)
 )
 
-# AUR packages left out.
-PROFILE_SKIP_AUR=(voxtype-bin)       # dictation: no microphone, a GPU-less guest
-
 # Setup steps left out (checked with `want`).
 PROFILE_SKIP_FEATURES=(
     touchpad                         # /etc/X11/xorg.conf.d/30-touchpad.conf

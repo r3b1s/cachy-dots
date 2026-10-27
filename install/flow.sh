@@ -21,7 +21,6 @@ install_main() {
         check_cachy_repos
         setup_chaotic_aur
         install_packages
-        install_aur
         sync_qt_stack
         setup_login_shell
         setup_theme_helper
@@ -44,7 +43,6 @@ install_main() {
         # has rendered dux's palette instead.
         [ "$(active_session)" = i3 ] && setup_theme
         setup_default_apps
-        setup_voxtype
         validate_session
     fi
     record_profile

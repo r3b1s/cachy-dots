@@ -30,9 +30,10 @@ opt/services/
     * Environment variables configured via unit `Environment=` directives
     * Managed without sudo
 * **Modular Session Autostart Pattern:**
-  * To avoid poluting base repository dotfiles (`hypr/cachy.lua` and `i3/conf.d/05-autostart.conf`) with autostarts for opt-in services, each graphical session provides a per-host modular hook:
+  * To avoid polluting base repository dotfiles (`hypr/cachy.lua` and `i3/conf.d/05-autostart.conf`) with autostarts for opt-in services, each graphical session provides a per-host modular hook:
     * **Hyprland**: `~/.config/hypr/cachy.lua` (copied once per host via `import_cachy_lua`) dynamically checks for and loads `~/.config/hypr/cachy-services.lua` during `hyprland.start`. Service scripts add `hl.exec_cmd("systemctl --user start <service>.service")`.
     * **i3**: `~/.config/i3/config` includes `conf.d/*.conf`. Service scripts add `exec --no-startup-id systemctl --user start <service>.service` to `~/.config/i3/conf.d/06-services.conf`.
+  * A daemon that is not a systemd unit (voxtype) adds one command instead, kept in a repo script, so the hook line never changes: quoted shell inside an i3 `exec` and a Lua string breaks easily, and `cachy.lua` loads `cachy-services.lua` through `pcall`, so an error there silently drops every hook in it.
   * Services that require a running graphical display server (e.g. Sunshine) omit `WantedBy=default.target` from their systemd service file so they never start on headless/TTY/SSH logins. Instead, they are started by these session autostart hooks. Systemd's `Restart=on-failure` monitors and restarts the service if it crashes during the session.
 * **Clean Uninstallation:** Every script should support `--remove` to disable/stop the service, remove the unit file, and delete system configuration files.
 * **Dry-Run Support:** Scripts support `-n|--dry-run` and `-h|--help`.
@@ -93,3 +94,14 @@ scripts' headers have the details; this is what they cannot show.
   `/home/rakazo/rakazo/.env`.
 * **Signups** are open on a fresh install; `install.sh --close-signups` sets `SIGNUPS_ENABLED=false` once your
   account exists. Upstream reads it on every start.
+
+### 5. `voxtype/`
+Push-to-talk dictation, `$mod+d` in both sessions (`opt/services/voxtype/install.sh`, `--remove`).
+* Package: `voxtype-bin`, built from the AUR with `yay` (no pacman repo has it); a repo build wins if one appears.
+* Config: `config.toml` in this folder, linked to `~/.config/voxtype/config.toml`.
+* Lifecycle: no unit. The hooks run `~/.local/bin/dictate daemon` (`bin/dictate`, linked by every install),
+  which replaces a daemon left by the other session once it has exited (voxtype's lock), waits up to 5 s for
+  WirePlumber's default sink (a sound output opened before it is negotiated at 1 Hz, and the start and stop
+  sounds go silent), then execs `voxtype -q daemon`.
+* A host's `~/.config/hypr/cachy.lua` copied before voxtype was opt-in starts the daemon itself; the installer
+  warns about it, since the copy is never overwritten. `sync.sh` warns when voxtype is installed without its hooks or config link.

@@ -212,8 +212,7 @@ install_links() {
         "btop/btop.conf:btop/btop.conf" \
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
-        "starship/starship.toml:starship.toml" \
-        "voxtype/config.toml:voxtype/config.toml"
+        "starship/starship.toml:starship.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
     done

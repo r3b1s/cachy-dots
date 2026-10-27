@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installing: the pacman transaction, AUR builds, the Qt 6 stack.
+# Installing: the pacman transaction and the Qt 6 stack.
 # Sourced by install.sh, install_vm.sh and sync.sh through install/lib.sh; defines
 # functions and package lists only, and runs nothing.
 
@@ -78,38 +78,6 @@ install_packages() {
             FAILED=1
         fi
     fi
-}
-
-install_aur() {
-    command -v pacman >/dev/null || return 0
-    local pkg missing=() key
-    for pkg in "${AUR_PKGS[@]}"; do
-        pacman -Qq "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
-    done
-    [ "${#missing[@]}" -gt 0 ] || return 0
-
-    say "AUR packages: ${missing[*]}"
-    for pkg in "${missing[@]}"; do
-        if pacman -Si "$pkg" >/dev/null 2>&1; then
-            # Some enabled repo has it after all.
-            run $SUDO pacman -S --needed --noconfirm "$pkg" \
-                || { warn "could not install $pkg"; FAILED=1; }
-            continue
-        fi
-        if [ "$TARGET_USER" = root ]; then
-            warn "not building $pkg as root (makepkg refuses); run install.sh as your user"
-            FAILED=1; continue
-        fi
-        if ! command -v yay >/dev/null && [ "$dry" = 0 ]; then
-            warn "no yay, so $pkg cannot be built from the AUR"
-            FAILED=1; continue
-        fi
-        for key in "${AUR_KEYS[@]}"; do
-            as_user gpg --quiet --keyserver hkps://keyserver.ubuntu.com --recv-keys "$key" >/dev/null 2>&1 || true
-        done
-        as_user yay -S --needed --noconfirm --answerclean None --answerdiff None "$pkg" \
-            || { warn "could not build $pkg from the AUR"; FAILED=1; }
-    done
 }
 
 # Keep the Qt 6 stack on one minor version.
