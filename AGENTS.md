@@ -29,7 +29,8 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
   moved to `<name>.bak.<time>`.
 - **Links.** Configs are linked file by file (`link()` in `install/links.sh`), never as whole directories, so
   runtime state written next to a config stays out of the repo. Per-host files are copied once and never
-  overwritten: `i3/templates/04-monitors.conf` and `hypr/cachy.lua`.
+  overwritten: `i3/templates/04-monitors.conf`, `hypr/cachy.lua` and `git/config` (only on a host with no global
+  git config, since `git config --global` would write through a link into the repo).
 - **Root-owned files are copies, never links into the repo** (root must not run or read what the user can
   edit): `install -o root -g root`, with sudoers drop-ins checked by `visudo -c` first.
 - **Guards.** Optional steps check `command -v` or `pacman -Qq` and skip themselves; that is how a profile drops

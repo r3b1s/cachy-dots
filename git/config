@@ -1,6 +1,7 @@
-# Git defaults for every repository, linked to ~/.config/git/config by install_links.
-# Git reads this before ~/.gitconfig, so identity and any personal setting stay
-# there, and a key set in ~/.gitconfig overrides the one here.
+# Git defaults for every repository. install_links copies this to
+# ~/.config/git/config once, on a host with no global git config yet, and never
+# links it: `git config --global` writes there, and the identity it writes must
+# not land in the repo. Edit the host's copy; this file only seeds new hosts.
 
 [init]
 	defaultBranch = main

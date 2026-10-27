@@ -123,6 +123,27 @@ import_monitors_conf() {
     echo "copied $src -> $dst (this host's monitor layout; edit it there)"
 }
 
+# Git's global config is the host's: git/config is copied to ~/.config/git/config
+# once, on a host with no global config yet (neither that file nor ~/.gitconfig),
+# and then left alone. A link would put what `git config --global` writes (the
+# identity, credentials) into the repo. A link left by an earlier layout becomes a
+# copy of what it points at, so settings made through it stay on the host.
+import_git_config() {
+    local dst="${XDG_CONFIG_HOME:-$HOME/.config}/git/config"
+    local src="$REPO/git/config"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+        run cp --remove-destination "$src" "$dst"
+        echo "replaced the link $dst with a copy (this host's git config; edit it there)"
+        return 0
+    fi
+    if [ -e "$dst" ] || [ -L "$dst" ] || [ -e "$HOME/.gitconfig" ] || [ -L "$HOME/.gitconfig" ]; then
+        return 0
+    fi
+    run mkdir -p "$(dirname "$dst")"
+    run install -m 644 "$src" "$dst"
+    echo "copied $src -> $dst (this host's git config; edit it there)"
+}
+
 # A whole-directory link into the repo, left by an earlier layout. It is removed so
 # the files can be linked into a real directory: a file link made through a
 # directory link would land in the repo. Removing a symlink leaves its target alone.
@@ -192,8 +213,7 @@ install_links() {
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
         "starship/starship.toml:starship.toml" \
-        "voxtype/config.toml:voxtype/config.toml" \
-        "git/config:git/config"
+        "voxtype/config.toml:voxtype/config.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
     done
@@ -208,6 +228,7 @@ install_links() {
     # Links into the repo whose file has since been removed (pinkrot-theme.lua).
     [ "$dry" = 1 ] || find "$cfg/nvim" -xtype l -lname "$REPO/*" -print -delete 2>/dev/null | sed 's/^/removed dangling link /' || true
 
+    import_git_config
     install_bashrc_block
     setup_ssh
 
