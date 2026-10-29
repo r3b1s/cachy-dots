@@ -1,54 +1,41 @@
 # rakazo
 
-Self-hosts [Rakazo](https://github.com/elie222/rakazo) — the browser-automation
-platform — in a dedicated Arch Linux VM on this host.
-
-The VM runs in the user's libvirt session (`qemu:///session`), so a QEMU escape
-lands in the user's account rather than root's, and is kept up by lingering
-systemd user services. It sits alone on the bridge `rakazo0`
-(10.41.41.0/30 — host .1, VM .2, static DHCP lease, nothing else):
-
-- the VM reaches public addresses only: not the host, not the LAN, not NetBird,
-  not other VMs (`rakazo-guard.service`, an nftables table the VM cannot be run
-  without);
-- bot computers inside the stack have restricted egress too (public
-  addresses only);
-- the web app is forwarded from the VM to loopback and the NetBird address
-  (`wt0`) by `rakazo-web.socket` + `systemd-socket-proxyd`, host port 15173.
+A stack of self-hosted services under [Incus](https://linuxcontainers.org/incus/), one NixOS guest per
+directory in `services/`, published on the host's NetBird address. It runs [Rakazo](https://github.com/elie222/rakazo)
+and [Executor](https://github.com/UsefulSoftwareCo/executor) (an MCP gateway) with Thunderbird ESR. The design
+and its traps are in [opt/services/AGENTS.md](../AGENTS.md#4-rakazo).
 
 ## Files
 
-| File            | What it does |
-| --------------- | ------------ |
-| `common.sh`     | Shared constants (VM, bridge, ports, IPs) and message helpers; sourced by the other scripts. |
-| `host-setup.sh` | One-time root setup: packages, the libvirt network and bridge, the qemu bridge-helper allowlist, `rakazo-guard.service` (nftables), matching ufw rules, and lingering. |
-| `install.sh`    | As the user (never sudo): fetches the newest Rakazo release with both images on GHCR, creates the VM from the verified Arch cloud image with cloud-init and pinned SSH keys, installs the units, and provisions the guest over SSH. |
-| `guest.sh`      | Runs inside the VM as root, sent over SSH: Docker, the bot-computer egress rules, and upstream's `install-images.sh` at the chosen release. |
+| File | What it does |
+| --- | --- |
+| `host-setup.sh` | The one root step, run once with sudo: installs Incus, the subordinate ID ranges, `incus.socket`, the `incus-admin` group, and the ufw block for the stack's bridges. |
+| `apply.sh` | Everything else, as the user: renders and applies the Incus objects, keeps the CA, copies this directory into each guest and runs `nixos-rebuild switch`. |
+| `render.py` | Reads `stack.toml` and `services/*/service.toml` and prints the Incus objects (a bridge, ACL and profile per service). |
+| `stack.toml` | The registry: prefix, subnet, uplink interface, base image, private ranges and the published port block. |
+| `services/<name>/service.toml` | One service: its address index, type, resources, edge upstream and egress. |
+| `services/<name>/default.nix` | The guest's NixOS configuration (`flake.nix` builds one per directory). |
+| `flake.nix`, `flake.lock` | The NixOS configurations, one per service. |
+| `modules/common.nix` | What every guest shares: the Incus guest profile, networking and flakes. |
+| `incus/preseed.yaml` | The initial Incus setup `apply.sh` uses when there is no storage pool yet. |
+| `services/rakazo/rakazo-up.sh` | Brings Rakazo up as upstream deploys it: its pinned install script and Compose file, run by `rakazo.service`. |
+| `services/executor/` | Executor's VM: Executor's self-host image, the Thunderbird i3 session (`i3.conf`) and the MCP shim (`tb-mcp-shim.py`). |
 
 ## Usage
 
 ```sh
-sudo opt/services/rakazo/host-setup.sh            # once, as root
-opt/services/rakazo/install.sh                    # then, as the user
+sudo opt/services/rakazo/host-setup.sh   # once, as root
+opt/services/rakazo/apply.sh             # then, as the user; re-run after any change
+opt/services/rakazo/apply.sh --render    # print the Incus objects without changing anything
 ```
 
-`install.sh` is idempotent and converges: a re-run upgrades packages in the
-guest and moves to the newest release, keeping the VM, its disk and its secrets
-(`.env`, including the `ENCRYPTION_KEY` — back it up). Useful options:
+`apply.sh` takes `--only NAME`, `--no-rebuild`, and `--remove [--purge]`. Run `-h` for the full list. The
+`incus-admin` group applies to new logins only: log out once, or use `newgrp incus-admin` in a terminal.
 
-```sh
-install.sh --close-signups        # once your account exists (--open-signups reopens)
-install.sh --tag vX.Y.Z           # pin a release instead of the newest
-install.sh --listen-ip IP         # bind address; default is wt0's (NetBird) address
-install.sh --listen-ip 127.0.0.1  # loopback only
-install.sh --port N               # host port (default 15173)
-install.sh --memory MiB --vcpus N --disk SIZE   # for a new VM; the first two also
-                                                # apply to an existing one on restart
-install.sh --remove               # stop and remove the units and the VM, keep the disk
-install.sh --remove --purge       # also delete the disk and the keys
-sudo host-setup.sh --remove       # take the bridge, network and guard back out
-```
+Never run `sudo incus console`: root cannot open a window on the user's display.
 
-Rakazo accepts one origin only: sign in at `http://<NetBird address>:15173`,
-from this host too (loopback answers but fails the origin check). Re-run
-`install.sh` after the NetBird address changes.
+## Secrets
+
+Runtime facts and secrets stay out of the flake. `apply.sh` writes `/var/lib/cachy-stack/{ca.crt,origin.env}` in
+the guests. The CA lives in `~/.local/share/cachy-stack/ca`; back it up along with Rakazo's `ENCRYPTION_KEY`
+in the guest's `/var/lib/rakazo/.env`.
