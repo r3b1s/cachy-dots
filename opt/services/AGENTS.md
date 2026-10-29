@@ -149,3 +149,33 @@ Push-to-talk dictation, `$mod+d` in both sessions (`opt/services/voxtype/install
   execs `voxtype -q daemon`.
 * A host's `~/.config/hypr/cachy.lua` copied before voxtype was opt-in starts the daemon itself; the installer
   warns about it, since the copy is never overwritten. `sync.sh` warns when voxtype is installed without its hooks or config link.
+
+### 6. `incus/`
+The Incus daemon on the host and nothing above it (`opt/services/incus/install.sh`, `--ui`, `--remove`). No networks,
+profiles or instances: a stack built on Incus (rakazo, for now) brings its own.
+* Packages: `incus`, `edk2-ovmf` (VM firmware), and with `--ui` `incus-ui`; plain names, under a full `-Syu`.
+* **`incus-admin`, not `incus`.** The installer adds the user to `incus-admin`, which is root-equivalent (a member
+  can start a privileged instance that mounts the host's `/`), like libvirt's or docker's. `incus` is the other
+  group: its members only get a restricted per-user project through `incus-user.socket`, and no access to
+  networks, storage or profiles, so it cannot manage a host's own Incus. It is not used. The group applies to new
+  logins only (log out, or `newgrp incus-admin` in a terminal).
+* Root gets `root:1000000:1000000000` in `/etc/subuid` and `/etc/subgid` unless it has an entry (format
+  `name:start:count`); unprivileged instances map their IDs into it.
+* `incus.socket` and `incus.service` are enabled (the service so `boot.autostart` instances start with the host).
+  **A restart of `incus.service` stops every running instance** (`ExecStop=incusd shutdown`), so the script
+  restarts it only for a change that needs one (new ID ranges, or `incus-ui` on a daemon already running, since the
+  unit's `INCUS_UI=/usr/share/incus-ui` is read at start) and only while nothing is running; otherwise it warns.
+* **Not initialised.** `incus admin init --minimal` (a `dir` pool and `incusbr0`) is the user's step, since a
+  stack may want its own pool and bridges (rakazo preseeds its own, and skips that when a pool exists).
+* **`--ui`** is reached with `incus webui`: the client proxies the UI to a loopback port over the local unix
+  socket with a one-time `auth_token`, so no certificate is imported and nothing listens on the network. Remote
+  access (`core.https_address` and a trusted certificate) is deliberately not set up.
+* **ufw.** With ufw installed, a managed block (`# >>> cachy-dots incus >>>`) in `before.rules` and
+  `before6.rules` accepts DHCP and DNS from `incusbr0` to the host, and forwarding in and out of it. Only that
+  bridge name: ufw's default policy drops the rest, and a stack with its own bridges adds its own block (rakazo's
+  `host-setup.sh` does). Those two ACCEPTs are narrower than `ufw allow in on incusbr0`, which opens every host
+  port to the instances. The rules files are root-only, so `-n` also asks for sudo when ufw is installed.
+* `--remove` takes the ufw blocks out, disables the unit and socket (stopping instances) and removes `incus-ui`;
+  the `incus` package, instances, storage, ID ranges and group stay.
+* `rakazo/host-setup.sh` still does the same host steps itself; it can shrink to its ufw block once the stack moves
+  out and depends on this script.
