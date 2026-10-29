@@ -1,0 +1,18 @@
+# Rakazo (https://github.com/elie222/rakazo): upstream's Docker deployment at a
+# pinned release (default.nix), in a VM of its own; its bot computers run as
+# containers inside it.
+index = 2
+type = "virtual-machine"
+cpus = 4
+memory = "16GiB"
+disk = "60GiB"
+
+# Anyone who reaches the sign-in page may create an account while this is true.
+# Set it to false once yours exists, then run apply.sh.
+signups = true
+
+[edge]
+upstream = 5173               # the web app; it proxies the API
+
+[egress]
+uses = ["executor"]           # MCP tools, through the edge

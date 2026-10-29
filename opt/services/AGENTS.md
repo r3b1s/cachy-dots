@@ -67,33 +67,76 @@ Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`)
 * Lifecycle: Started by graphical session hooks (`06-services.conf` in i3, `cachy-services.lua` in Hyprland) via `systemctl --user start sunshine.service`. Supervised by systemd (`Restart=on-failure`). When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland).
 
 ### 4. `rakazo/`
-[Rakazo](https://github.com/elie222/rakazo) in an Arch Linux VM of its own (`opt/services/rakazo/`). The
-scripts' headers have the details; this is what they cannot show.
-* **Two steps, one root.** `host-setup.sh` is the only part that needs root, run once (the pattern hitkit
-  uses): the libvirt network `rakazo` (bridge `rakazo0`, `10.41.41.0/30`, the host `.1`, one static DHCP lease
-  `.2` for the VM's MAC), `allow rakazo0` in a managed block of `/etc/qemu/bridge.conf`, `rakazo-guard.service`,
-  the ufw rules, `virtnetworkd.service` enabled and lingering. `install.sh` runs as the user: the VM lives in
-  `qemu:///session` (a QEMU escape lands in the user's account, not root's), plugged into the bridge by the
-  setuid `qemu-bridge-helper`. Note that a user in the `libvirt` group is root-equivalent anyway.
-* **Network calls use `network:///system`.** `qemu:///system` goes through `virtqemud`, which a host with
-  only the network daemon does not run.
-* **The guard** is an nftables table of its own (`inet cachy_rakazo`), so it holds with ufw off: from `rakazo0`
-  the host takes DHCP and DNS and nothing else, forwarding goes to public IPv4 only, and nothing opens a
-  connection into the bridge. `install.sh` refuses to start the VM without it.
-* **Access** is the host's: `rakazo-web.socket` (user unit, `FreeBind=yes` so it binds before NetBird is up)
-  listens on `127.0.0.1:15173` and wt0's address and hands off to `systemd-socket-proxyd`, which forwards to
-  the VM's port 5173. ufw opens the port on `wt0` only. Port 5173 on the host is Vite's.
-* **One origin.** Rakazo takes a single `WEB_ORIGIN`/`BETTER_AUTH_URL`, and Better Auth refuses a sign-in
-  from any other, so the origin is the NetBird address, also on the host. Re-run `install.sh` when it changes.
-* **The release** is the newest `vX.Y.Z` that GHCR has for both `app` and `computer`; GitHub's releases are the
-  desktop app's and can be ahead of the images. The compose files come from the same git tag, not `main`.
-* **The guest** (`guest.sh`, piped over SSH as one `main` so nothing eats the rest of it from stdin): rootful
-  Docker, because upstream's bot-computer egress rules need the `DOCKER-USER` chain (rootless forces
-  `SANDBOX_COMPUTER_EGRESS=open`). Bot DNS goes to Quad9 (9.9.9.9, then 149.112.112.112), because the VM's
-  resolver is the host's dnsmasq, a private address those rules drop. The secrets stay in the VM's
-  `/home/rakazo/rakazo/.env`.
-* **Signups** are open on a fresh install; `install.sh --close-signups` sets `SIGNUPS_ENABLED=false` once your
-  account exists. Upstream reads it on every start.
+A stack of self-hosted services under [Incus](https://linuxcontainers.org/incus/), one NixOS guest each,
+published on the NetBird address: [Rakazo](https://github.com/elie222/rakazo), and
+[Executor](https://github.com/UsefulSoftwareCo/executor) (an MCP gateway) with Thunderbird ESR and its MCP
+add-on. `host-setup.sh` runs once with sudo; `apply.sh` does the rest as the user and is re-run after any change.
+The `incus-admin` group it adds applies to new logins only: a terminal inherits the desktop session's groups, so
+log out once, or use `newgrp incus-admin` in a terminal. Never `sudo incus console`: root cannot open a window on
+the user's display.
+The scripts' headers and the Nix modules have the details; this is what they cannot show.
+* **One description.** `stack.toml` and `services/<name>/service.toml` are the registry, read by both
+  `render.py` (Incus objects: per service a bridge, its ACL and a profile) and `flake.nix` (one
+  `nixosConfigurations.<name>` per directory). A service's `index` is its address plan: bridge
+  `<prefix>-<name>` on `10.70.<index>.0/24` (host `.1`, guest `.2`) and, when published, port
+  `14800 + index`. Adding a service is a new directory. `apply.sh --render` prints what would be applied.
+* **The edge** (a NixOS container running Caddy) is the only way in. Incus NAT proxy devices forward each
+  published port on wt0's address to it, Caddy terminates TLS and proxies to the guest. Nothing listens on
+  127.0.0.1: the host's own connections to its NetBird address take the same path, so every client, the host
+  and Rakazo included, uses the one origin `https://<NetBird address>:<port>` that Better Auth (in Rakazo and
+  Executor) insists on. It also means that with NetBird down the host loses the stack too.
+* **The CA** lives in `~/.local/share/cachy-stack/ca`, name-constrained to the NetBird address; only the leaf
+  goes to the edge, and every guest gets `ca.crt`. A new NetBird address means a new CA, which clients must
+  trust again. Node clients: `NODE_EXTRA_CA_CERTS`.
+* **ACLs.** Incus evaluates an ACL's reject rules before its allow rules, so "reject private, allow this host"
+  cannot be written: each ACL rejects by default and allows the public IPv4 space (all of it minus
+  `stack.toml`'s `private` list, computed) plus each exception. Incus's NAT proxy rewrites the destination
+  before the ACL sees it, so `uses = ["executor"]` allows the edge's address and port, not the NetBird one.
+  Incus's baseline DHCP and DNS rules come before the ACLs. ufw would drop the bridges' DHCP, DNS and
+  forwarding, hence `host-setup.sh`'s block in `/etc/ufw/before.rules` for `cs-+`.
+* **Guests** start from `images:nixos/26.05`; `apply.sh` copies this directory in as `/etc/cachy-stack` and
+  runs `nixos-rebuild switch --flake` there (builds in the guest: about 2 GiB of RAM, or it is OOM-killed).
+  The traps it works around: the agent answers before the guest has DNS, so it waits for that; commands
+  through a VM's incus-agent get no NixOS `PATH` (`gexec`); containers
+  need `security.nesting`, and Nix's sandbox cannot mount `/proc` under LXCFS, so containers build without it;
+  Incus's `zzz-lxc-service.conf` clears `LoadCredential` in every container unit, so Caddy's key is copied
+  into a `RuntimeDirectory` instead; a switch stops `restartIfChanged = false` units (the display manager) without
+  starting them, so `apply.sh` starts `default.target` after each one. `modules/common.nix` matches the uplink
+  by name: matched by type, networkd also takes Docker's veths (ether links) and pulls them off their bridges,
+  and containers on one network cannot reach each other. Runtime facts and secrets stay out of
+  the flake: `/var/lib/cachy-stack/{ca.crt,origin.env}`, written by `apply.sh`.
+* **Executor** runs upstream's self-host image with the host network. Agents use a personal access token as
+  `Authorization: Bearer` on `/mcp`; adding an MCP server by URL works only for servers with no sign-in or
+  OAuth. A private address needs `EXECUTOR_APPS_ALLOW_PRIVATE_FETCH`, plain HTTP also
+  `EXECUTOR_URL_ALLOW_HTTP_ORIGINS`, and a loopback URL is accepted but never works. Its tool index fills
+  lazily: `search` before the first `call` on a new organisation.
+* **Thunderbird** (ESR) runs in an i3 session that LightDM logs `tbird` into at boot (`services/executor/i3.conf`,
+  a subset of `i3/conf.d`'s chords), with Firefox ESR as the default browser; sign in to the accounts with
+  `incus console cs-executor --type=vga`. Thunderbird hands Gmail's and Microsoft's OAuth sign-in to the default
+  browser and takes the answer on a localhost listener, all inside the guest. It is a `systemd --user` unit
+  started by i3 and restarted whenever it exits (the MCP add-on lives in it), so there is no logout, and it must
+  never get a primary password. NixOS gives every unit a minimal `PATH`, and GIO hides applications whose
+  program is not on `PATH`, so the unit carries the system's: without it Thunderbird finds no browser and asks
+  "Choose an application". The MCP add-on is pinned by hash with `update_url` stripped (it named the author's own
+  server, from which Thunderbird would update a fully privileged add-on) and force-installed by policy with
+  updates off. Its token changes on every start, so `tb-mcp-shim` adds it, on the guest's own address, speaking
+  HTTP/1.1: Executor reuses its connection between a probe's requests, and a server that closes it after each
+  response (HTTP/1.0) fails the import at random. An import tried while Thunderbird restarts fails with "could
+  not respond right now".
+* **Proton** goes through Proton Mail Bridge (`proton-bridge.service`, headless, as `tbird`), on
+  `127.0.0.1:1143`/`1025`. With no D-Bus session it falls back from the Secret Service to `pass`, keyed by a
+  GPG key without a passphrase (the guest's disk is the secret). The unit waits for the store; log in once
+  with `incus exec cs-executor -t -- proton-bridge-login` (`login`, then `info` for the password Thunderbird
+  uses, then `exit`; a paid plan). nixpkgs' Bridge can trail Proton's releases.
+* **Clients** trust the CA: `sudo trust anchor --store ~/.local/share/cachy-stack/ca/ca.crt` covers curl and
+  browsers (NSS goes through p11-kit here); Node-based agents need `NODE_EXTRA_CA_CERTS`. Executor's first
+  visitor becomes its owner, so create the account as soon as it is up.
+* **Rakazo** is upstream's Docker deployment, not a Nix rewrite: `install-images.sh` and its Compose file,
+  pinned by tag and hash, run `--local` by `rakazo.service` (`rakazo-up.sh`, which owns a few `.env` keys and an
+  override). Upstream's bot-computer egress script is run as a NixOS unit (`--apply`), since it would install
+  its own unit under the read-only `/etc/systemd/system`. Bot DNS goes to Quad9: the guest's resolver is a
+  private address those rules drop. `signups` in its `service.toml` closes sign-up once your account exists.
+  The secrets stay in the guest's `/var/lib/rakazo/.env`; back up its `ENCRYPTION_KEY`.
 
 ### 5. `voxtype/`
 Push-to-talk dictation, `$mod+d` in both sessions (`opt/services/voxtype/install.sh`, `--remove`).

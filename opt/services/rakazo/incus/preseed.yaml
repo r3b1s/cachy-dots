@@ -1,0 +1,13 @@
+# The Incus server itself: one storage pool and the default profile's root disk.
+# Networks, ACLs and instances come from services/*/service.toml (render.py).
+storage_pools:
+  - name: default
+    driver: dir
+profiles:
+  - name: default
+    description: Root disk only; each service's own profile adds its NIC and limits.
+    devices:
+      root:
+        type: disk
+        path: /
+        pool: default

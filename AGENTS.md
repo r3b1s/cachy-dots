@@ -368,6 +368,10 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
 - **A graphical session without typing a password**, as ly starts one: `systemd-run -p PAMName=login -p
   TTYPath=/dev/tty2 -p StandardInput=tty-force --uid=<user> /etc/ly/setup.sh /usr/bin/start-hyprland`, after
   `chvt 2`. Keys go in with `virsh send-key`, and `virsh screenshot` captures the screen.
+- **A real NetBird for the stack** (`opt/services/rakazo`): hitkit's NetBird kit (`hitkit up netbird` on the
+  host; peers join with its setup key and trust `~/.local/share/hitkit/ca/ca.crt`). QEMU's user networking does
+  not read the host's `/etc/hosts`, so a test VM needs its own `netbird.hitkit.internal` line. Arch has no
+  `netbird` package (CachyOS does): use the release tarball, checked against GitHub's digest.
 - **Not verified on a live system:** the `opt/lab-firewall.sh` rules against a running ufw, kanata's unit
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` at a real login and on a session switch,
   where the idle-inhibit pill lands on screen, and the login wallpaper watcher (`x11-wallpaper watch`).

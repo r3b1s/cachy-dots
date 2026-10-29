@@ -1,0 +1,22 @@
+# The service stack: one NixOS guest per directory in services/, under Incus.
+#
+# A service's index is its whole address plan: its bridge is
+# <prefix>-<name> on <subnet>.<index>.0/24 (the host .1, the guest .2), and a
+# service the edge publishes gets port <ports.first + index> on the NetBird
+# address. Indexes are never reused, so neither is a port.
+
+prefix = "cs"                 # names the bridges, ACLs, profiles and instances
+subnet = "10.70"              # the /16 the bridges come from
+interface = "wt0"             # the edge listens on this interface's IPv4 address (NetBird)
+image = "images:nixos/26.05"  # what a new instance starts from, before its flake is applied
+
+# Destinations a guest may never reach unless a service.toml allows it; everything
+# else in IPv4 is the public internet, which every guest may reach. No IPv6.
+private = [
+  "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
+  "172.16.0.0/12", "192.168.0.0/16", "224.0.0.0/3",
+]
+
+[ports]                       # the contiguous block the edge publishes from
+first = 14800
+last = 14899

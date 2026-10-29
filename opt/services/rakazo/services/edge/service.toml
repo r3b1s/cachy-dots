@@ -1,0 +1,8 @@
+# The reverse proxy: the only guest reachable from outside. Incus forwards each
+# published port on the NetBird address to it, and Caddy terminates TLS and
+# proxies to the service behind that port.
+index = 0
+type = "container"
+cpus = 1
+memory = "2GiB"
+disk = "8GiB"

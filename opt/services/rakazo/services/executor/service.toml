@@ -1,0 +1,14 @@
+# Executor (MCP gateway) with Thunderbird ESR and its MCP add-on.
+index = 1
+type = "virtual-machine"
+cpus = 4
+memory = "6GiB"
+disk = "30GiB"
+
+[edge]
+upstream = 4400               # Executor's port in the guest
+
+[egress]
+# Private destinations Executor may reach besides the public internet, e.g. an
+# MCP server on another NetBird peer: "100.92.3.4/32 tcp 8080".
+allow = []

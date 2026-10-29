@@ -23,7 +23,7 @@ based on the hardware, session, or workflow requirements of a specific host.
 * **`services/`**:
   Opt-in background services, daemons, and systemd units (both system-level and user-level).
   Contains setup scripts, `.service` unit files, and supporting hardware/permission configs
-  such as udev rules and sysusers files (e.g., Kanata key remapping, Paseo daemon, Sunshine GameStream server, Rakazo in its own VM, Voxtype dictation). (See `opt/services/AGENTS.md`).
+  such as udev rules and sysusers files (e.g., Kanata key remapping, Paseo daemon, Sunshine GameStream server, the Rakazo service stack under Incus, Voxtype dictation). (See `opt/services/AGENTS.md`).
 
 ## Standalone Scripts
 
@@ -31,7 +31,7 @@ based on the hardware, session, or workflow requirements of a specific host.
 | :--- | :--- |
 | **`arch-cloud-vm.sh`** | Provisions a clean, headless nested Arch Linux VM using QEMU/KVM/libvirt and arch-boxes cloud images for isolated testing. |
 | **`arch-cloud-vm-dots.sh`** | Extends `arch-cloud-vm.sh` by adding a SPICE graphical console and a first-boot job that clones the repo and runs `./install_vm.sh`, to test dotfiles on clean systems. |
-| **`arch-cloud-vm-lib.sh`** | Common library of helper functions (cloud image verification, cloud-init seed generation, overlay disk creation, virsh lifecycle) shared by the VM scripts; `opt/services/rakazo` uses its image check (`acv_fetch_image`). |
+| **`arch-cloud-vm-lib.sh`** | Common library of helper functions (cloud image verification, cloud-init seed generation, overlay disk creation, virsh lifecycle) shared by the VM scripts. |
 | **`blesh.sh`** | Installs `blesh-git` (Bash Line Editor) from chaotic-aur and links `shell/blerc` to `~/.blerc`. Supports `--remove`. |
 | **`dux-settings.sh`** | Merges or restores the baseline dux-shell settings snapshot (`dms/settings.json`) into `~/.config/dms/settings.json`. Supports `--reset`. |
 | **`hyprland.sh`** | Installs and configures the opt-in Hyprland + dux-shell session (system dependencies, pinned dux GitHub release binaries, initial config, and assets). Supports `--remove`. |

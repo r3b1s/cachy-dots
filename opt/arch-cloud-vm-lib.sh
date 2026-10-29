@@ -11,8 +11,8 @@
 #   acv_check         validates, finds libvirt, opens the lab firewall
 #   acv_image         replaces an existing VM, fetches and verifies the image,
 #                     makes the overlay
-#   acv_fetch_image   only the fetch and check, into $CACHE (also used by
-#                     opt/services/rakazo); sets ACV_IMAGE and ACV_SHA
+#   acv_fetch_image   only the fetch and check, into $CACHE; sets ACV_IMAGE and
+#                     ACV_SHA
 #   acv_credentials   the SSH key (imported or generated) and the password
 #   acv_seed          the cloud-init seed; ACV_USERDATA_EXTRA is appended to the
 #                     user-data (more top-level cloud-config keys)
