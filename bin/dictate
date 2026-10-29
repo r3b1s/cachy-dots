@@ -10,10 +10,12 @@
 #           carries that session's environment, so it is stopped first, and the
 #           new one starts only once it has gone: voxtype holds a lock until it
 #           exits, and refuses to start while another holds it. It then waits
-#           for WirePlumber's default sink (up to 5 s): voxtype opens its sound
-#           output once, at start, and opened before there is a sink, PipeWire's
-#           ALSA plugin negotiates the stream at 1 Hz, so the start and stop
-#           sounds are never heard.
+#           for WirePlumber's default sink (about 5 s at most): voxtype opens its
+#           sound output once, at start, and opened before there is a sink,
+#           PipeWire's ALSA plugin may negotiate the stream at 1 Hz, so the start
+#           and stop sounds are never heard. The wait reads wpctl's output
+#           ("Volume: ..."), not its exit status: `wpctl get-volume` exits 0 when
+#           there is no sink, so the status passes at once.
 #   toggle  start or stop a dictation (`voxtype record toggle`), silently: voxtype's
 #           own sounds mark the start and the end (its notifications are off in
 #           opt/services/voxtype/config.toml too). $mod+d in both sessions.
@@ -45,7 +47,7 @@ case "${1:-}" in
         fi
         if command -v wpctl >/dev/null; then
             i=0
-            until wpctl get-volume @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1 || [ "$i" -ge 50 ]; do
+            until wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>&1 | grep -q '^Volume:' || [ "$i" -ge 50 ]; do
                 sleep 0.1; i=$((i + 1))
             done
         fi

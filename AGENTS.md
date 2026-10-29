@@ -329,7 +329,8 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
   daemon is started by `dictate daemon` from each session's per-host hook (`06-services.conf` under i3,
   `cachy-services.lua` under Hyprland), not `voxtype.service`, which hangs off `graphical-session.target`. It
   waits for WirePlumber's default sink: voxtype opens its sound output once, at start, and one opened before
-  the sink exists is negotiated at 1 Hz, which plays no sound. Output is `mode = "clipboard"`;
+  the sink exists may be negotiated at 1 Hz, which plays no sound. The wait reads `wpctl get-volume`'s output,
+  since its exit status is 0 even with no sink. Output is `mode = "clipboard"`;
   `post_output_command` (`dictate paste`) copies to PRIMARY and sends Shift+Insert. The built-in hotkey is off,
   so the `input` group is not needed. `bin/dictate` and the binds stay in every install.
 - **Shell.** A managed `~/.bashrc` block sources `shell/init.sh`: PATH, telemetry, then `aliases` and

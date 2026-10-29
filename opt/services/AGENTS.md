@@ -144,7 +144,8 @@ Push-to-talk dictation, `$mod+d` in both sessions (`opt/services/voxtype/install
 * Config: `config.toml` in this folder, linked to `~/.config/voxtype/config.toml`.
 * Lifecycle: no unit. The hooks run `~/.local/bin/dictate daemon` (`bin/dictate`, linked by every install),
   which replaces a daemon left by the other session once it has exited (voxtype's lock), waits up to 5 s for
-  WirePlumber's default sink (a sound output opened before it is negotiated at 1 Hz, and the start and stop
-  sounds go silent), then execs `voxtype -q daemon`.
+  WirePlumber's default sink, judged by `wpctl get-volume`'s output, as its exit status is 0 even with no sink
+  (a sound output opened before it may be negotiated at 1 Hz, and the start and stop sounds go silent), then
+  execs `voxtype -q daemon`.
 * A host's `~/.config/hypr/cachy.lua` copied before voxtype was opt-in starts the daemon itself; the installer
   warns about it, since the copy is never overwritten. `sync.sh` warns when voxtype is installed without its hooks or config link.
