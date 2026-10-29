@@ -13,6 +13,13 @@ based on the hardware, session, or workflow requirements of a specific host.
   `install.sh` and a scoped `mise.toml` that manages the required language toolchains in
   isolation from system packages. (See `opt/install-from-source/AGENTS.md`).
 
+* **`install-from-proprietary/`**:
+  Closed-source / proprietary applications that upstream ships only as a vendor binary
+  (tarball, AppImage, `.deb`), with no source to build and no package in the repos
+  (e.g., Google Antigravity). Each application resides in its own subdirectory containing
+  an `install.sh` that downloads the vendor release, unpacks it as the invoking user, and
+  installs a root-owned copy under `/usr/local`. (See `opt/install-from-proprietary/AGENTS.md`).
+
 * **`services/`**:
   Opt-in background services, daemons, and systemd units (both system-level and user-level).
   Contains setup scripts, `.service` unit files, and supporting hardware/permission configs
