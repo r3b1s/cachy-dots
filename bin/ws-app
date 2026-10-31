@@ -5,8 +5,8 @@
 #   - i3: an ordinary named workspace. If it is already focused, jump back to the
 #     previous one; otherwise switch to it.
 #   - Hyprland: special:<workspace>, shown or hidden over the current one. A
-#     workspace rule's on_created_empty would do the launching, but rules cannot
-#     live in hypr/dms/binds-user.lua, which dux's keybind editor rewrites.
+#     workspace rule's on_created_empty would do the launching, but this way one
+#     script serves both sessions, and the app stays named in its bind.
 #
 # "--no-baf" flag (i3 only):
 #   - do not use i3's back_and_forth behavior when the workspace is already focused

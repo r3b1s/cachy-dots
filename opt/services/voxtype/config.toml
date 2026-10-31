@@ -4,7 +4,7 @@
 # ~/.config/voxtype/config.toml by install.sh in this folder; `voxtype setup model`
 # edits it in place, so those changes show up in the repo.
 #
-# Dictation: $mod+d (i3/conf.d/30-apps.conf, hypr/dms/binds-user.lua) runs
+# Dictation: $mod+d (i3/conf.d/30-apps.conf, hypr/cachy.lua) runs
 # bin/dictate toggle. The daemon is started at login by `dictate daemon` (see
 # bin/dictate), not by voxtype.service, which hangs off graphical-session.target,
 # and neither session reaches it.
