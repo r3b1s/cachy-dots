@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Opt in to the Hyprland session: Hyprland with dux-shell as its shell, and dux's
 # own apps where dux has one. Not part of the default install; i3 stays, and
-# bin/cachy-session switches between the two.
+# bin/graphical-session switches between them. opt/noctalia.sh is the other shell.
 #
 #   1. installs Hyprland and what dux-shell needs, by plain name (a Cachy build
 #      wins where one exists), after a full pacman -Syu
@@ -10,16 +10,16 @@
 #      Calendar (`dcal`) and Dux Search (`dsearch`), laid out as their own
 #      `make install` does (/usr/local, the polkit action under /usr/share).
 #      Root-owned, so `dms update` cannot replace them; bump the pins instead.
-#   3. has dux write its Hyprland config, once (while ~/.config/hypr/hyprland.lua
+#   3. has dux write its Hyprland config, once (while ~/.config/hypr/dms/binds.lua
 #      does not exist): `dms setup headless`, without systemd and without a
 #      terminal config
 #   4. installs dux's emojiLauncher plugin (best effort; needs network)
 #
-# It does not switch sessions: `cachy-session hyprland` does, then log out and
-# pick Hyprland at the login screen.
+# It does not switch sessions: `graphical-session hyprland dux` does, then log out
+# and pick Hyprland at the login screen.
 #
 # --remove deletes the files in DUX; the packages, ~/.config/dms and
-# ~/.config/hypr stay. Run `cachy-session i3` first.
+# ~/.config/hypr stay. Run `graphical-session i3` first.
 #
 # Usage: opt/hyprland.sh [--remove] [-n|--dry-run]
 set -euo pipefail
@@ -155,12 +155,17 @@ bin=/usr/local/bin/dms
 # would be written through the links into this repo's alacritty or kitty file.
 # Its binds name $TERMINAL. (The interactive `dms setup` also adds the user to
 # the input group, which can read every keyboard; headless does not.)
-hypr_lua="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
-if [ -f "$hypr_lua" ]; then
-    echo "$hypr_lua exists; dux's setup not run again"
+# The check is dux's modules, not hyprland.lua: a host set up for Noctalia first has
+# that already (hypr/hyprland.lua, the same file minus dux), which dux replaces with
+# its own only when told to, keeping a backup; --skip-existing would skip its modules too.
+hypr_dir="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+if [ -f "$hypr_dir/dms/binds.lua" ]; then
+    echo "$hypr_dir/dms/binds.lua exists; dux's setup not run again"
 else
     say "Writing dux's Hyprland config (dms setup headless)"
-    run env TERMINAL="${TERMINAL:-alacritty}" "$bin" setup headless --compositor hyprland --no-systemd
+    force=()
+    [ -f "$hypr_dir/hyprland.lua" ] && force=(--force)
+    run env TERMINAL="${TERMINAL:-alacritty}" "$bin" setup headless --compositor hyprland --no-systemd "${force[@]}"
 fi
 
 # ── Dux Files as the file chooser ────────────────────────────────────────
@@ -235,4 +240,4 @@ elif ! jq -e 'has("matugenTemplateNeovim")' "$dms_cfg" >/dev/null 2>&1; then
 fi
 
 echo
-echo "Next: cachy-session hyprland, then log out and pick Hyprland at the login screen."
+echo "Next: graphical-session hyprland dux, then log out and pick Hyprland at the login screen."
