@@ -1,7 +1,8 @@
 These dotfiles set up an i3 desktop on [CachyOS](https://cachyos.org/). Vanilla Arch works too: the Cachy repos
-are then missing, and the pinned packages fall back to chaotic-aur. Hyprland with dux-shell is an opt-in second
-session, and one of the two is active at a time (see "Sessions"). There are two install profiles: `install.sh`
-(workstation: everything, on bare metal or in a VM) and `install_vm.sh` (vm: a lean desktop for a guest).
+are then missing, and the pinned packages fall back to chaotic-aur. Hyprland, with dux-shell or Noctalia as its
+shell, is an opt-in second session, and one session is active at a time (see "Sessions"). There are two install
+profiles: `install.sh` (workstation: everything, on bare metal or in a VM) and `install_vm.sh` (vm: a lean desktop
+for a guest).
 
 ## Working on this repo
 
@@ -46,7 +47,7 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
 | `sync.sh` | brings an installed system up to date after a pull, installing nothing |
 | `bin/` | scripts linked into `~/.local/bin` (the i3-only ones are session links) |
 | `vm/` | guest-only scripts, linked by the vm profile only |
-| `i3/`, `hypr/`, `dms/` | the two sessions; `dms/settings.json` is a snapshot of dux's settings |
+| `i3/`, `hypr/`, `dms/`, `noctalia/` | the sessions; `dms/settings.json` is a snapshot of dux's settings, `noctalia/` is Noctalia's config |
 | `theme/`, `hooks/theme-set.d/` | the theme engine (`bin/x11-theme`), and hooks it runs after a switch |
 | `alacritty/`, `kitty/`, `qutebrowser/`, `nvim/`, ... | one directory per app |
 | `shell/`, `env/` | bash integration (`~/.config/shell`, `~/.xprofile`), telemetry opt-outs |
@@ -120,52 +121,79 @@ session, and one of the two is active at a time (see "Sessions"). There are two 
 
 ## Sessions: i3 and Hyprland
 
-i3 is the default. Hyprland with [dux-shell](https://github.com/duxlabs-dev/dux-shell) ("dux"; its binary is
-`dms`) is installed by `opt/hyprland.sh`. `bin/cachy-session status | i3 | hyprland [-n]` switches by running
-`apply_session` (`install/session.sh`), and records the choice in `~/.config/cachy-dots/session`, which
-`install.sh` and `sync.sh` follow. Nothing running changes: log out and pick the session in ly. Pick "Hyprland",
-not "Hyprland (uwsm-managed)": uwsm is not installed.
+i3 is the default. Hyprland has two shells: [dux-shell](https://github.com/duxlabs-dev/dux-shell) ("dux"; its binary
+is `dms`), installed by `opt/hyprland.sh`, and [Noctalia](https://noctalia.dev), installed by `opt/noctalia.sh`.
+`bin/graphical-session status | i3 | hyprland <dux|noctalia> [-n]` switches by running `apply_session`
+(`install/session.sh`), and records the choice in `~/.config/cachy-dots/session`, which `install.sh` and `sync.sh`
+follow. `hyprland` with no shell is a usage error. Nothing running changes: log out and pick the session in ly.
+Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
 
-- **What a switch does** (`install/session.sh`): it removes the other session's links (each only while it still
-  points where the session put it) and makes this one's; under i3 that is `i3/`, `~/.xprofile`, dunst's config
-  and the `I3_ONLY_BIN` scripts, under Hyprland `binds-user.lua` and `hyprland-mimeapps.list`. It points the
-  **slots**, one link per app both sessions theme: terminal colours and font, satty, `gtk.css` (under Hyprland a
-  real file importing `dank-colors.css`), Neovim's `theme.lua`, and the `FileManager1` D-Bus activation link. It
-  also sets the icon theme, Vesktop's enabled theme (only while Vesktop is closed), the matugen drop-in, and
+- **One login entry.** ly stays the only greeter, with one "Hyprland" entry for both shells, and
+  `noctalia-greeter` is not installed. The shell is `HYPR_SHELL`, recorded in
+  `~/.local/state/graphical-session/hypr-shell` and `~/.config/environment.d/10-graphical-session.conf`.
+  ly's environment has no `HYPR_SHELL`, so `hypr/cachy.lua` reads the file, falls back to Noctalia, and sets
+  `HYPR_SHELL` in the session: a reload keeps the running shell, and the scripts read it to pick a backend. A
+  Hyprland session recorded with no shell predates the choice, so `active_hypr_shell` calls it dux.
+  `CACHY_DOTS_DIR` is used by external mise configs: never rename it.
+- **What a switch does** (`install/session.sh`): it keys everything by owner, `i3`, `dux` or `noctalia`. Links go
+  by session (each removed only while it still points where the session put it): under i3 that is `i3/`,
+  `~/.xprofile`, dunst's config and the `I3_ONLY_BIN` scripts; under Hyprland `hypr/noctalia/*.lua`,
+  `hypr/dms/binds-user.lua` (once dux's setup has run, or it would write through the link into the repo) and
+  `noctalia/` (with Noctalia installed); under dux also `hyprland-mimeapps.list`. Hyprland's links stay once made,
+  even under i3: only Hyprland reads them, and ly offers every entry whatever is recorded, so picking Hyprland with
+  i3 recorded does not end in emergency mode, and a running session survives a reload. It points the **slots**, one
+  link per app the sessions theme: terminal colours and font, satty, `gtk.css` (under dux a real file importing
+  `dank-colors.css`), Neovim's `theme.lua`, and the `FileManager1` D-Bus activation link. Under Noctalia the colour
+  slots are i3's, x11-theme's render. It also sets the icon theme, Vesktop's enabled theme (only while Vesktop is
+  closed), the matugen drop-in (dux only), dfiles' place in the file chooser (taken out under Noctalia), and
   Sunshine's `capture` key. Under Hyprland it masks `dunst` and `blueman-applet` and writes a stub
   `~/.config/i3/config` that only shows i3-nagbar. A switch there and back leaves the links byte-identical.
-- **dux owns the Hyprland config.** `opt/hyprland.sh` runs `dms setup headless --compositor hyprland
-  --no-systemd` once, while `~/.config/hypr/hyprland.lua` is missing. Without `--terminal`, because a terminal
-  config would be written through the links into this repo. The repo adds `hypr/dms/binds-user.lua` (a link),
-  `hypr/hyprland-mimeapps.list` (a link), a per-host copy of `hypr/cachy.lua`, and one `require("cachy")` line
-  that `cachy-session` appends to `hyprland.lua` (and re-adds if `dms setup --force` dropped it).
+- **`hyprland.lua` is shared, and `hypr/cachy.lua` picks the shell.** dux's generated file loads its modules and
+  starts `dms run` unconditionally, before `cachy.lua`, so `ensure_cachy_require` comments those lines out (keeping
+  a `.bak.<time>`), appends one `require("cachy")`, and redoes both if `dms setup --force` brought them back. The
+  rest of the file, the environment and general settings, is what both shells share. `cachy.lua` then loads dux's
+  modules, in the order dux wrote them, and starts `dms run`, only when `HYPR_SHELL` is `dux`. A host with no
+  `hyprland.lua` gets a copy of `hypr/hyprland.lua`, dux's file minus dux. `hl.exec_once` does not exist; startup
+  goes through `hl.on("hyprland.start", ...)`. `cachy.lua` is per host, but a copy without the shell choice
+  (checked by the word `HYPR_SHELL`) would leave a session with no shell, so it moves aside with a warning.
+- **dux owns `hypr/dms/`.** `opt/hyprland.sh` runs `dms setup headless --compositor hyprland --no-systemd` once,
+  while `hypr/dms/binds.lua` is missing, with `--force` when a Noctalia-first host already has a `hyprland.lua`.
+  Without `--terminal`, because a terminal config would be written through the links into this repo.
 - **dux itself** comes from its GitHub releases, every file pinned by sha256 in the `DUX` table of
   `opt/hyprland.sh` and installed root-owned under `/usr/local`, so `dms update` cannot replace it; bump the pins
   to upgrade. Not the AUR, and not chaotic-aur's `dms-shell-git`.
-- **`binds-user.lua`** is dux's override file, loaded after its stock `binds.lua`. Each override is an
-  `hl.unbind` + `hl.bind` pair, and the i3 meaning wins, except where dux has its own app (`$mod+p` opens dux's
-  process list). Keep the file in the form dux's keybind editor writes (sorted, one statement per line, its
-  header the only comment): dux's Settings rewrite it through the link, and git should then show only that
-  change.
+- **Three bind files, one effective table.** What names no shell is in `hypr/cachy.lua`: windows, focus, moving,
+  resizing, workspaces, `bin/ws-app`, `bin/maximize`, `bin/dictate`, the app launchers. It runs after dux's files
+  and uses `rebind` (`hl.unbind` + `hl.bind`), so a stock dux chord is replaced, and those chords cannot be changed
+  from dux's editor. Its binds reach a host only through its own copy of the file. What names a shell is in that
+  shell's file, chord for chord: `hypr/dms/binds-user.lua` and `hypr/noctalia/binds-user.lua`. The latter also
+  covers the dux stock chords that survive, so it never copies stock defaults that are overridden.
+  `hypr/noctalia/binds-user.lua` has no counterpart for `$mod+Alt+r` (rename a workspace) or `$mod+Shift+w` (window
+  rules), and adds `$mod+Ctrl+w` (next wallpaper). The i3 meaning wins, except where a shell has its own app
+  (`$mod+p` opens dux's process list).
+- **`hypr/dms/binds-user.lua`** is dux's override file, loaded after its stock `binds.lua`. Keep it in the form
+  dux's keybind editor writes (sorted, one statement per line, its header the only comment): dux's Settings
+  rewrite it through the link, and git should then show only that change.
 - **Layout-specific chords** follow the reference config (quattro-dots), not i3. The master-layout chords
   (`$mod+s`, `$mod+Shift+s`, `$mod+n`, `$mod+Shift+n`) do nothing in dux's default dwindle layout; the layout
   is left to dux's settings on purpose, and nothing in `hypr/cachy.lua` sets `general.layout`. `$mod+f`
   maximizes (`bin/maximize`); `+Shift` fullscreens without telling the client, `+Ctrl` tells the client while the
-  window stays tiled, `+Alt` does both, `+Shift+Ctrl` resets the window. Not bound yet: next wallpaper, the 2000K
-  nightlight, i3's restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`.
-- **`hypr/cachy.lua`** holds what dux's editor would drop: the session environment (`~/.local/bin` on PATH,
-  `XDG_SESSION_TYPE=wayland`, the telemetry opt-outs); the startup programs, whose own units hang off
-  `graphical-session.target`, which this session never reaches (`dfiles`, `dcal`, `dsearch`, and
+  window stays tiled, `+Alt` does both, `+Shift+Ctrl` resets the window. Not bound yet: the 2000K nightlight, i3's
+  restart chord, `$mod+Shift+BackSpace` and `$mod+Mod1+BackSpace`; under dux, next wallpaper. `$mod+Shift+Ctrl+Mod1+d`
+  toggles light and dark in both shells; under i3, where a theme carries its mode, it opens the theme menu.
+- **`hypr/cachy.lua`** also holds the session environment (`~/.local/bin` on PATH, `XDG_SESSION_TYPE=wayland`, the
+  telemetry opt-outs); the startup programs, whose own units hang off `graphical-session.target`, which this
+  session never reaches (under dux `dfiles`, `dcal`, `dsearch`, and in both shells
   `~/.config/hypr/cachy-services.lua` for opt-in services); the window rules; and the `passthru`, `gaps` and
   `dictate_suppress` submaps.
-- **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a
-  three-letter prefix joined by `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key is
-  its keysym (`slash`, `equal`; `plus` predates the prefixes). In i3 they are named workspaces; in Hyprland,
-  special workspaces with the same names. `bin/ws-app` toggles one and launches its app only when it is empty.
-  Under Hyprland it launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`; a workspace rule's
-  `on_created_empty` cannot live in `binds-user.lua`. Its launch rule places only the first window, so apps
-  that reopen windows also get a window rule (Hyprland) or an `assign` (i3) whose name must match the bind's:
-  Vesktop (a loading window precedes the main one), Dux Calendar (its daemon makes the window) and Moonlight.
+- **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a three-letter
+  prefix joined by `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key is its keysym
+  (`slash`, `equal`; `plus` predates the prefixes). In i3 they are named workspaces; in Hyprland, special
+  workspaces with the same names. `bin/ws-app` toggles one and launches its app only when it is empty. Under
+  Hyprland it launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`. Its launch rule places only
+  the first window, so apps that reopen windows also get a window rule (Hyprland) or an `assign` (i3) whose name
+  must match the bind's: Vesktop (a loading window precedes the main one), Dux Calendar (its daemon makes the
+  window) and Moonlight.
 - **Moonlight** (`$mod+Ctrl+m`, `ctl_m`): the client closes when a stream starts and returns when it ends, so
   every window of its class goes to `special:ctl_m`, and the stream window (title `<host> - Moonlight`) is also
   fullscreen with idle inhibited. The class rule has `suppress_event = "fullscreenoutput"`: in Moonlight's
@@ -177,20 +205,39 @@ not "Hyprland (uwsm-managed)": uwsm is not installed.
   the bar on a one-monitor PC), nor `dmsWindowsFloatingSeeded`; keep `configVersion`, or dux re-runs every
   migration. It is a copy because dux rewrites the file. Left out on purpose: `hypr/dms/outputs.lua` and
   `colors.lua`.
-- **Apps follow dux's colours** through a user matugen template. `cachy-session` writes a drop-in to
+- **Noctalia** (`noctalia/`, linked into `~/.config/noctalia`) is configured by `config.toml` and `templates.toml`;
+  its Settings window writes `~/.local/state/noctalia/settings.toml`, which wins over them, never the links. Check
+  them with `noctalia config validate`. `hypr/noctalia/compositor.lua` stands in for dux's modules: dux's defaults
+  for monitors and layout, so a host without dux behaves the same, then dux's
+  `hypr/dms/{outputs,layout,cursor,input,windowrules}.lua` where they exist, since they are what dux's Settings
+  wrote for this host. nautilus is the file manager, and GTK's portal serves open and save dialogs. Noctalia owns
+  `org.freedesktop.Notifications`, so `dunstify` reaches it. `noctalia msg` always answers 0 for `settings-open`,
+  whatever the section; its `keybinds` page is its own panel navigation, so `$mod+Shift+Ctrl+Mod1+k` is
+  `bin/hypr-keybinds-menu`, and the colour picker is `hyprpicker`. `$mod+p` is `bin/hypr-btop`, btop floating and
+  centred, opened, focused or closed as dux's process list is. `nightlight-force-toggle` is the night light's on
+  and off; plain `nightlight-toggle` only arms a schedule.
+- **Noctalia's colours.** Built-in palettes only, no custom JSON. No built-in template is on, since theirs edit each
+  app's config, and those are links into this repo. `noctalia/templates/omarchy-colors.toml` renders the palette
+  in omarchy's format and `noctalia/hooks/on-theme-change` hands it to `x11-theme from-noctalia`, which renders
+  every app's template and runs the theme-set hooks, as `from-dux` does. `theme.noctalia` marks that render. The
+  hook is the palette template's `post_hook`: `theme_mode_changed` and `colors_changed` fire before the template
+  is written, and acting on them renders the previous palette. The hook skips itself when nothing changed, so
+  firing twice is harmless. It also copies the rendered borders to `~/.config/hypr/noctalia/colors.lua`, a per-host
+  file, and reloads Hyprland when they differ.
+- **Apps follow dux's colours** through a user matugen template. `graphical-session` writes a drop-in to
   `~/.config/matugen/dms/configs/cachy-dots.toml` (never your own `matugen/config.toml`). dux then renders
   `hypr/matugen/omarchy-colors.toml` into an omarchy-style palette, whose `post_hook` runs `x11-theme from-dux`
-  to render the repo's templates. `theme.dux` marks that render, and `cachy-session i3` re-renders the i3
+  to render the repo's templates. `theme.dux` marks that render, and `graphical-session i3` re-renders the i3
   theme. Neovim uses dux's own `dms` colourscheme (`hypr/nvim-theme.lua`; `opt/hyprland.sh` turns dux's Neovim
   template on), and Vesktop dux's `dank-discord.css`. satty keeps its own palette (`satty/config-wayland.toml`).
-- **dux's apps over third-party ones.** Dux Files is the file manager under Hyprland: `$mod+e`, folders (through
+- **dux's apps over third-party ones.** Dux Files is the file manager under dux: `$mod+e`, folders (through
   `hyprland-mimeapps.list`, read only when `XDG_CURRENT_DESKTOP` is Hyprland), `FileManager1`, and the file
   chooser (`dfiles portal install`, seeded from the system portal config so its defaults survive). Nautilus
-  stays i3's. No rofi under Hyprland: pickers use `dms dmenu`.
-- **Shared scripts** pick their backend from `XDG_SESSION_TYPE`: `screenshot` (maim/xclip, or
-  `dms screenshot`/wl-copy), `dictate` (xclip/`xdotool --clearmodifiers`, or wl-copy/wtype plus the
-  `dictate_suppress` submap, since wtype cannot release held modifiers), `ws-app`, and `default-browser` (rofi,
-  or `dms dmenu`).
+  is i3's and Noctalia's. No rofi under Hyprland: pickers use `dms dmenu` or `noctalia dmenu`.
+- **Shared scripts** pick their backend from `XDG_SESSION_TYPE`, and under Hyprland from `HYPR_SHELL`: `screenshot`
+  (maim/xclip, `dms screenshot`/wl-copy, or Noctalia's own captures and annotator), `dictate` (xclip/`xdotool
+  --clearmodifiers`, or wl-copy/wtype plus the `dictate_suppress` submap, since wtype cannot release held
+  modifiers), `ws-app`, and `default-browser` (rofi, `dms dmenu` or `noctalia dmenu`).
 - **The user manager outlives a logout** for a few seconds, still holding the previous session's activation
   environment and portals. Each session resets them at login: `05-autostart.conf` exports i3's variables, unsets
   Hyprland's and stops the portals; `cachy.lua` does the reverse.
@@ -250,7 +297,7 @@ not "Hyprland (uwsm-managed)": uwsm is not installed.
 `bin/x11-theme` applies Omarchy themes to the i3 stack, with Omarchy's formats and paths
 (`~/.config/omarchy/themes/`, rendered into `~/.local/state/omarchy/current/theme/`), so any Omarchy theme repo
 and Omarchy-style hooks work. Under Hyprland it refuses every command that changes something, except
-`from-dux`.
+`from-dux` and `from-noctalia`.
 
 - **Engine.** `theme/` mirrors Omarchy's layout, so `OMARCHY_PATH=theme/` runs the vendored
   `omarchy-theme-color` and `omarchy-theme-set-templates` **unmodified** (`theme/VENDORED.md`). A switch renders
@@ -265,9 +312,9 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
   `theme/themes/pinkrot/colors.toml`; later runs do `x11-theme update` (fast-forward only).
 - **Commands:** `install <git-url>`, `install-omarchy [name|--list|--all]` (a sparse clone of `omacom/omarchy`,
   branch `quattro`, theme names read from the repo), `set`, `refresh`, `update`, `list`, `current`, `remove`,
-  `menu`, `add-wallpaper`, `apply-chromium`, `from-dux`. Wallpapers come from the theme's `backgrounds/` plus
-  `~/.config/omarchy/backgrounds/<theme>/`, with `~/.config/wallpapers/` as the fallback. The rofi grids use
-  thumbnails cached by `bin/x11-thumb`.
+  `menu`, `add-wallpaper`, `apply-chromium`, `from-dux`, `from-noctalia`. Wallpapers come from the theme's
+  `backgrounds/` plus `~/.config/omarchy/backgrounds/<theme>/`, with `~/.config/wallpapers/` as the fallback. The
+  rofi grids use thumbnails cached by `bin/x11-thumb`.
 - **What follows the theme:**
 
   | App | Mechanism | Takes effect |
@@ -293,8 +340,7 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
   `theme_*` names, which Qt reads through the gtk3 platform theme.
 - **The generated `x11-theme` icon theme** inherits the theme's `icons.theme` (Yaru-*, from chaotic-aur) and
   recolours the tray's symbolic icons to the foreground: nm-applet's (also under their non-symbolic names,
-  which it asks for), CopyQ's and blueman's. The VPN lock becomes a half-size accent badge. Vesktop's tray icon
-  is a PNG in `~/.config/vesktop/userAssets/`.
+  which it asks for), CopyQ's and blueman's. The VPN lock becomes a half-size accent badge.
 - **Chromium needs root, narrowly.** `setup_theme_helper()` copies `theme/root/chromium-theme-color` to
   `/usr/local/lib/cachy-dots/` and allows exactly that path through `/etc/sudoers.d/cachy-dots-theme`. The
   helper takes one `#rrggbb` and writes `color.json` under `/etc/chromium/policies/managed/`, and under
@@ -302,6 +348,25 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
 - **ZAP** (`bin/zaproxy`) runs with Java's GTK look and feel, minus the `GNOME` token in
   `XDG_CURRENT_DESKTOP`: Java refuses GTK whenever that names GNOME. Its splash screen cannot be themed.
 - Running GTK apps keep their colours until restarted.
+
+## Custom Taskbar & System Tray Icon Theming
+
+Bar icons a shell draws itself (Wi-Fi, battery, volume) follow its theme for free. An app's tray icon does not: Vesktop
+exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor Noctalia recolours bitmaps.
+
+- **Palette-inherited icons** (monochrome status glyphs, like Vesktop's) are drawn by a `hooks/theme-set.d/<app>`
+  generator from a parameterised source: for Vesktop, Adwaita's headset glyph with its fixed grey replaced, written
+  as PNGs to `~/.config/vesktop/userAssets/{tray,trayUnread}`, the unread one with a dot in the accent.
+- **The colour is the status bar's icon token**, `foreground` in the rendered `colors.toml`: the theme's foreground
+  on i3status-rust, `on_surface` on dux's and Noctalia's bars. An explicit `VESKTOP_ICON_COLOR` (`#rrggbb`)
+  overrides it.
+- **All three pipelines must reach the hook:** `bin/x11-theme` (i3), dux's matugen template through `x11-theme
+  from-dux` (dux), and Noctalia's `post_hook` through `x11-theme from-noctalia` (Noctalia). Under dux the hook draws
+  only the tray icon; the stylesheet is dux's `dank-discord.css`. Vesktop reads the icon at its next start, or when the
+  unread state next changes.
+- **Unthemed icons** (fixed brand or semantic colours) go outside `hooks/theme-set.d/`, do not use `-symbolic`
+  names, and are listed here as intentional exceptions. There are none today. `shell.app_icon_colorize` in Noctalia
+  stays off for this reason: it would tint every tray icon, exceptions included.
 
 ## Apps
 
@@ -345,7 +410,8 @@ and Omarchy-style hooks work. Under Hyprland it refuses every command that chang
 
 Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every script.
 
-- `opt/hyprland.sh` and `opt/dux-settings.sh`: the Hyprland session (above).
+- `opt/hyprland.sh` and `opt/dux-settings.sh`: the Hyprland session with dux (above). `opt/noctalia.sh`: with
+  Noctalia.
 - `opt/omarchy-repo.sh` adds Omarchy's repo, and `opt/omarchy-retroarch.sh` sets RetroArch up as Omarchy does.
   RetroArch's settings are applied once (`--reconfigure` re-applies them), and it needs a Vulkan driver
   (`vulkan-swrast` in a VM).
@@ -361,7 +427,8 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
 - **Test VMs.** `opt/arch-cloud-vm.sh` makes a vanilla Arch VM from an arch-boxes cloud image (no display;
   `--nopasswd` lets it be driven over ssh). `opt/arch-cloud-vm-dots.sh` adds a SPICE display, then clones the repo
   and runs `./install_vm.sh` at first boot (log in `/var/log/dots-provision.log`). `dots-test` has a clean
-  snapshot: `virsh -c qemu:///system snapshot-revert dots-test provisioned`. Hyprland was tested on `arch0`.
+  snapshot: `virsh -c qemu:///system snapshot-revert dots-test provisioned`. Hyprland was tested on `arch0`, and
+  both shells on `arch-lab`.
 - **Copy the repo with `rsync -a --delete`**, not tar: a stale `conf.d` file left behind loads and overrides.
 - **ufw rate-limits port 22** (6 connections in 30 s): use one multiplexed ssh connection.
 - **Test GUI apps under the session's environment** (`/proc/$(pgrep -xo i3)/environ`), not an ssh shell's.
@@ -369,6 +436,18 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
 - **A graphical session without typing a password**, as ly starts one: `systemd-run -p PAMName=login -p
   TTYPath=/dev/tty2 -p StandardInput=tty-force --uid=<user> /etc/ly/setup.sh /usr/bin/start-hyprland`, after
   `chvt 2`. Keys go in with `virsh send-key`, and `virsh screenshot` captures the screen.
+- **A guest with no GPU** (no `/dev/dri`) still runs a whole session after `sudo modprobe vkms`. Hyprland cannot
+  commit frames, so `virsh screenshot` is blank, but it does render: `noctalia msg screenshot-fullscreen --directory
+  ...` captures what is on screen. With no EDID the monitor comes up at scale 2, 512 logical pixels wide, which is
+  why the bar clips and panels crop. Stopping a session and starting another on the same VT ends the new one 10 s
+  later, when logind hangs up the VT: wait that out first. `hyprctl binds -j` proves a bind exists; `virsh send-key`
+  proves it reaches the action. QEMU's `mouse_move` does not reach libinput; `ydotool` (a uinput pointer) does, and
+  drives region captures. `pw-cli create-node adapter` makes a null sink for the audio binds, which Noctalia sees
+  only if it existed when Noctalia started. The test login uses `PAMName=login`, which has no `pam_gnome_keyring`,
+  so Noctalia's secret-store lookup raises a "new keyring" prompt that ly's PAM prevents on a real login.
+- **A real ly login in a guest with no display:** `systemctl start ly@tty1`, read the screen from `/dev/vcs1`, and type
+  with `virsh send-key`. QEMU's keyboard has no brightness keys, but `ydotool key 225:1 225:0` sends them through
+  uinput. A backlight with no DRM parent is skipped until `[brightness.monitor.<connector>]` pins it.
 - **A real NetBird for the stack** (`opt/services/rakazo`): hitkit's NetBird kit (`hitkit up netbird` on the
   host; peers join with its setup key and trust `~/.local/share/hitkit/ca/ca.crt`). QEMU's user networking does
   not read the host's `/etc/hosts`, so a test VM needs its own `netbird.hitkit.internal` line. Arch has no
