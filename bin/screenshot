@@ -7,14 +7,31 @@
 #   annotate-full:   whole screen, opened in satty to draw on
 #   ocr:             interactive selection, its text (tesseract) to the clipboard
 #
-# X11 (i3) captures with maim and copies with xclip. Wayland (Hyprland) captures
-# with dux's `dms screenshot` and copies with wl-copy; there, plain region and
-# full screenshots are bound to `dms screenshot` itself (hypr/dms/binds-user.lua),
-# so this script is used for ocr and annotate-*.
+# X11 (i3) captures with maim and copies with xclip. Hyprland with dux captures
+# with `dms screenshot` and copies with wl-copy; there, plain region and full
+# screenshots are bound to `dms screenshot` itself (hypr/dms/binds-user.lua), so
+# this script is used for ocr and annotate-*.
+#
+# Hyprland with Noctalia (HYPR_SHELL, set by hypr/cachy.lua) leaves it all to
+# Noctalia: its region and fullscreen captures, its annotator in place of satty,
+# and ocr through a pipe back into this script.
 #
 # In satty (config in satty/config.toml): Enter copies to the clipboard and
 # closes, Ctrl+S saves to ~/Pictures/Screenshots, Escape discards.
 set -eu
+
+# `ocr-png` is that pipe's end: the capture on stdin, its text to the clipboard.
+if [ "${XDG_SESSION_TYPE:-}" = wayland ] && [ "${HYPR_SHELL:-}" != dux ] && [ "${1:-}" != ocr-png ]; then
+    case "${1:-region}" in
+        region)          exec noctalia msg screenshot-region ;;
+        full)            exec noctalia msg screenshot-fullscreen ;;
+        annotate-region) exec noctalia msg screenshot-region --annotate ;;
+        annotate-full)   exec noctalia msg screenshot-annotate ;;
+        ocr)             exec noctalia msg screenshot-region --no-save-to-file --no-copy-to-clipboard \
+                             --pipe-to-command --pipe-command "$(readlink -f "$0") ocr-png" ;;
+        *) echo "usage: screenshot region|full|annotate-region|annotate-full|ocr" >&2; exit 2 ;;
+    esac
+fi
 
 pics="${XDG_PICTURES_DIR:-$HOME/Pictures}"
 
@@ -64,10 +81,16 @@ case "${1:-region}" in
     annotate-full)
         capture full | annotate --fullscreen
         ;;
-    ocr)
+    ocr|ocr-png)
         # Upscaled 2x before recognition: screen text is small, and tesseract is
         # tuned for ~300 dpi scans, so it misreads 1:1 UI text far more often.
-        capture_region
+        if [ "${1:-}" = ocr-png ]; then
+            tmp=$(mktemp --suffix=.png)
+            trap 'rm -f "$tmp"' EXIT
+            cat > "$tmp"
+        else
+            capture_region
+        fi
         text=$(magick "$tmp" -resize 200% -colorspace Gray png:- | tesseract stdin stdout --psm 6 2>/dev/null \
                | sed -e 's/[[:space:]]*$//' -e '/./,$!d')
         if [ -z "$text" ]; then

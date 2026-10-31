@@ -12,13 +12,13 @@
 #            toolbar colour then follows the theme (x11-theme apply-chromium).
 #            Installing needs sudo, so with no terminal (from a menu) this reopens
 #            itself in $TERMINAL (alacritty when unset).
-#   menu     a list of the above, the current one marked: rofi on X11, dux's
-#            launcher (`dms dmenu`) under Hyprland.
+#   menu     a list of the above, the current one marked: rofi on X11, the
+#            shell's launcher (`dms dmenu`, `noctalia dmenu`) under Hyprland.
 #   current  prints the name.
 #   launch   starts the default browser (a new window), in private browsing with
 #            --private, showing URL in it when one is given ($mod+i opens the
 #            thesaurus on its own workspace). $mod+b and $mod+Shift+Ctrl+b (i3/conf.d/70-apps.conf,
-#            hypr/dms/binds-user.lua).
+#            hypr/cachy.lua).
 #
 # $mod+Shift+b, $mod+Ctrl+b and $mod+Mod1+b launch qutebrowser, firefox and
 # chromium directly, whatever the default is. $mod+u (the browser workspace) is
@@ -106,7 +106,11 @@ set_default() {
 
 choose() {
     if [ "${XDG_SESSION_TYPE:-}" = wayland ]; then
-        dms dmenu -p 'default browser'
+        if [ "${HYPR_SHELL:-}" = dux ]; then
+            dms dmenu -p 'default browser'
+        else
+            noctalia dmenu -p 'default browser'
+        fi
     else
         rofi -dmenu -i -p 'default browser'
     fi
