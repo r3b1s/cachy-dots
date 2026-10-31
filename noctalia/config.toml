@@ -1,0 +1,65 @@
+# Noctalia, the Hyprland shell picked by `graphical-session hyprland noctalia`. Linked to
+# ~/.config/noctalia/config.toml; Noctalia never writes here (its Settings window has
+# ~/.local/state/noctalia/settings.toml, which wins over this file). Anything not set
+# here is Noctalia's default. `noctalia config validate` checks the file.
+
+[shell]
+setup_wizard_enabled = false
+telemetry_enabled = false
+# The authentication agent: dux brings its own, and nothing else runs one here.
+polkit_agent = true
+clipboard_enabled = true
+
+[shell.screenshot]
+directory = "~/Pictures/Screenshots"
+copy_to_clipboard = true
+save_to_file = true
+
+# Built-in palettes only, for a start: Settings > Appearance picks another, or
+# `noctalia msg color-scheme-set builtin <name>`. $mod+Shift+Ctrl+Alt+d toggles the mode.
+[theme]
+source = "builtin"
+builtin = "Noctalia"
+mode = "dark"
+shell_mode = "follow"       # the bar and panels change together with the apps
+sync_color_scheme = true    # writes org.gnome.desktop.interface color-scheme
+
+# A palette change, and with it light or dark, is the template's post_hook
+# (templates.toml); these cover what renders nothing. The hook does nothing when
+# neither the palette nor the wallpaper changed, so firing twice costs nothing.
+[hooks]
+theme_mode_changed = "~/.config/noctalia/hooks/on-theme-change"
+wallpaper_changed = "~/.config/noctalia/hooks/on-theme-change"
+
+[wallpaper]
+directory = "~/.config/wallpapers"
+
+# One bar, laid out as dux's in dms/settings.json.
+[bar]
+order = ["main"]
+
+[bar.main]
+position = "top"
+start = ["launcher", "workspaces", "active-window"]
+center = ["media", "clock", "weather"]
+end = ["tray", "clipboard", "sysmon", "notifications", "battery", "control-center"]
+
+[notification]
+enable_daemon = true
+position = "top_right"
+
+# Locks after ten minutes and blanks a minute later, as i3's xss-lock does by the
+# X screensaver's timeout. Never suspends on its own.
+[idle]
+behavior_order = ["lock", "screen-off"]
+
+[idle.behavior.lock]
+action = "lock"
+timeout = 600
+
+[idle.behavior.screen-off]
+action = "screen_off"
+timeout = 660
+
+[lockscreen]
+enabled = true

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Run by Noctalia when the palette, light or dark, or the wallpaper changes: as the
+# palette template's post_hook (noctalia/templates.toml) and from [hooks]
+# (noctalia/config.toml), so more than once for one change, and sometimes before the
+# palette file is written. Nothing is done unless something differs from the last run.
+# Hands the palette to `x11-theme from-noctalia`, which renders every app's template and
+# runs the theme-set hooks, and puts the window borders in place, reloading Hyprland
+# only when they changed. Never fails a change.
+set -uo pipefail
+
+SELF=$(readlink -f "${BASH_SOURCE[0]}")
+REPO=$(cd -- "$(dirname -- "$SELF")/../.." && pwd)
+state="${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots"
+borders="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/noctalia/colors.lua"
+current="$HOME/.local/state/omarchy/current"
+
+if [ ! -f "$current/theme.noctalia" ] \
+    || ! cmp -s "$state/noctalia-colors.toml" "$current/theme/colors.toml" \
+    || [ "$(readlink "$current/background")" != "$(noctalia msg wallpaper-get 2>/dev/null)" ]; then
+    "$REPO/bin/x11-theme" from-noctalia || true
+fi
+
+if [ -s "$state/noctalia-hypr-colors.lua" ] && ! cmp -s "$state/noctalia-hypr-colors.lua" "$borders"; then
+    cp "$state/noctalia-hypr-colors.lua" "$borders"
+    hyprctl reload >/dev/null 2>&1 || true
+fi
+exit 0

@@ -1,0 +1,27 @@
+# Noctalia's templates: its palette out to everything else. Linked to
+# ~/.config/noctalia/templates.toml, one of the *.toml files Noctalia reads.
+#
+# No built-in template is on: theirs add an include to each app's config, and those
+# configs are links into this repo. One palette file is rendered instead, and
+# hooks/on-theme-change hands it to `x11-theme from-noctalia`, which renders every
+# app's template from it, as under i3 and dux, and runs hooks/theme-set.d/* (Vesktop's
+# tray icon and stylesheet, Obsidian). So a palette or light/dark change reaches the
+# terminals, GTK, Neovim, btop and the rest.
+#
+# That runs as the palette's post_hook, the one thing certain to come after the file
+# is written: config.toml's theme_mode_changed and colors_changed fire before it is,
+# and would render the previous palette. index puts it after the borders' template.
+[theme.templates]
+enable_builtin_templates = false
+enable_community_templates = false
+
+[theme.templates.user.cachy_dots_hypr]
+input_path = "$XDG_CONFIG_HOME/noctalia/templates/hypr-colors.lua"
+output_path = "$XDG_STATE_HOME/cachy-dots/noctalia-hypr-colors.lua"
+index = 0
+
+[theme.templates.user.cachy_dots]
+input_path = "$XDG_CONFIG_HOME/noctalia/templates/omarchy-colors.toml"
+output_path = "$XDG_STATE_HOME/cachy-dots/noctalia-colors.toml"
+post_hook = "~/.config/noctalia/hooks/on-theme-change"
+index = 1
