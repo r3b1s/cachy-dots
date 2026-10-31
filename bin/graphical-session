@@ -1,58 +1,86 @@
 #!/usr/bin/env bash
-# cachy-session [status] | i3 | hyprland  [-n]
+# graphical-session [status] | i3 | hyprland <dux|noctalia>  [-n]
 #
 # Which desktop session the dots are set up for. One is active at a time:
-#   i3        the X11 session (the default)
-#   hyprland  Hyprland with dux-shell (installed by opt/hyprland.sh)
+#   i3                  the X11 session (the default)
+#   hyprland dux        Hyprland with dux-shell (installed by opt/hyprland.sh)
+#   hyprland noctalia   Hyprland with Noctalia (installed by opt/noctalia.sh)
 #
-# Switching unlinks what the other session owns, links this one's, points the
+# Switching unlinks what the other sessions own, links this one's, points the
 # colour slots (terminal, GTK, satty) at its colours, masks or unmasks dunst and
 # blueman's applet, and records the choice in ~/.config/cachy-dots/session, which
-# install.sh and sync.sh follow from then on. Nothing running is changed: log out
-# and pick the session at the login screen. install/session.sh has the details.
+# install.sh and sync.sh follow from then on. The Hyprland shell is recorded in
+# ~/.local/state/graphical-session/hypr-shell and, as HYPR_SHELL, in
+# ~/.config/environment.d/10-graphical-session.conf; hypr/cachy.lua starts it.
+# Nothing running is changed: log out and pick the session at the login screen,
+# where both shells are the one "Hyprland" entry. install/session.sh has the details.
 #
 #   -n, --dry-run  print what would change
 set -euo pipefail
 
 SELF=$(readlink -f "${BASH_SOURCE[0]}")
+USAGE='Usage: graphical-session {i3 | hyprland <dux|noctalia>}'
+usage_error() { echo "$USAGE" >&2; exit 2; }
+
 dry=0
 target=status
+shell=
 for arg in "$@"; do
     case "$arg" in
         -n|--dry-run) dry=1 ;;
-        -h|--help) sed -n '2,14p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,18p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
         status|i3|hyprland) target=$arg ;;
-        *) echo "unknown argument: $arg (see cachy-session --help)" >&2; exit 2 ;;
+        dux|noctalia) shell=$arg ;;
+        *) echo "unknown argument: $arg (see graphical-session --help)" >&2; exit 2 ;;
     esac
 done
+if [ "$target" = hyprland ]; then
+    [ -n "$shell" ] || usage_error
+elif [ -n "$shell" ]; then
+    usage_error
+fi
 
 # The installer's modules: functions only, nothing runs on sourcing.
 PROFILE=${PROFILE:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/profile" 2>/dev/null || echo workstation)}
 # shellcheck source=install/lib.sh
 . "$(dirname "$SELF")/../install/lib.sh"
 
-[ "$(id -u)" -ne 0 ] || { warn "run cachy-session as your own user, not root"; exit 1; }
+[ "$(id -u)" -ne 0 ] || { warn "run graphical-session as your own user, not root"; exit 1; }
 
-hypr_lua="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.lua"
-
-# What a Hyprland session needs before it can be the active one.
+# What a Hyprland session with shell $1 needs before it can be the active one.
+# Noctalia needs no hyprland.lua: apply_session copies hypr/hyprland.lua when there
+# is none. dux's is the one its setup wrote, with its modules in hypr/dms/.
 hyprland_missing() {
-    command -v Hyprland >/dev/null || echo "Hyprland is not installed (opt/hyprland.sh)"
-    command -v dms >/dev/null || echo "dux-shell (dms) is not installed (opt/hyprland.sh)"
-    if [ ! -f "$hypr_lua" ]; then
-        echo "$hypr_lua does not exist: opt/hyprland.sh has dux write it"
-    fi
+    command -v Hyprland >/dev/null || echo "Hyprland is not installed (opt/hyprland.sh or opt/noctalia.sh)"
+    case "$1" in
+        dux)
+            command -v dms >/dev/null || echo "dux-shell (dms) is not installed (opt/hyprland.sh)"
+            if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/dms/binds.lua" ]; then
+                echo "hypr/dms/binds.lua does not exist: opt/hyprland.sh has dux write it"
+            fi
+            ;;
+        noctalia)
+            command -v noctalia >/dev/null || echo "Noctalia is not installed (opt/noctalia.sh)"
+            ;;
+    esac
 }
 
 case "$target" in
     status)
-        echo "active session: $(active_session)"
-        missing=$(hyprland_missing)
-        if [ -z "$missing" ]; then
-            echo "hyprland: ready"
+        s=$(active_session)
+        if [ "$s" = hyprland ]; then
+            echo "active session: hyprland $(active_hypr_shell)"
         else
-            printf 'hyprland: not ready\n%s\n' "$(printf '%s\n' "$missing" | sed 's/^/  /')"
+            echo "active session: $s"
         fi
+        for variant in dux noctalia; do
+            missing=$(hyprland_missing "$variant")
+            if [ -z "$missing" ]; then
+                echo "hyprland $variant: ready"
+            else
+                printf 'hyprland %s: not ready\n%s\n' "$variant" "$(printf '%s\n' "$missing" | sed 's/^/  /')"
+            fi
+        done
         ;;
     i3)
         apply_session i3
@@ -61,12 +89,12 @@ case "$target" in
         echo "Log out and pick i3 at the login screen."
         ;;
     hyprland)
-        missing=$(hyprland_missing)
+        missing=$(hyprland_missing "$shell")
         if [ -n "$missing" ]; then
             printf '%s\n' "$missing" | while IFS= read -r line; do warn "$line"; done
             exit 1
         fi
-        apply_session hyprland
+        apply_session hyprland "$shell"
         validate_session
         echo
         echo "Log out and pick Hyprland at the login screen."

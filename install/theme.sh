@@ -95,8 +95,8 @@ setup_gtk() {
     local dir icons
     icons=$(session_icon_theme)
     for dir in gtk-3.0 gtk-4.0; do
-        # Under Hyprland dux switches the theme and the dark preference itself.
-        if [ "$(active_session)" = i3 ]; then
+        # Under dux, dux switches the theme and the dark preference itself.
+        if [ "$(session_owner)" != dux ]; then
             [ "$dir" = gtk-3.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name adw-gtk3-dark
             [ "$dir" = gtk-4.0 ] && ini_set "$cfg/$dir/settings.ini" gtk-theme-name Adwaita
             ini_set "$cfg/$dir/settings.ini" gtk-application-prefer-dark-theme 1

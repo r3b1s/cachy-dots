@@ -17,8 +17,8 @@
 #      the repo wants that are missing, and warns when voxtype is installed
 #      without the hooks and config link opt/services/voxtype/install.sh makes
 #
-# The links and colours of the active session (bin/cachy-session) are re-applied
-# too; x11-theme's re-render is skipped while Hyprland is active (dux themes it).
+# The links and colours of the active session (bin/graphical-session) are re-applied
+# too; x11-theme's re-render is skipped while Hyprland is active (its shell themes it).
 #
 # Safe to re-run. The root-owned copies use sudo; --no-root skips them.
 #
@@ -131,7 +131,7 @@ if [ "$root" = 1 ]; then
 else
     echo "--no-root: skipped the copies into /etc and /usr/local"
 fi
-# Under Hyprland apply_session has rendered dux's palette instead.
+# Under Hyprland apply_session has rendered the shell's palette instead.
 [ "$(active_session)" = i3 ] && sync_theme
 setup_default_apps
 validate_session

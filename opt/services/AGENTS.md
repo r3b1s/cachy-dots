@@ -64,7 +64,7 @@ Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`)
   * CachyOS: strictly `cachyos/sunshine` (no fallbacks)
   * Arch Linux: strictly `lizardbyte/sunshine` via LizardByte's official pacman repo (`https://github.com/LizardByte/pacman-repo/releases/latest/download`) (no fallbacks)
 * Unit: Systemd user service (`~/.config/systemd/user/sunshine.service`, targetless / no `WantedBy=default.target` to avoid premature headless crashes)
-* Lifecycle: Started by graphical session hooks (`06-services.conf` in i3, `cachy-services.lua` in Hyprland) via `systemctl --user start sunshine.service`. Supervised by systemd (`Restart=on-failure`). When switching sessions (`cachy-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland).
+* Lifecycle: Started by graphical session hooks (`06-services.conf` in i3, `cachy-services.lua` in Hyprland) via `systemctl --user start sunshine.service`. Supervised by systemd (`Restart=on-failure`). When switching sessions (`graphical-session`), `point_sunshine` updates `~/.config/sunshine/sunshine.conf` (`capture = x11` for i3, `capture = wlr` for Hyprland).
 
 ### 4. `rakazo/`
 A stack of self-hosted services under [Incus](https://linuxcontainers.org/incus/), one NixOS guest each,

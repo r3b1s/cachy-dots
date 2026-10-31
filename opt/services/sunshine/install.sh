@@ -15,7 +15,7 @@
 #     - Hyprland: ~/.config/hypr/cachy-services.lua
 #   Each starts sunshine via `systemctl --user start sunshine.service`.
 #   The capture method (x11 or wlr) in sunshine.conf is updated on session switch
-#   by cachy-session (install/session.sh).
+#   by graphical-session (install/session.sh).
 #
 # Usage: opt/services/sunshine/install.sh [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
@@ -241,5 +241,5 @@ fi
 
 say "Sunshine setup complete!"
 echo "  - Sunshine will start automatically upon graphical login."
-echo "  - Session capture method (x11 for i3, wlr for Hyprland) is managed by cachy-session."
+echo "  - Session capture method (x11 for i3, wlr for Hyprland) is managed by graphical-session."
 echo "  - Web UI: https://localhost:47990"

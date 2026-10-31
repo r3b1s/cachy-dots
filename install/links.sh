@@ -161,10 +161,10 @@ retire_dir_link() {
 # ~/.config) need this too, so runtime state stays out of the repo. link() makes
 # the directories it needs.
 #
-# These are the links both sessions share. The i3 config, ~/.xprofile, dunst's
-# config, the i3-only scripts, the Hyprland files and the colour slots (terminal,
-# GTK and satty colours) belong to a session: apply_session (install/session.sh)
-# makes them, right after this.
+# These are the links all sessions share. The i3 config, ~/.xprofile, dunst's
+# config, the i3-only scripts, the Hyprland files, each shell's files and the colour
+# slots (terminal, GTK and satty colours) belong to a session: apply_session
+# (install/session.sh) makes them, right after this.
 install_links() {
     say "Linking dots"
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -233,12 +233,18 @@ install_links() {
 
     # ble.sh is opt-in here (opt/blesh.sh links ~/.blerc), so nothing for it.
 
-    # Launcher entries for repo scripts: rofi's drun lists them on i3, dux's
+    # Launcher entries for repo scripts: rofi's drun lists them on i3, the shell's
     # launcher under Hyprland, where they are the way into these menus.
     local entry
     for entry in "$REPO"/applications/*.desktop; do
         link "$entry" "$HOME/.local/share/applications/$(basename "$entry")"
     done
+
+    # bin/cachy-session became bin/graphical-session.
+    if [ "$(readlink "$HOME/.local/bin/cachy-session" 2>/dev/null)" = "$REPO/bin/cachy-session" ]; then
+        run rm "$HOME/.local/bin/cachy-session"
+        echo "removed the old $HOME/.local/bin/cachy-session link"
+    fi
 
     local script
     for script in "$REPO"/bin/*; do

@@ -40,7 +40,7 @@ install_main() {
         install_links
         apply_session
         # x11-theme's own themes are the i3 session's; under Hyprland apply_session
-        # has rendered dux's palette instead.
+        # has rendered the shell's palette instead.
         [ "$(active_session)" = i3 ] && setup_theme
         setup_default_apps
         validate_session
@@ -60,6 +60,6 @@ install_main() {
     if [ "$(active_session)" = i3 ]; then
         echo "Done. Log into the i3 session, or reload with \$mod+Shift+Ctrl+Mod1+c (i3-msg reload)."
     else
-        echo "Done. Log into the Hyprland session (cachy-session i3 switches back to i3)."
+        echo "Done. Log into the Hyprland session (graphical-session i3 switches back to i3)."
     fi
 }
