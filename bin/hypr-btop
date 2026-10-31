@@ -1,0 +1,22 @@
+#!/bin/sh
+# btop in a floating, centred terminal, under Noctalia: $mod+p, in place of dux's
+# process list, and with its behaviour. Closed, it opens with the focus; open
+# elsewhere, it takes the focus; focused, it closes. The window rule that floats it
+# goes by the class given here (hypr/noctalia/compositor.lua). Only alacritty and
+# kitty are given one; another terminal opens btop tiled.
+set -eu
+
+class=cachy-btop
+term=${TERMINAL:-alacritty}
+window=$(hyprctl clients -j | jq -r --arg c "$class" 'first(.[] | select(.class == $c) | .address) // empty')
+
+if [ -z "$window" ]; then
+    case "${term##*/}" in
+        alacritty|kitty) exec "$term" --class "$class" -e btop ;;
+        *) exec "$term" -e btop ;;
+    esac
+fi
+if [ "$(hyprctl activewindow -j | jq -r '.address // empty')" = "$window" ]; then
+    exec hyprctl dispatch "hl.dsp.window.close({ window = \"address:$window\" })" >/dev/null
+fi
+exec hyprctl dispatch "hl.dsp.focus({ window = \"address:$window\" })" >/dev/null

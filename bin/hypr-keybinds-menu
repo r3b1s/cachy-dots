@@ -1,0 +1,16 @@
+#!/bin/sh
+# Hyprland's binds, each with its description, in Noctalia's launcher: the cheatsheet
+# under Noctalia, which has none of its own, as x11-keybinds-menu is under i3 and
+# dux's keybind sheet under dux. Read from the running compositor, so it shows what
+# is really bound. Only a list: picking a line does nothing.
+set -eu
+
+hyprctl binds -j | jq -r '
+    def has($bit): ((.modmask / $bit | floor) % 2) == 1;
+    .[] | select(.has_description and .submap == "") | [
+        (if has(64) then "Super + " else "" end),
+        (if has(1) then "Shift + " else "" end),
+        (if has(4) then "Ctrl + " else "" end),
+        (if has(8) then "Alt + " else "" end),
+        .key, "  ", .description
+    ] | join("")' | sort -u | noctalia dmenu -p keybinds >/dev/null || true
