@@ -35,6 +35,7 @@ based on the hardware, session, or workflow requirements of a specific host.
 | **`blesh.sh`** | Installs `blesh-git` (Bash Line Editor) from chaotic-aur and links `shell/blerc` to `~/.blerc`. Supports `--remove`. |
 | **`dux-settings.sh`** | Merges or restores the baseline dux-shell settings snapshot (`dms/settings.json`) into `~/.config/dms/settings.json`. Supports `--reset`. |
 | **`hyprland.sh`** | Installs and configures the opt-in Hyprland + dux-shell session (system dependencies, pinned dux GitHub release binaries, initial config, and assets). Supports `--remove`. |
+| **`noctalia.sh`** | Installs the opt-in Hyprland + Noctalia session: Hyprland, `noctalia`, and what stands in for dux's apps (`nautilus`, `hyprpicker`, `btop`). Leaves `ly` and any dux install alone, and installs no `noctalia-greeter`. Supports `--remove`. |
 | **`lab-firewall.sh`** | Adds the ufw rules the `labbr0` lab network needs (DHCP and DNS to the host; forwarding to the internet and `tun0`, not the LAN), only while ufw is active. Sourced by `virt.sh` and `arch-cloud-vm.sh`. |
 | **`omarchy-repo.sh`** | Trusts Omarchy's signing key and appends the `[omarchy]` package repo to `/etc/pacman.conf` without triggering a full system upgrade. Supports `--remove`. |
 | **`omarchy-retroarch.sh`** | Installs RetroArch with the full libretro core suite, CRT shaders, and directory structures. Pulls packages from Arch, CachyOS, and Omarchy repos. Supports `--remove`. |
