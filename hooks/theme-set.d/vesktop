@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
-# Retint Vesktop to the active Omarchy theme.
+# Retint Vesktop to the active palette: its stylesheet and its tray icon.
 #
-# Run by omarchy-hook as `bash <this file> <theme-slug>` at the end of every
-# `omarchy theme set`, after the template engine has rendered the palette into
-# the live theme directory.
+# Run by x11-theme as `bash <this file> <theme-slug>` at the end of every switch
+# (omarchy runs its hooks the same way), and of `x11-theme from-dux` and
+# `from-noctalia`, after the template engine has rendered the palette into the
+# live theme directory. So all three shells come through here: i3 with an omarchy
+# theme, dux's matugen template, and Noctalia's templates and hooks.
 #
-# The result is written into each Vencord client's themes directory rather than
+# The tray icon is drawn in the status bar's icon colour, so it reads as one set
+# with the Wi-Fi and battery glyphs beside it. That is `foreground` in the rendered
+# colors.toml in all three: the theme's foreground on i3status-rust, on_surface on
+# dux's and Noctalia's bars. VESKTOP_ICON_COLOR, a #rrggbb, overrides it. Vesktop
+# gets its tray icon as a bitmap and no shell recolours those, which is why it is
+# drawn here (AGENTS.md, "Custom Taskbar & System Tray Icon Theming").
+#
+# The stylesheet is written into each Vencord client's themes directory rather than
 # symlinked. Vencord watches that *directory*, and a directory watch never fires
 # when a symlink's target changes, only when a directory entry does: writing is
 # what makes the retint land live instead of waiting for a restart. The write is
@@ -27,6 +36,41 @@ QV_PALETTE_FILE="cachy-dots-vesktop.palette.css"
 # of this hook wrote under another file name is recognised.
 QV_DESCRIPTION=" * @description Vesktop, retinted to the active Omarchy theme."
 THEME_DIR="$HOME/.local/state/omarchy/current/theme"
+QV_COLOR="$(dirname "$QV_SELF")/../../theme/bin/omarchy-theme-color"
+QV_GLYPH=/usr/share/icons/Adwaita/symbolic/devices/audio-headset-symbolic.svg
+
+# Vesktop's tray icon: it uses ~/.config/vesktop/userAssets/{tray,trayUnread} when
+# present (its "custom tray icon" assets) instead of its bundled PNGs. Both become
+# Adwaita's headset glyph, as PNGs (Electron's tray takes bitmaps); the unread one
+# carries a dot in the accent. Vesktop picks them up at its next start, or when the
+# unread state next changes.
+tint_tray() {
+  local dir="${XDG_CONFIG_HOME:-$HOME/.config}/vesktop" fg accent tmp
+  [[ -d $dir && -f $QV_GLYPH ]] || return 0
+  command -v resvg >/dev/null || return 0
+  fg=${VESKTOP_ICON_COLOR:-$("$QV_COLOR" --file "$THEME_DIR/colors.toml" foreground 2>/dev/null)}
+  accent=$("$QV_COLOR" --file "$THEME_DIR/colors.toml" accent 2>/dev/null)
+  [[ $fg =~ ^#[0-9a-fA-F]{6}$ && $accent =~ ^#[0-9a-fA-F]{6}$ ]] || return 0
+  mkdir -p "$dir/userAssets"
+  tmp=$(mktemp -d)
+  sed -E "s/#(474747|2e3436|bebebe|222222)/$fg/gI" "$QV_GLYPH" > "$tmp/tray.svg"
+  sed "s|</svg>|<circle cx=\"13\" cy=\"3\" r=\"3\" fill=\"$accent\"/></svg>|" "$tmp/tray.svg" > "$tmp/trayUnread.svg"
+  if resvg -w 64 -h 64 "$tmp/tray.svg" "$tmp/tray.png" && resvg -w 64 -h 64 "$tmp/trayUnread.svg" "$tmp/trayUnread.png"; then
+    mv -f "$tmp/tray.png" "$dir/userAssets/tray"
+    mv -f "$tmp/trayUnread.png" "$dir/userAssets/trayUnread"
+  fi
+  rm -rf "$tmp"
+}
+
+tint_tray
+
+# Under dux the stylesheet is its own dank-discord.css (install/session.sh), so the
+# tray icon is all there is to do.
+QV_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots"
+QV_SHELL="${XDG_STATE_HOME:-$HOME/.local/state}/graphical-session/hypr-shell"
+if [[ $(cat "$QV_CFG/session" 2>/dev/null) == hyprland && $(cat "$QV_SHELL" 2>/dev/null) != noctalia ]]; then
+  exit 0
+fi
 
 [[ -r "$QV_DATA/discord.css" ]] || exit 0
 

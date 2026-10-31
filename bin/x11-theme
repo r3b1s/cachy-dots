@@ -14,9 +14,10 @@
 #   x11-theme menu                pick a theme from a rofi grid ($mod+Shift+Ctrl+space)
 #   x11-theme remove <name>       delete an installed theme (not the current one)
 #   x11-theme add-wallpaper [file]  add an image to the current theme's wallpapers
+#                                 (no file: pick one in yazi, in $TERMINAL)
 #   x11-theme from-dux            under Hyprland: render the apps' templates from
 #                                 dux's palette (run by dux after every colour change)
-#                                 (no file: pick one in yazi, in $TERMINAL)
+#   x11-theme from-noctalia       the same from Noctalia's palette (run by its hooks)
 #
 # Themes use omarchy's format and paths, so any omarchy theme repo works and
 # omarchy-style hooks keep working:
@@ -155,8 +156,8 @@ apply_mode() {
 #               bars are the unlit part of the signal strength.
 #   CopyQ       asks the icon theme for "copyq": Adwaita's edit-cut (scissors)
 #   blueman     blueman-tray/-active/-disabled: Adwaita's bluetooth glyphs
-#   Vesktop     not an icon theme user (Electron hands the tray a bitmap); see
-#               tint_vesktop below
+#   Vesktop     not an icon theme user (Electron hands the tray a bitmap); its
+#               theme-set hook, hooks/theme-set.d/vesktop, draws that one
 tint_svg() { # <src> <dest> <colour>
     sed -E "s/#(474747|2e3436|bebebe|222222)/$3/gI" "$1" > "$2"
 }
@@ -200,27 +201,6 @@ tint_icons() {
     done
     printf '[Icon Theme]\nName=x11-theme\nComment=The current theme'"'"'s icons, with the tray glyphs tinted to it\nInherits=%s\nDirectories=scalable/apps\n\n[scalable/apps]\nSize=16\nMinSize=8\nMaxSize=512\nType=Scalable\n' "$inherits" > "$dest/index.theme"
     gtk-update-icon-cache -q -t -f "$dest" 2>/dev/null || true
-}
-
-# Vesktop's tray icon: it uses ~/.config/vesktop/userAssets/{tray,trayUnread}
-# when present (its "custom tray icon" assets) instead of its bundled PNGs. Both
-# become Adwaita's headset glyph in the theme's foreground, as PNGs (Electron's
-# tray takes bitmaps); the unread one carries a dot in the accent. Vesktop picks
-# them up at its next start, or when the unread state next changes.
-tint_vesktop() {
-    local dir="${XDG_CONFIG_HOME:-$HOME/.config}/vesktop" glyph=/usr/share/icons/Adwaita/symbolic/devices/audio-headset-symbolic.svg
-    local fg accent tmp
-    [[ -d $dir && -f $glyph ]] && command -v resvg >/dev/null || return 0
-    fg=$(color foreground) && accent=$(color accent) || return 0
-    mkdir -p "$dir/userAssets"
-    tmp=$(mktemp -d)
-    tint_svg "$glyph" "$tmp/tray.svg" "$fg"
-    sed "s|</svg>|<circle cx=\"13\" cy=\"3\" r=\"3\" fill=\"$accent\"/></svg>|" "$tmp/tray.svg" > "$tmp/trayUnread.svg"
-    if resvg -w 64 -h 64 "$tmp/tray.svg" "$tmp/tray.png" && resvg -w 64 -h 64 "$tmp/trayUnread.svg" "$tmp/trayUnread.png"; then
-        mv -f "$tmp/tray.png" "$dir/userAssets/tray"
-        mv -f "$tmp/trayUnread.png" "$dir/userAssets/trayUnread"
-    fi
-    rm -rf "$tmp"
 }
 
 # Chromium's and Brave Origin's toolbar colour comes from the BrowserThemeColor
@@ -360,12 +340,11 @@ apply() {
     rm -rf "$CURRENT"
     mv "$NEXT" "$CURRENT"
     echo "$name" > "$STATE/theme.name"
-    rm -f "$STATE/theme.dux"
+    rm -f "$STATE/theme.dux" "$STATE/theme.noctalia"
     flock -u 9
 
     apply_mode
     tint_icons
-    tint_vesktop
     apply_chromium
     apply_copyq
     apply_firefox
@@ -375,36 +354,40 @@ apply() {
 
 # ── commands ────────────────────────────────────────────────────────────────
 
-# Under Hyprland, dux's palette is the theme. dux renders hypr/matugen/omarchy-colors.toml
-# into DUX_COLORS after every colour change and then runs this: the apps' templates
-# are rendered from it into the state directory, so everything that reads that
-# directory (Firefox's userChrome, the Chromium and Brave Origin colour, qutebrowser,
-# btop, yazi, tmux, zathura, imv, mpv, Obsidian) follows dux. theme.name, the i3
-# theme, stays as it was: `cachy-session i3` renders that one again (theme.dux marks
-# the render as dux's). What dux themes itself is left to it: GTK, the terminals,
-# Neovim, Vesktop (so its hook is skipped), light or dark, and the icons.
+# Under Hyprland, the shell's palette is the theme. The shell writes it in omarchy's
+# colors.toml format after every colour change and then runs from-dux or from-noctalia:
+# the apps' templates are rendered from it into the state directory, so everything
+# that reads that directory (Firefox's userChrome, the Chromium and Brave Origin
+# colour, qutebrowser, btop, yazi, tmux, zathura, imv, mpv, Obsidian) follows the
+# shell. theme.name, the i3 theme, stays as it was: `graphical-session i3` renders
+# that one again (theme.dux or theme.noctalia marks the render as the shell's).
+#
+# dux themes GTK, the terminals, Neovim, light or dark, and the icons itself, and
+# Vesktop's stylesheet (its hook then draws only the tray icon). Noctalia themes
+# none of those here (noctalia/templates.toml renders nothing else), so under it
+# the slots point at this render, as under i3, and from-noctalia does the rest.
 DUX_COLORS="${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots/dux-colors.toml"
+NOCTALIA_COLORS="${XDG_STATE_HOME:-$HOME/.local/state}/cachy-dots/noctalia-colors.toml"
 
-cmd_from_dux() {
-    [[ $(session) == hyprland ]] || die "from-dux is for the Hyprland session (cachy-session hyprland)"
-    [[ -s $DUX_COLORS ]] || die "no $DUX_COLORS yet: dux writes it on its next colour change"
+render_shell_palette() { # <dux|noctalia> <colors.toml> <wallpaper path, or nothing>
+    local shell=$1 colors=$2 wp=$3
+    [[ $(session) == hyprland ]] || die "from-$shell is for the Hyprland session (graphical-session hyprland $shell)"
+    [[ -s $colors ]] || die "no $colors yet: $shell writes it on its next colour change"
     exec 9>"$LOCK"
     flock 9
     rm -rf "$NEXT"
     mkdir -p "$NEXT"
-    cp "$DUX_COLORS" "$NEXT/colors.toml"
+    cp "$colors" "$NEXT/colors.toml"
     omarchy-theme-set-templates || true
-    [[ -s $NEXT/gtk.css ]] || { rm -rf "$NEXT"; die "rendering dux's palette failed"; }
+    [[ -s $NEXT/gtk.css ]] || { rm -rf "$NEXT"; die "rendering $shell's palette failed"; }
     rm -rf "$CURRENT"
     mv "$NEXT" "$CURRENT"
-    touch "$STATE/theme.dux"
+    rm -f "$STATE/theme.dux" "$STATE/theme.noctalia"
+    touch "$STATE/theme.$shell"
     flock -u 9
 
     # qutebrowser's start page shows ~/.config/wallpapers/current, which x11-wallpaper
-    # points at i3's wallpaper: under Hyprland it is dux's, when dux shows an image
-    # (its generated wallpapers are no file).
-    local wp
-    wp=$(jq -r '.wallpaperPath // empty' "${XDG_STATE_HOME:-$HOME/.local/state}/dms/session.json" 2>/dev/null || true)
+    # points at i3's wallpaper: under Hyprland it is the shell's, when that is a file.
     if [[ -f $wp ]]; then
         ln -sfn "$wp" "$STATE/background"
         mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/wallpapers"
@@ -420,7 +403,25 @@ cmd_from_dux() {
     if pgrep -x qutebrowser >/dev/null 2>&1; then
         qutebrowser :config-source >/dev/null 2>&1 || true
     fi
-    run_hooks dux vesktop
+}
+
+cmd_from_dux() {
+    # dux's generated wallpapers are no file, which render_shell_palette skips.
+    local wp
+    wp=$(jq -r '.wallpaperPath // empty' "${XDG_STATE_HOME:-$HOME/.local/state}/dms/session.json" 2>/dev/null || true)
+    render_shell_palette dux "$DUX_COLORS" "$wp"
+    run_hooks dux
+}
+
+cmd_from_noctalia() {
+    local wp
+    wp=$(noctalia msg wallpaper-get 2>/dev/null || true)
+    render_shell_palette noctalia "$NOCTALIA_COLORS" "$wp"
+    apply_mode
+    # The terminals read the slots, which point at this render under Noctalia.
+    pkill -USR1 -x kitty 2>/dev/null || true
+    touch -c "${XDG_CONFIG_HOME:-$HOME/.config}/alacritty/alacritty.toml" 2>/dev/null || true
+    run_hooks noctalia
 }
 
 cmd_set() {
@@ -708,15 +709,16 @@ cmd_menu() {
     if [[ -n $row ]]; then cmd_set "${names[$row]}"; fi
 }
 
-# dux themes the Hyprland session, so while that one is active (bin/cachy-session)
-# the commands that change something refuse, all but from-dux: they would recolour
-# Chromium, GTK and the running apps away from dux's palette, and reload i3.
+# The shell themes the Hyprland session, so while that one is active
+# (bin/graphical-session) the commands that change something refuse, all but
+# from-dux and from-noctalia: they would recolour Chromium, GTK and the running apps
+# away from the shell's palette, and reload i3.
 session() { echo "${SESSION:-$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cachy-dots/session" 2>/dev/null || true)}"; }
 case "${1:-}" in
-    list|current|grid-theme|from-dux|"") ;;
+    list|current|grid-theme|from-dux|from-noctalia|"") ;;
     *)
         if [[ $(session) == hyprland ]]; then
-            die "the Hyprland session is active and dux themes it; run \`cachy-session i3\` first"
+            die "the Hyprland session is active and its shell themes it; run \`graphical-session i3\` first"
         fi
         ;;
 esac
@@ -738,5 +740,6 @@ case "${1:-}" in
     # for the next switch.
     apply-chromium) apply_chromium ;;
     from-dux) cmd_from_dux ;;
-    *) sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    from-noctalia) cmd_from_noctalia ;;
+    *) sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
