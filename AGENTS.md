@@ -298,7 +298,9 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
   `xorg-xinit` are explicit packages because i3-wm depends on neither.
 - **Config.** `i3/config` lists the `conf.d/` modules. `~/.config/i3` is a real directory with each file linked;
   `conf.d/04-monitors.conf` is a per-host copy of `i3/templates/04-monitors.conf` (the xrandr layout, examples
-  only), and `conf.d/06-services.conf` is written per host by `opt/services` scripts.
+  only), and `conf.d/06-services.conf` is written per host by `opt/services` scripts. i3 follows the link to
+  `config` and resolves relative includes from the repo, so the `conf.d/` include is a full path: a relative one
+  loads neither per-host file, and `i3 -C` still passes. `included_configs` in IPC `GET_CONFIG` lists what loaded.
 - **i3 traps.** The first of two identical `bindsym`s wins and there is no unbind, so never bind a chord twice.
   `i3 -C` validates the file but not the command body of a `bindsym`. After a `;`, each command needs its own
   `exec`. `exec` runs its command through `/bin/sh -c`. Separate `exec` and `exec_always` lines run
@@ -503,5 +505,6 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
 - **Not verified on a live system:** which zone NetBird puts `wt0` in, the `tun0` zone when NetworkManager owns the
   VPN, rakazo's `cachy-stack` zone (`host-setup.sh`), setup_firewall on real CachyOS (tested on Arch with ufw
   installed as CachyOS ships it), kanata's unit
-  hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` at a real login and on a session switch,
-  where the idle-inhibit pill lands on screen, and the login wallpaper watcher (`x11-wallpaper watch`).
+  hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` on a real session switch (a planted Wayland
+  daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, and the login wallpaper watcher
+  (`x11-wallpaper watch`).

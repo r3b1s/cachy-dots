@@ -36,4 +36,6 @@ set $terminal-cmd $terminal -e
 # warns when this is missing; install.sh always applies a theme so it exists.
 include ~/.local/state/omarchy/current/theme/i3.conf
 
-include conf.d/*.conf
+# A full path: i3 follows the link to this file, so a relative include would glob
+# the repo's conf.d/ and skip the per-host 04-monitors.conf and 06-services.conf.
+include ${XDG_CONFIG_HOME:-$HOME/.config}/i3/conf.d/*.conf
