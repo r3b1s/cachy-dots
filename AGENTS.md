@@ -6,8 +6,8 @@ for a guest).
 
 ## Working on this repo
 
-- **Never run the installers on the machine you edit on.** `install.sh`, `install_vm.sh`, `sync.sh`, `opt/*`,
-  `root/install.sh` and `podman-services/*` change the system: pacman upgrades, `/etc`, firewalld, the login shell,
+- **Never run the installers on the machine you edit on.** `install.sh`, `install_vm.sh`, `sync.sh`, `opt/*` and
+  `root/install.sh` change the system: pacman upgrades, `/etc`, firewalld, the login shell,
   links in `~`. Run them on a test VM (see "Testing"). Locally, use only `bash -n`, `shellcheck` and the scripts'
   `-n`/`--dry-run`.
 - **The code documents itself; this file holds what it cannot show.** Every script's header comment is its
@@ -55,7 +55,6 @@ for a guest).
 | `xorg/`, `systemd/`, `ssh/` | root drop-ins: copied by the installer, or (`ssh/`) by hand |
 | `applications/` | launcher entries for repo scripts |
 | `opt/` | opt-in scripts and services, never run by `install.sh` |
-| `podman-services/` | rootless Podman Quadlets (Syncthing over NetBird), opt-in |
 | `root/` | dots for root: `sudo ./root/install.sh` copies them into `/root` |
 
 ## Repos and packages
@@ -449,7 +448,7 @@ exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor
   `sh` accept, because three readers share the file: systemd --user (linked into `environment.d`), `~/.xprofile`
   and `shell/init.sh`.
 
-## Optional: `opt/` and `podman-services/`
+## Optional: `opt/`
 
 Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every script.
 
@@ -462,8 +461,7 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   `default` storage pool; `qemu:///session` needs no setup. The `libvirt` group is root-equivalent. `opt/lab-firewall.sh` adds the firewalld zones `labbr0` needs; re-run it after
   starting firewalld.
 - `opt/arch-cloud-vm.sh` and `opt/arch-cloud-vm-dots.sh` make test VMs (see "Testing").
-- `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype), `opt/install-from-source/` (ArtCraft, coi) and `opt/install-from-proprietary/` (Antigravity) have their own AGENTS.md.
-- `podman-services/syncthing/install.sh`: a rootless Syncthing Quadlet bound to the host's NetBird address.
+- `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype, incus, syncthing), `opt/install-from-source/` (ArtCraft, coi) and `opt/install-from-proprietary/` (Antigravity) have their own AGENTS.md.
 
 ## Testing
 

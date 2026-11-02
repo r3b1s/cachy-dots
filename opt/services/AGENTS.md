@@ -179,3 +179,9 @@ profiles or instances: a stack built on Incus (rakazo, for now) brings its own.
   the `incus` package, instances, storage, ID ranges and group stay.
 * `rakazo/host-setup.sh` still does the same host steps itself; it can shrink to its firewalld zone once the stack moves
   out and depends on this script.
+
+### 7. `syncthing/`
+Rootless Syncthing as a Podman Quadlet (`opt/services/syncthing/install.sh`, `--reconfigure`).
+* Unit template: `syncthing.container`, rendered into `~/.config/containers/systemd/syncthing.container` and managed by `systemctl --user` (`syncthing.service`).
+* Network: `pasta:-4,--outbound-if4,tailscale0`, publishing port 22000 (TCP/UDP) only on this host's Tailscale (`tailscale0`) IPv4 address and the web GUI on `127.0.0.1:8384`.
+* Storage: state in `~/.local/share/syncthing-container`, synced folder at `~/Sync` (`UserNS=keep-id`, read-only rootfs, all capabilities dropped).
