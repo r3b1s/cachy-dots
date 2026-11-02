@@ -34,11 +34,14 @@ Environment=STNODEFAULTFOLDER=1
 # Sync only over Tailscale. No host network: pasta binds outbound IPv4 sockets
 # to tailscale0 and gives the container no IPv6 (-4; IPv6 would bypass the
 # outbound IPv4 interface), so it cannot reach anything outside the tailnet, and
-# 22000 is published on this host's Tailscale address only. The GUI is on
-# loopback only. @TAILSCALE_IP@ is this host's tailscale0 address, asked for by
-# ./install.sh. Nothing is published on 21027: local discovery is a LAN
-# broadcast and cannot cross pasta.
-Network=pasta:-4,--outbound-if4,tailscale0
+# 22000 is published on this host's Tailscale address only. Tailscale gives
+# tailscale0 a /32 and puts its 100.64.0.0/10 route in table 52, so pasta would
+# copy a /32 with no routes; -a @TAILSCALE_IP@/10 and -g 100.64.0.1 give the
+# container a route into the tap (--no-map-gw keeps 100.64.0.1 from mapping to
+# the host's 127.0.0.1). The GUI is on loopback only. @TAILSCALE_IP@ is this
+# host's tailscale0 address, asked for by ./install.sh. Nothing is published on
+# 21027: local discovery is a LAN broadcast and cannot cross pasta.
+Network=pasta:-4,--outbound-if4,tailscale0,-a,@TAILSCALE_IP@/10,-g,100.64.0.1,--no-map-gw
 PublishPort=127.0.0.1:8384:8384
 PublishPort=@TAILSCALE_IP@:22000:22000/tcp
 PublishPort=@TAILSCALE_IP@:22000:22000/udp

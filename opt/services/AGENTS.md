@@ -183,5 +183,5 @@ profiles or instances: a stack built on Incus (rakazo, for now) brings its own.
 ### 7. `syncthing/`
 Rootless Syncthing as a Podman Quadlet (`opt/services/syncthing/install.sh`, `--reconfigure`).
 * Unit template: `syncthing.container`, rendered into `~/.config/containers/systemd/syncthing.container` and managed by `systemctl --user` (`syncthing.service`).
-* Network: `pasta:-4,--outbound-if4,tailscale0`, publishing port 22000 (TCP/UDP) only on this host's Tailscale (`tailscale0`) IPv4 address and the web GUI on `127.0.0.1:8384`.
+* Network: `pasta:-4,--outbound-if4,tailscale0,-a,@TAILSCALE_IP@/10,-g,100.64.0.1,--no-map-gw` (`tailscale0` has a `/32` and keeps its routes in table 52, so `-a .../10` and `-g` supply the container's route without mapping the gateway to the host's loopback), publishing port 22000 (TCP/UDP) only on this host's Tailscale (`tailscale0`) IPv4 address and the web GUI on `127.0.0.1:8384`.
 * Storage: state in `~/.local/share/syncthing-container`, synced folder at `~/Sync` (`UserNS=keep-id`, read-only rootfs, all capabilities dropped).
