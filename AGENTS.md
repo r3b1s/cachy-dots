@@ -462,7 +462,7 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   `default` storage pool; `qemu:///session` needs no setup. The `libvirt` group is root-equivalent. `opt/lab-firewall.sh` adds the firewalld zones `labbr0` needs; re-run it after
   starting firewalld.
 - `opt/arch-cloud-vm.sh` and `opt/arch-cloud-vm-dots.sh` make test VMs (see "Testing").
-- `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype), `opt/install-from-source/` (ArtCraft) and `opt/install-from-proprietary/` (Antigravity) have their own AGENTS.md.
+- `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype), `opt/install-from-source/` (ArtCraft, coi) and `opt/install-from-proprietary/` (Antigravity) have their own AGENTS.md.
 - `podman-services/syncthing/install.sh`: a rootless Syncthing Quadlet bound to the host's NetBird address.
 
 ## Testing

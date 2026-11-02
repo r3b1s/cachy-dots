@@ -1,8 +1,11 @@
 # Installing from Source (`opt/install-from-source/`)
 
-This directory contains opt-in installer scripts for tools and applications built
-directly from upstream source repositories or forges (GitHub, GitLab, Codeberg, etc.),
-typically when upstream does not publish pre-built Linux packages or release binaries.
+This directory contains opt-in installer scripts for open-source tools and applications
+from upstream repositories or forges (GitHub, GitLab, Codeberg, etc.) that are not
+packaged in the Cachy, Arch, or chaotic-aur repos — either compiled from source using a
+scoped `mise.toml` toolchain, or installed from an upstream GitHub release binary
+verified against the SHA-256 digest published on the release page (instead of piping an
+upstream `install.sh` to `bash`).
 
 ## Pattern and Layout
 
@@ -82,6 +85,13 @@ Every installer in this folder should follow these standards:
   * Deletes the installed binary, `.desktop` file, and all associated icons from `/usr/local`.
   * Refreshes the desktop database and icon caches.
   * Optionally cleans the build directory when `--clean` is passed.
+
+## Apps
+
+| Directory | Installs |
+| :--- | :--- |
+| **`artcraft/`** | ArtCraft (`storytold/artcraft`), built from source via `mise` (Node 24, Rust, `tauri-cli`, CMake) into `/usr/local/bin/artcraft` with desktop entry and icons. |
+| **`coi/`** | `coi` ("Code on Incus", `coipond/coi`), installed to `/usr/local/bin/coi` from the `coi-linux-amd64` GitHub release asset after verifying its SHA-256 against the digest published on the release page. |
 
 ### 4. Testing Rules
 
