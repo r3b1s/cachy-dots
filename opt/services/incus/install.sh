@@ -15,10 +15,10 @@
 #      other group, incus, is not used: its members get only a restricted per-user
 #      project through incus-user.socket, with no access to networks, storage or
 #      profiles, which a host's own Incus is managed with.
-#   5. when ufw is installed: a managed block in /etc/ufw/before.rules and
-#      before6.rules for the default bridge (incusbr0): DHCP and DNS from the host,
-#      and forwarding. ufw denies both by default, so instances there would get no
-#      address and no network. Bridges with other names are not covered.
+#   5. when firewalld is installed: a zone, cachy-incus, for the default bridge
+#      (incusbr0), with DHCP and DNS from the host, and forwarding. firewalld denies
+#      both by default, so instances there would get no address and no network.
+#      Bridges with other names are not covered.
 #
 # The daemon is not initialised: run `incus admin init` once (or `--minimal`) for a
 # storage pool and incusbr0. A restart of incus.service stops every running instance,
@@ -30,13 +30,13 @@
 #               so there is no TLS certificate to import and nothing listens on the
 #               network. (Listening for other machines is not set up here: it takes
 #               `incus config set core.https_address ...`, plus a trusted certificate.)
-#   --remove    take the ufw blocks out, disable incus.service and incus.socket
+#   --remove    take the firewalld zone out, disable incus.service and incus.socket
 #               (which stops running instances), and remove incus-ui if it is
 #               installed. The incus package, instances, storage, the ID ranges and
 #               the group are left as they were.
 #
-# Run it as your own user: sudo is used for the root steps (and to read the ufw
-# rules, which only root can, so -n asks for sudo too when ufw is installed).
+# Run it as your own user: sudo is used for the root steps (and to read firewalld's
+# files, which only root can, so -n asks for sudo too when firewalld is installed).
 #
 # Usage: opt/services/incus/install.sh [--ui] [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
@@ -67,74 +67,17 @@ if [ "$(id -u)" -ne 0 ]; then SUDO=sudo; fi
 user=${SUDO_USER:-$(id -un)}
 [ "$user" != root ] || die "run it as your own user (or with sudo from it), so there is a user to give access to"
 
-# ── ufw ──────────────────────────────────────────────────────────────────────
-# Each family has its own file, chains and DHCP port. The block sits just before the
-# *filter table's COMMIT and never touches the rest of the file.
-BEGIN="# >>> cachy-dots incus >>>"
-END="# <<< cachy-dots incus <<<"
-
-# ufw_rest FILE: FILE without the block.
-ufw_rest() { $SUDO cat -- "$1" | awk -v b="$BEGIN" -v e="$END" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip'; }
-
-# ufw_with_block FILE CHAIN-PREFIX DHCP-PORT: FILE with the block added.
-ufw_with_block() {
-    ufw_rest "$1" | awk -v b="$BEGIN" -v e="$END" -v br="$BRIDGE" -v c="$2" -v dhcp="$3" '
-        /^\*filter/ { in_filter = 1 }
-        in_filter && /^COMMIT/ {
-            print b
-            print "# The default Incus bridge: DHCP and DNS from the host, and forwarding"
-            print "# (opt/services/incus). Bridges with other names are not covered."
-            print "-A " c "-before-input -i " br " -p udp --dport " dhcp " -j ACCEPT"
-            print "-A " c "-before-input -i " br " -p udp --dport 53 -j ACCEPT"
-            print "-A " c "-before-input -i " br " -p tcp --dport 53 -j ACCEPT"
-            print "-A " c "-before-forward -i " br " -j ACCEPT"
-            print "-A " c "-before-forward -o " br " -j ACCEPT"
-            print e
-            in_filter = 0
-        }
-        { print }'
-}
-
-# put_ufw FILE CONTENT-COMMAND...: replace FILE with the command's output when it
-# differs (keeping the file's mode), then reload ufw.
-put_ufw() {
-    local file=$1 tmp
-    shift
-    tmp=$(mktemp)
-    "$@" > "$tmp"
-    if $SUDO cat -- "$file" | cmp -s "$tmp" -; then rm -f "$tmp"; return 0; fi
-    say "Updating $file"
-    if [ "$dry" = 1 ]; then
-        $SUDO cat -- "$file" | diff -u - "$tmp" || true
-        rm -f "$tmp"; return 0
-    fi
-    # install -m 0640 matches ufw's own mode; the file is only ever read by root.
-    $SUDO install -o root -g root -m 0640 "$tmp" "$file" || { rm -f "$tmp"; die "could not write $file"; }
-    rm -f "$tmp"
-    ufw_changed=1
-}
-
-# ufw_apply REMOVE: bring both files in line, then reload ufw once if any changed.
-ufw_apply() {
-    ufw_changed=0
-    local spec file chain port
-    for spec in "/etc/ufw/before.rules:ufw:67" "/etc/ufw/before6.rules:ufw6:547"; do
-        IFS=: read -r file chain port <<< "$spec"
-        $SUDO test -f "$file" || continue
-        if [ "$1" = 1 ]; then
-            put_ufw "$file" ufw_rest "$file"
-        else
-            put_ufw "$file" ufw_with_block "$file" "$chain" "$port"
-        fi
-    done
-    if [ "$ufw_changed" = 1 ] && $SUDO ufw status | grep -q '^Status: active'; then
-        run $SUDO ufw reload
-    fi
-}
+# ── firewalld ────────────────────────────────────────────────────────────────
+ZONE=cachy-incus
+# shellcheck source=opt/firewalld-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../../firewalld-lib.sh"
 
 # ── remove ───────────────────────────────────────────────────────────────────
 if [ "$remove" = 1 ]; then
-    ufw_apply 1
+    if fw_installed; then
+        fw_guest_zone_remove "$ZONE"
+        fw_commit
+    fi
     if systemctl is-enabled --quiet incus.service 2>/dev/null || systemctl is-enabled --quiet incus.socket 2>/dev/null; then
         warn "disabling Incus stops its running instances"
         say "Disabling incus.service and incus.socket"
@@ -201,8 +144,11 @@ if ! id -nG "$user" | tr ' ' '\n' | grep -qx incus-admin; then
     run $SUDO usermod -aG incus-admin "$user"
 fi
 
-# ── ufw ──────────────────────────────────────────────────────────────────────
-ufw_apply 0
+# ── firewalld ────────────────────────────────────────────────────────────────
+if fw_installed; then
+    fw_guest_zone "$ZONE" "$BRIDGE" "The default Incus bridge: DHCP and DNS from the host, and forwarding (opt/services/incus). Bridges with other names are not covered."
+    fw_commit
+fi
 
 echo
 echo "Incus is running. Next, as $user (after the group applies):"

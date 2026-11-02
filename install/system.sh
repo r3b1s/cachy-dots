@@ -152,34 +152,72 @@ enable_services() {
     fi
 }
 
-# Firewall: deny incoming, allow outgoing (CachyOS ships ufw like this already;
-# this makes it so everywhere). SSH is allowed FIRST when sshd is enabled: on a
-# headless host it is the way in, and a deny-all firewall without it would cut
-# the installing session off. Rate-limited (ufw limit) when this adds the rule;
-# an existing rule for port 22 is left as it is. Listeners for CTF work (reverse
-# shells, HTTP servers) need their own rule: `sudo ufw allow 4444/tcp`.
+# Firewall: deny incoming, allow outgoing, in firewalld's default zone. Target DROP,
+# as ufw's default deny was, which also drops ping, so echo-request gets a rule (ICMP
+# errors for our own connections pass as related, and neighbour discovery is not
+# affected). dhcpv6-client and mdns stay open, as ufw's before.rules had them. No
+# forwarding between the zone's interfaces.
+#
+# The zone is set offline, before the daemon loads it, and ssh is settled FIRST: on a
+# headless host it is the way in, and a deny-all firewall without it would cut the
+# installing session off. The stock zone allows ssh, so it is taken out when no sshd is
+# in use. An existing rule for port 22 is left as it is. ssh is not rate-limited: a
+# firewalld `limit` is one budget shared by every source, so one scanner would lock
+# everyone out; sshd's PerSourcePenalties does this per address, and is on by default.
+#
+# The zone's other rules are yours and are never touched. Listeners for CTF work
+# (reverse shells, HTTP servers) need their own rule, until the next reload with
+# `sudo firewall-cmd --add-port=4444/tcp`, for good with --permanent then --reload.
+#
+# ufw (CachyOS ships it on) goes off only once firewalld is running, so a failed start
+# leaves the old firewall up. Its rules are listed, not carried over.
+fw_default_zone() { $SUDO firewall-offline-cmd --zone="$zone" "$@" >/dev/null 2>&1; }
+
 setup_firewall() {
-    command -v ufw >/dev/null || return 0
-    say "Firewall (ufw): deny incoming, allow outgoing"
-    if [ "$dry" = 1 ]; then echo "+ ufw: allow ssh if sshd is enabled, default deny incoming, enable"; return; fi
-    if systemctl is-enabled --quiet sshd 2>/dev/null \
-        && ! $SUDO ufw status | grep -qE '^22(/tcp)?[[:space:]]'; then
-        $SUDO ufw limit 22/tcp comment 'ssh (cachy-dots)' >/dev/null && echo "ufw: ssh allowed (rate-limited)"
-    fi
-    $SUDO ufw default deny incoming >/dev/null
-    $SUDO ufw default allow outgoing >/dev/null
-    if ! $SUDO ufw status | grep -q '^Status: active'; then
-        # Fails when the running kernel has lost its netfilter modules, which a
-        # kernel upgrade in this run causes until a reboot (checked at the end).
-        if $SUDO ufw --force enable >/dev/null; then
-            echo "ufw: enabled"
-        else
-            warn "ufw could not start; reboot into the new kernel, then run: sudo ufw enable"
-            FAILED=1
+    command -v firewall-cmd >/dev/null || return 0
+    say "Firewall (firewalld): deny incoming, allow outgoing"
+    if [ "$dry" = 1 ]; then echo "+ firewalld: default zone drops incoming, ssh allowed if sshd is in use, start, ufw off"; return; fi
+
+    local zone
+    zone=$($SUDO firewall-offline-cmd --get-default-zone)
+    if systemctl is-enabled --quiet sshd 2>/dev/null || systemctl is-active --quiet sshd 2>/dev/null; then
+        if ! fw_default_zone --query-service=ssh && ! fw_default_zone --query-port=22/tcp; then
+            fw_default_zone --add-service=ssh && echo "firewalld: ssh allowed"
         fi
+    else
+        # Not --remove-service: with --zone, this tool rejects that as a lokkit option.
+        fw_default_zone --remove-service-from-zone=ssh
     fi
-    $SUDO systemctl enable --quiet ufw.service || warn "could not enable ufw.service"
-    $SUDO ufw status | sed -n '1p' || true
+    fw_default_zone --set-target=DROP \
+        && fw_default_zone --remove-forward \
+        && fw_default_zone --add-service=dhcpv6-client \
+        && fw_default_zone --add-service=mdns \
+        && fw_default_zone --add-rich-rule='rule icmp-type name="echo-request" accept' \
+        || { warn "could not configure firewalld's $zone zone"; FAILED=1; return 0; }
+
+    $SUDO systemctl enable --quiet firewalld.service || warn "could not enable firewalld.service"
+    if $SUDO firewall-cmd -q --state 2>/dev/null; then
+        $SUDO firewall-cmd --reload >/dev/null || warn "could not reload firewalld"
+    else
+        $SUDO systemctl start firewalld.service || true
+    fi
+    # Never the unit's result: firewalld exits 0 when nftables cannot load, which a
+    # kernel upgrade in this run causes until a reboot (checked at the end).
+    if ! $SUDO firewall-cmd -q --state 2>/dev/null; then
+        warn "firewalld could not start; reboot into the new kernel (it starts there), then re-run this with --packages-only"
+        FAILED=1
+        return 0
+    fi
+
+    if command -v ufw >/dev/null; then
+        if $SUDO ufw status 2>/dev/null | grep -q '^Status: active'; then
+            warn "turning ufw off; these rules of its own are not carried over to firewalld:"
+            $SUDO ufw show added 2>/dev/null | sed -n 's/^ufw /    /p' >&2 || true
+            $SUDO ufw --force disable >/dev/null || warn "could not turn ufw off"
+        fi
+        $SUDO systemctl disable --now --quiet ufw.service 2>/dev/null || true
+    fi
+    echo "firewalld: running, default zone $zone"
 }
 
 # Touchpad: tap to click and friends (xorg/30-touchpad.conf). A root file, so a

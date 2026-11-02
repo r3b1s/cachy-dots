@@ -110,7 +110,7 @@ PKGS+=(
 # Network and security.
 PKGS+=(
     wireguard-tools                  # wg, wg-quick (openvpn comes with CachyOS)
-    ufw                              # firewall, set up by setup_firewall
+    firewalld                        # firewall, set up by setup_firewall
 )
 
 # VM guest integration, only inside a VM: on bare metal these have nothing to
