@@ -19,8 +19,9 @@
 --
 -- This file holds what is the same under both shells, or what the editor would drop:
 -- the session's environment, its startup programs, the compositor's own binds, the
--- window rules, and the submaps. The compositor's binds come after dux's files, so
--- they win over its editor; a chord that should differ per shell moves to those files.
+-- window rules, the submaps and eco mode. The compositor's binds come after dux's
+-- files, so they win over its editor; a chord that should differ per shell moves to
+-- those files.
 
 local home = os.getenv("HOME")
 
@@ -321,3 +322,59 @@ hl.define_submap("dictate_suppress", function()
 		hl.bind(key, hl.dsp.exec_cmd("true"), { transparent = true, ignore_mods = true })
 	end
 end)
+
+-- ── eco mode ─────────────────────────────────────────────────────────────
+-- Hyprland's own effects off, to save battery. Only what the compositor draws: what
+-- a shell animates inside its own surfaces stays, and so does an app's own
+-- transparency. Blur behind a shell's surfaces is Hyprland's, so that goes.
+--
+-- Last in the file, so it wins over the shells' modules and outlasts a reload, which
+-- a theme change or dux's Settings set off at any time. The flag lives in Hyprland's
+-- instance directory, so the next login starts with the mode off. Both directions
+-- are a reload, which also brings every value back from the files: no snapshot to go
+-- stale, though gaps set by hand in the gaps submap go too.
+local eco_flag = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr/"
+	.. (os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or "") .. "/eco-mode"
+
+local function eco_active()
+	local f = io.open(eco_flag, "r")
+	if f then
+		f:close()
+	end
+	return f ~= nil
+end
+
+if eco_active() then
+	hl.config({
+		animations = { enabled = false },
+		decoration = {
+			blur = { enabled = false, special = false, popups = false, input_methods = false },
+			shadow = { enabled = false },
+			glow = { enabled = false },
+			wobble = { enabled = false },
+			motion_blur = { enabled = false },
+			screen_shader = "",
+			active_opacity = 1,
+			inactive_opacity = 1,
+			fullscreen_opacity = 1,
+			dim_inactive = false,
+			dim_special = 1,
+			rounding = 0,
+		},
+		general = { gaps_in = 0, gaps_out = 0, border_size = 1 },
+	})
+end
+
+rebind("SUPER + SHIFT + CTRL + ALT + G", function()
+	if eco_active() then
+		os.remove(eco_flag)
+		notify("Eco mode off", "Compositor effects restored")
+	else
+		local f = io.open(eco_flag, "w")
+		if f then
+			f:close()
+		end
+		notify("Eco mode on", "Compositor effects off, no gaps or rounding")
+	end
+	hl.exec_cmd("hyprctl reload")
+end, { description = "Toggle eco mode" })

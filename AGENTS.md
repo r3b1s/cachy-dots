@@ -218,6 +218,15 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
   session never reaches (under dux `dfiles`, `dcal`, `dsearch`, and in both shells
   `~/.config/hypr/cachy-services.lua` for opt-in services); the window rules; and the `passthru`, `gaps` and
   `dictate_suppress` submaps.
+- **Eco mode** (`$mod+Shift+Ctrl+Mod1+g`, quattro-dots' "i3 mode" under a name that fits every shell) turns
+  Hyprland's own effects off to save battery: animations, blur, shadows, glow, wobble, motion blur, the screen
+  shader, window opacity and inactive dimming, rounding and gaps; borders go to 1px, and the rest of the screen goes
+  black behind a special workspace. It reaches only what the compositor renders, so a shell's own animations and
+  an app's own transparency stay; blur behind a shell's surfaces is Hyprland's and goes. The state is a flag file
+  in Hyprland's instance directory (`$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/eco-mode`), so a new login
+  starts with it off. `cachy.lua` applies the overrides last, whenever it loads, so the mode outlasts the reloads
+  that theme changes and dux's Settings set off. Both directions are a reload: there is no snapshot, and gaps set in
+  the `gaps` submap go too.
 - **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a three-letter
   prefix joined by `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key is its keysym
   (`slash`, `equal`; `plus` predates the prefixes). In i3 they are named workspaces; in Hyprland, special
