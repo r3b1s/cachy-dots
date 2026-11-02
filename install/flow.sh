@@ -49,7 +49,7 @@ install_main() {
 
     echo
     # A kernel upgraded by this run leaves the running one without modules; anything
-    # netfilter-based (ufw, libvirt's NAT) stays broken until a reboot.
+    # netfilter-based (firewalld, libvirt's NAT) stays broken until a reboot.
     if [ ! -d "/usr/lib/modules/$(uname -r)" ]; then
         warn "reboot needed: kernel $(uname -r) is running but its modules are gone (it was upgraded)"
     fi

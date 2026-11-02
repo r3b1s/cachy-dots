@@ -108,11 +108,11 @@ acv_check() {
     [ "$(vsys net-info "$LAB_NET" 2>/dev/null | awk '/^Active:/ { print $2 }')" = yes ] \
         || die "network $LAB_NET is not active; run opt/virt.sh"
 
-    # The VM gets its address from the dnsmasq on labbr0, which ufw's
-    # default-deny-incoming blocks unless DHCP and DNS are allowed in on the bridge
-    # (opt/virt.sh does this too; it is repeated here for a ufw enabled since).
+    # The VM gets its address from the dnsmasq on labbr0, which firewalld blocks
+    # unless the bridge's zone allows DHCP and DNS (opt/virt.sh does this too; it is
+    # repeated here for a firewalld installed since).
     . "$(dirname "${BASH_SOURCE[0]}")/lab-firewall.sh"
-    lab_ufw_dhcp_dns
+    lab_firewall
 
     CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/arch-cloud-vm"
     STATE="${XDG_CONFIG_HOME:-$HOME/.config}/arch-cloud-vm"

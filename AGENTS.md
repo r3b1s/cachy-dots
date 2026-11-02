@@ -7,7 +7,7 @@ for a guest).
 ## Working on this repo
 
 - **Never run the installers on the machine you edit on.** `install.sh`, `install_vm.sh`, `sync.sh`, `opt/*`,
-  `root/install.sh` and `podman-services/*` change the system: pacman upgrades, `/etc`, ufw, the login shell,
+  `root/install.sh` and `podman-services/*` change the system: pacman upgrades, `/etc`, firewalld, the login shell,
   links in `~`. Run them on a test VM (see "Testing"). Locally, use only `bash -n`, `shellcheck` and the scripts'
   `-n`/`--dry-run`.
 - **The code documents itself; this file holds what it cannot show.** Every script's header comment is its
@@ -104,8 +104,8 @@ for a guest).
   bash-only; fish stays installed, unconfigured); enables `ly@tty1`, `bluetooth` and `power-profiles-daemon`;
   starts `spice-vdagentd.socket` in a VM (the guest agents are static, udev-started units, installed only in a
   VM); sets up nix (`nix-daemon.socket` and `.service`, the `nix-users` group, a managed block of `extra-*`
-  settings in `nix.conf`, no channels); writes `TERMINAL=alacritty` into `/etc/environment`; sets ufw to deny
-  incoming (SSH rate-limited first when sshd is enabled); copies the touchpad and policy files; installs the
+  settings in `nix.conf`, no channels); writes `TERMINAL=alacritty` into `/etc/environment`; sets firewalld to
+  deny incoming (see "Firewall"); copies the touchpad and policy files; installs the
   theme helper; writes the GTK settings and dark mode; applies a theme; sets the default apps; and validates
   the active session's config.
 - **sshd is not touched.** `setup_ssh()` scaffolds `~/.ssh`, an empty `authorized_keys` and a managed
@@ -116,8 +116,40 @@ for a guest).
   links, applies the session, removes dangling links into the repo, writes the root copies when they differ
   (`--no-root` skips them), re-renders the theme (i3 only), re-applies the default apps, validates, and lists
   missing packages. Services and the firewall stay `install.sh`'s job.
-- **A kernel upgraded during the run** leaves the running kernel without modules: ufw cannot load until a reboot,
-  so `setup_firewall` warns instead of stopping and the run ends with "reboot needed".
+- **A kernel upgraded during the run** leaves the running kernel without modules: nftables cannot load until a
+  reboot, so `setup_firewall` warns instead of stopping and the run ends with "reboot needed". firewalld then exits
+  **0**, so `systemctl start` succeeds with no firewall running: only `sudo firewall-cmd --state` tells (without
+  sudo it answers "not authorized"). ufw is left on in that case, and a re-run after the reboot finishes the job.
+
+## Firewall
+
+firewalld, nftables backend. `setup_firewall()` has the default zone's rules and why; `opt/firewalld-lib.sh` the
+helpers for zones of our own. What neither shows:
+
+- **Two kinds of zone.** The default zone holds your rules, so it is edited rule by rule (`firewall-offline-cmd`,
+  which needs no daemon, so ssh is settled before the zone loads) and never replaced. Zones this repo owns are named
+  `cachy-*`, are whole files under `/etc/firewalld/`, written when they differ and deleted on `--remove`; hand edits
+  to them are lost. `firewall-offline-cmd --remove-service` with `--zone` fails as a lokkit option: use
+  `--remove-service-from-zone`.
+- **Target DROP also drops ping**, and `icmp-block-inversion` does not bring it back: `echo-request` needs its own
+  rich rule. Neighbour discovery works under DROP.
+- **ssh is not rate-limited,** unlike ufw's `limit`. A firewalld `limit` compiles to one bucket with no per-source
+  state, so one scanner would lock everyone out; sshd's `PerSourcePenalties`, on by default, is per address.
+- **Guest bridges get their own zone.** In the default zone they would have no DHCP or forwarding, `trusted` opens
+  every host port, and libvirt's own `libvirt` zone has target ACCEPT, which forwards anywhere whatever a policy says.
+  Interfaces take a trailing `+` wildcard (`cs-+`). `ct status dnat accept` in firewalld's input and forward chains
+  passes Incus's NAT proxies with no rule of ours.
+- **Forwarding needs a policy per direction**, and a policy matches zones, not interfaces, which is why the lab's
+  `tun0` is in a zone (`cachy-vpn`). A listener for a VPN target needs its rule in that zone once `opt/lab-firewall.sh`
+  has run, not the default one.
+- **`--state` is the only truth.** A bad file under `/etc/firewalld/` leaves firewalld `failed`: the unit stays
+  active and it enforces its stock config (`public`, ssh open), so that degrades rather than opens or locks out. A
+  policy's `target` attribute is mandatory: `CONTINUE` lets its rich rules decide.
+- **`wt0`:** NetBird's client has firewalld support of its own (it calls `addInterface` over D-Bus), so nothing here
+  names the interface. Which zone it picks is unverified, below.
+- **Moving from ufw:** its rules are listed, not carried over, and the blocks older scripts left in
+  `/etc/ufw/before*.rules` go inert with it. Re-run `opt/virt.sh`, `opt/services/incus/install.sh` and
+  `opt/services/rakazo/host-setup.sh` where they were in use, or their guests lose DHCP and forwarding.
 
 ## Sessions: i3 and Hyprland
 
@@ -416,8 +448,8 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   RetroArch's settings are applied once (`--reconfigure` re-applies them), and it needs a Vulkan driver
   (`vulkan-swrast` in a VM).
 - `opt/virt.sh` sets up libvirt's `qemu:///system` with the `labbr0` NAT network (10.40.40.0/24) and the
-  `default` storage pool; `qemu:///session` needs no setup. The `libvirt` group is root-equivalent. `opt/lab-firewall.sh` adds the ufw rules `labbr0` needs, and only while ufw is
-  active; re-run it after enabling ufw.
+  `default` storage pool; `qemu:///session` needs no setup. The `libvirt` group is root-equivalent. `opt/lab-firewall.sh` adds the firewalld zones `labbr0` needs; re-run it after
+  starting firewalld.
 - `opt/arch-cloud-vm.sh` and `opt/arch-cloud-vm-dots.sh` make test VMs (see "Testing").
 - `opt/services/` (kanata, paseo, sunshine, rakazo, voxtype), `opt/install-from-source/` (ArtCraft) and `opt/install-from-proprietary/` (Antigravity) have their own AGENTS.md.
 - `podman-services/syncthing/install.sh`: a rootless Syncthing Quadlet bound to the host's NetBird address.
@@ -430,7 +462,6 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   snapshot: `virsh -c qemu:///system snapshot-revert dots-test provisioned`. Hyprland was tested on `arch0`, and
   both shells on `arch-lab`.
 - **Copy the repo with `rsync -a --delete`**, not tar: a stale `conf.d` file left behind loads and overrides.
-- **ufw rate-limits port 22** (6 connections in 30 s): use one multiplexed ssh connection.
 - **Test GUI apps under the session's environment** (`/proc/$(pgrep -xo i3)/environ`), not an ssh shell's.
   Start test agents with `i3-msg exec`: the vdagent ignores processes outside the active session.
 - **A graphical session without typing a password**, as ly starts one: `systemd-run -p PAMName=login -p
@@ -452,6 +483,16 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   host; peers join with its setup key and trust `~/.local/share/hitkit/ca/ca.crt`). QEMU's user networking does
   not read the host's `/etc/hosts`, so a test VM needs its own `netbird.hitkit.internal` line. Arch has no
   `netbird` package (CachyOS does): use the release tarball, checked against GitHub's digest.
-- **Not verified on a live system:** the `opt/lab-firewall.sh` rules against a running ufw, kanata's unit
+- **An Incus VM as a test host:** use `images:archlinux`, not `images:archlinux/cloud`, whose VM image reboot-looped
+  right after cloud-init's network stage (2026-11). The default profile has no NIC: add `nic nictype=bridged
+  parent=labbr0` on the instance, which needs nothing new from the host's firewall. `incus init` reads YAML from a
+  stdin that is not a terminal, so give it `</dev/null` or it waits forever. Wait for `pacman-init.service` and
+  snapshot a stopped VM: a snapshot of one still booting has a torn keyring. Such a guest sits on 10.40.40.0/24, so
+  its nested `labbr0` needs another subnet, in that copy only. Run scripts with `su - <user>`: `sudo -u` sets
+  `SUDO_USER=root`, which they take to be the target user. A namespace on a veth stands in for a lab guest, and a
+  veth named `tun0` with a listener behind it for the VPN: a `tun` device with no process attached drops everything.
+- **Not verified on a live system:** which zone NetBird puts `wt0` in, the `tun0` zone when NetworkManager owns the
+  VPN, rakazo's `cachy-stack` zone (`host-setup.sh`), setup_firewall on real CachyOS (tested on Arch with ufw
+  installed as CachyOS ships it), kanata's unit
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` at a real login and on a session switch,
   where the idle-inhibit pill lands on screen, and the login wallpaper watcher (`x11-wallpaper watch`).

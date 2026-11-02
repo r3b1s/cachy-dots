@@ -92,8 +92,8 @@ The scripts' headers and the Nix modules have the details; this is what they can
   cannot be written: each ACL rejects by default and allows the public IPv4 space (all of it minus
   `stack.toml`'s `private` list, computed) plus each exception. Incus's NAT proxy rewrites the destination
   before the ACL sees it, so `uses = ["executor"]` allows the edge's address and port, not the NetBird one.
-  Incus's baseline DHCP and DNS rules come before the ACLs. ufw would drop the bridges' DHCP, DNS and
-  forwarding, hence `host-setup.sh`'s block in `/etc/ufw/before.rules` for `cs-+`.
+  Incus's baseline DHCP and DNS rules come before the ACLs. firewalld would drop the bridges' DHCP, DNS
+  and forwarding, hence `host-setup.sh`'s `cachy-stack` zone for `cs-+`.
 * **Guests** start from `images:nixos/26.05`; `apply.sh` copies this directory in as `/etc/cachy-stack` and
   runs `nixos-rebuild switch --flake` there (builds in the guest: about 2 GiB of RAM, or it is OOM-killed).
   The traps it works around: the agent answers before the guest has DNS, so it waits for that; commands
@@ -170,12 +170,12 @@ profiles or instances: a stack built on Incus (rakazo, for now) brings its own.
 * **`--ui`** is reached with `incus webui`: the client proxies the UI to a loopback port over the local unix
   socket with a one-time `auth_token`, so no certificate is imported and nothing listens on the network. Remote
   access (`core.https_address` and a trusted certificate) is deliberately not set up.
-* **ufw.** With ufw installed, a managed block (`# >>> cachy-dots incus >>>`) in `before.rules` and
-  `before6.rules` accepts DHCP and DNS from `incusbr0` to the host, and forwarding in and out of it. Only that
-  bridge name: ufw's default policy drops the rest, and a stack with its own bridges adds its own block (rakazo's
-  `host-setup.sh` does). Those two ACCEPTs are narrower than `ufw allow in on incusbr0`, which opens every host
-  port to the instances. The rules files are root-only, so `-n` also asks for sudo when ufw is installed.
-* `--remove` takes the ufw blocks out, disables the unit and socket (stopping instances) and removes `incus-ui`;
+* **firewalld.** With firewalld installed, the `cachy-incus` zone accepts DHCP and DNS from `incusbr0` to the host,
+  and its `-in` and `-out` policies forward in and out of it. Only that bridge name: anything else stays in the
+  default zone, and a stack with its own bridges adds its own zone (rakazo's `host-setup.sh` does). That is narrower
+  than the `trusted` zone upstream's docs suggest, which opens every host port to the instances. firewalld's files
+  are root-only, so `-n` also asks for sudo when it is installed.
+* `--remove` takes the zone out, disables the unit and socket (stopping instances) and removes `incus-ui`;
   the `incus` package, instances, storage, ID ranges and group stay.
-* `rakazo/host-setup.sh` still does the same host steps itself; it can shrink to its ufw block once the stack moves
+* `rakazo/host-setup.sh` still does the same host steps itself; it can shrink to its firewalld zone once the stack moves
   out and depends on this script.

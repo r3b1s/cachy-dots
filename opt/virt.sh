@@ -14,9 +14,12 @@
 # The packaged configs leave the socket group commented out, which makes the
 # sockets root-only, so it is set here, and libvirt's firewall backend is pinned
 # to nftables (what it picks by itself when nft is there). The NAT is libvirt's;
-# ufw rules (DHCP/DNS in, and forwarding when ufw drops it) are added by
-# opt/lab-firewall.sh, and only while ufw is active. The default network is not
-# defined: labbr0 is the lab network.
+# the firewalld zones labbr0 needs (DHCP/DNS in, forwarding to the internet and the
+# VPN but not the LAN) come from opt/lab-firewall.sh. With firewalld running the
+# network names its zone, and starting it then needs firewalld up. A labbr0 defined
+# before that gets the zone too; it applies when the network restarts, which is done
+# here only while no guest is on the bridge. The default network is not defined:
+# labbr0 is the lab network.
 #
 # Usage: opt/virt.sh [-n|--dry-run]
 set -euo pipefail
@@ -24,7 +27,7 @@ set -euo pipefail
 LAB_NET=labbr0
 LAB_XML='<network>
   <name>labbr0</name>
-  <bridge name="labbr0" stp="on" delay="0"/>
+  <bridge name="labbr0" stp="on" delay="0"@ZONE@/>
   <forward mode="nat"/>
   <ip address="10.40.40.1" netmask="255.255.255.0">
     <dhcp>
@@ -86,12 +89,31 @@ if $SUDO grep -q '^#firewall_backend = "nftables"' /etc/libvirt/network.conf 2>/
     run $SUDO systemctl try-restart virtnetworkd.service
 fi
 
+# Host firewall for the lab network: before the network, which names its zone.
+# shellcheck source=opt/lab-firewall.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lab-firewall.sh"
+lab_firewall
+
+zone_attr=
+if fw_active; then zone_attr=" zone=\"$LAB_ZONE\""; fi
+
 say "Network $LAB_NET (10.40.40.0/24)"
+xml=$(mktemp)
+trap 'rm -f "$xml"' EXIT
 if ! vsys net-info "$LAB_NET" >/dev/null 2>&1; then
-    xml=$(mktemp)
-    trap 'rm -f "$xml"' EXIT
-    printf '%s\n' "$LAB_XML" > "$xml"
+    printf '%s\n' "${LAB_XML/@ZONE@/$zone_attr}" > "$xml"
     run vsys net-define "$xml"
+elif [ -n "$zone_attr" ] && ! vsys net-dumpxml --inactive "$LAB_NET" | grep -q "zone=['\"]${LAB_ZONE}['\"]"; then
+    say "Putting $LAB_NET in the $LAB_ZONE zone"
+    vsys net-dumpxml --inactive "$LAB_NET" | sed "s/<bridge name='$LAB_NET'/&$zone_attr/" > "$xml"
+    run vsys net-define "$xml"
+    if [ "$(vsys net-info "$LAB_NET" 2>/dev/null | awk '/^Active:/ { print $2 }')" = yes ]; then
+        if [ -n "$(ls -A "/sys/class/net/$LAB_NET/brif" 2>/dev/null)" ]; then
+            warn "$LAB_NET has guests, so it stays in libvirt's zone (no LAN isolation) until it restarts: virsh -c qemu:///system net-destroy $LAB_NET && virsh -c qemu:///system net-start $LAB_NET, then restart its guests"
+        else
+            run vsys net-destroy "$LAB_NET"
+        fi
+    fi
 fi
 run vsys net-autostart "$LAB_NET"
 if [ "$(vsys net-info "$LAB_NET" 2>/dev/null | awk '/^Active:/ { print $2 }')" != yes ]; then
@@ -107,11 +129,6 @@ run vsys pool-autostart default
 if [ "$(vsys pool-info default 2>/dev/null | awk '/^State:/ { print $2 }')" != running ]; then
     run vsys pool-start default
 fi
-
-# Host firewall for the lab network (only does anything while ufw is active).
-# shellcheck source=opt/lab-firewall.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lab-firewall.sh"
-lab_firewall
 
 if getent group libvirt >/dev/null; then
     if ! id -nG "$TARGET_USER" | tr ' ' '\n' | grep -qx libvirt; then

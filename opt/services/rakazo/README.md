@@ -9,7 +9,7 @@ and its traps are in [opt/services/AGENTS.md](../AGENTS.md#4-rakazo).
 
 | File | What it does |
 | --- | --- |
-| `host-setup.sh` | The one root step, run once with sudo: installs Incus, the subordinate ID ranges, `incus.socket`, the `incus-admin` group, and the ufw block for the stack's bridges. |
+| `host-setup.sh` | The one root step, run once with sudo: installs Incus, the subordinate ID ranges, `incus.socket`, the `incus-admin` group, and the firewalld zone for the stack's bridges. |
 | `apply.sh` | Everything else, as the user: renders and applies the Incus objects, keeps the CA, copies this directory into each guest and runs `nixos-rebuild switch`. |
 | `render.py` | Reads `stack.toml` and `services/*/service.toml` and prints the Incus objects (a bridge, ACL and profile per service). |
 | `stack.toml` | The registry: prefix, subnet, uplink interface, base image, private ranges and the published port block. |

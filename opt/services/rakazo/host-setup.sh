@@ -9,12 +9,12 @@
 #   - enables incus.socket, and incus.service so instances with boot.autostart
 #     start with the host;
 #   - adds the invoking user to incus-admin (root-equivalent, like libvirt);
-#   - when ufw is installed: a managed block in /etc/ufw/before.rules that lets
-#     the stack's bridges (<prefix>-*, stack.toml) take DHCP and DNS from the
-#     host and forward. ufw would otherwise drop both, and Incus's own ACLs
+#   - when firewalld is installed: a zone, cachy-stack, that lets the stack's
+#     bridges (<prefix>-*, stack.toml) take DHCP and DNS from the host and
+#     forward. firewalld would otherwise drop both, and Incus's own ACLs
 #     (apply.sh) are what decide where a guest may go.
 #
-#   --remove    take the ufw block out and disable Incus; instances, packages,
+#   --remove    take the firewalld zone out and disable Incus; instances, packages,
 #               the ID ranges and the group are left (apply.sh --remove takes
 #               the stack itself out)
 #
@@ -22,7 +22,7 @@
 set -euo pipefail
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-UFW_RULES=/etc/ufw/before.rules
+ZONE=cachy-stack
 SUBID="root:1000000:1000000000"
 
 say()  { printf '\033[1;34m::\033[0m %s\n' "$*"; }
@@ -49,46 +49,15 @@ if [ "$remove" = 0 ] && { [ -z "$user" ] || [ "$user" = root ]; }; then
 fi
 prefix=$(python3 -I -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["prefix"])' "$HERE/stack.toml")
 
-BEGIN="# >>> cachy-dots rakazo stack >>>"
-END="# <<< cachy-dots rakazo stack <<<"
-
-# before.rules without the block.
-ufw_rest() { awk -v b="$BEGIN" -v e="$END" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip' "$UFW_RULES"; }
-
-# before.rules with the block just before the *filter table's COMMIT.
-ufw_with_block() {
-    ufw_rest | awk -v b="$BEGIN" -v e="$END" -v p="$prefix" '
-        /^\*filter/ { in_filter = 1 }
-        in_filter && /^COMMIT/ {
-            print b
-            print "# The stack'"'"'s Incus bridges: DHCP and DNS from the host, and forwarding."
-            print "# Incus'"'"'s ACLs decide where a guest may go (opt/services/rakazo)."
-            print "-A ufw-before-input -i " p "-+ -p udp --dport 67 -j ACCEPT"
-            print "-A ufw-before-input -i " p "-+ -p udp --dport 53 -j ACCEPT"
-            print "-A ufw-before-input -i " p "-+ -p tcp --dport 53 -j ACCEPT"
-            print "-A ufw-before-forward -i " p "-+ -j ACCEPT"
-            print "-A ufw-before-forward -o " p "-+ -j ACCEPT"
-            print e
-            in_filter = 0
-        }
-        { print }'
-}
-
-# put_ufw CONTENT-COMMAND: replace before.rules when it differs, then reload ufw.
-put_ufw() {
-    local tmp
-    tmp=$(mktemp)
-    "$@" > "$tmp"
-    if cmp -s "$tmp" "$UFW_RULES"; then rm -f "$tmp"; return 0; fi
-    say "Updating $UFW_RULES"
-    if [ "$dry" = 1 ]; then diff -u "$UFW_RULES" "$tmp" || true; rm -f "$tmp"; return 0; fi
-    install -m 0640 -o root -g root "$tmp" "$UFW_RULES"
-    rm -f "$tmp"
-    ! ufw status | grep -q '^Status: active' || ufw reload >/dev/null
-}
+SUDO=
+# shellcheck source=opt/firewalld-lib.sh
+. "$HERE/../../firewalld-lib.sh"
 
 if [ "$remove" = 1 ]; then
-    [ ! -f "$UFW_RULES" ] || put_ufw ufw_rest
+    if fw_installed; then
+        fw_guest_zone_remove "$ZONE"
+        fw_commit
+    fi
     if systemctl is-enabled --quiet incus.service 2>/dev/null || systemctl is-enabled --quiet incus.socket 2>/dev/null; then
         say "Disabling Incus"
         run systemctl disable --now incus.service incus.socket
@@ -127,9 +96,10 @@ if ! id -nG "$user" | tr ' ' '\n' | grep -qx incus-admin; then
     run usermod -aG incus-admin "$user"
 fi
 
-# ── ufw ──────────────────────────────────────────────────────────────────────
-if [ -f "$UFW_RULES" ]; then
-    put_ufw ufw_with_block
+# ── firewalld ────────────────────────────────────────────────────────────────
+if fw_installed; then
+    fw_guest_zone "$ZONE" "$prefix-+" "The stack's Incus bridges: DHCP and DNS from the host, and forwarding. Incus's ACLs decide where a guest may go (opt/services/rakazo)."
+    fw_commit
 fi
 
 say "Done. Next, as $user: opt/services/rakazo/apply.sh"

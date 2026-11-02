@@ -24,7 +24,7 @@ only, so log out of the desktop session once, or use `newgrp incus-admin` in a t
 | Subordinate IDs | `/etc/subuid`, `/etc/subgid` | `root:1000000:1000000000` (`name:start:count`), added only when root has no entry. Unprivileged instances map their IDs into it. |
 | Units | `incus.socket`, `incus.service` | Enabled and started. The service is enabled so instances with `boot.autostart` come back with the host. |
 | Group | `incus-admin` | The invoking user is added. See below. |
-| Firewall | `/etc/ufw/before.rules`, `/etc/ufw/before6.rules` | Only when ufw is installed: a managed block, `# >>> cachy-dots incus >>>`. See below. |
+| Firewall | `/etc/firewalld/zones/cachy-incus.xml`, `/etc/firewalld/policies/cachy-incus-{in,out}.xml` | Only when firewalld is installed. See below. |
 | Web UI | `incus webui` | Only with `--ui`. See below. |
 
 ### `incus-admin`, not `incus`
@@ -36,16 +36,16 @@ The script uses `incus-admin` only.
 
 ### Firewall
 
-ufw drops an Incus bridge's DHCP and DNS requests to the host, and forwarding in and out of it, so instances on
-the default bridge `incusbr0` would get no address and no network. The block, just before each `*filter` table's
-`COMMIT`, accepts:
+firewalld drops an Incus bridge's DHCP and DNS requests to the host, and forwarding in and out of it, so instances
+on the default bridge `incusbr0` would get no address and no network. The `cachy-incus` zone holds that bridge and
+accepts:
 
-- DHCP (UDP 67 in `before.rules`, 547 in `before6.rules`) and DNS (UDP and TCP 53) from `incusbr0`, to the host;
-- forwarding in and out of `incusbr0`.
+- DHCP (UDP 67, and 547 for IPv6) and DNS (UDP and TCP 53) from `incusbr0`, to the host;
+- forwarding in and out of `incusbr0`, through the policies `cachy-incus-in` and `cachy-incus-out`.
 
-That is narrower than `ufw allow in on incusbr0`, which opens every host port to the instances. Only that bridge
-name is covered: a stack with bridges of its own adds its own block (rakazo's `host-setup.sh` does). The rest of
-each file is never touched, and `--remove` takes the block out again.
+That is narrower than the `trusted` zone upstream's docs suggest, which opens every host port to the instances. Only
+that bridge name is covered: a stack with bridges of its own adds its own zone (rakazo's `host-setup.sh` does). The
+files are this script's, written when they differ, and `--remove` deletes them.
 
 ### Web UI
 
@@ -62,7 +62,7 @@ machines in (`incus config set core.https_address ...` plus a trusted client cer
 - **Restarts.** A restart of `incus.service` stops every running instance (`ExecStop=incusd shutdown`). The script
   restarts it only when a change needs one (new ID ranges, or `incus-ui` on a daemon that is already running) and
   only while no instance is running; otherwise it warns and leaves the restart to you.
-- **`--remove`** takes the ufw blocks out, disables `incus.service` and `incus.socket` (which stops running
+- **`--remove`** takes the zone out, disables `incus.service` and `incus.socket` (which stops running
   instances) and removes `incus-ui`. The `incus` package, instances, storage, the ID ranges and the group stay.
 
 ## Checking it
