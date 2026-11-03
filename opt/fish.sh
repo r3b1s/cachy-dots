@@ -2,11 +2,14 @@
 # Opt in to fish as the login shell. Not part of the default install: install.sh
 # makes bash the login shell unless this script, or opt/zsh.sh, chose another.
 #
-#   1. installs fish
-#   2. links fish/config.fish -> ~/.config/fish/config.fish: bash's aliases and
+#   1. removes CachyOS's own shell setups, cachyos-fish-config and
+#      cachyos-zsh-config, with what was installed only for them (install.sh does
+#      the same, so after it this finds nothing)
+#   2. installs fish
+#   3. links fish/config.fish -> ~/.config/fish/config.fish: bash's aliases and
 #      functions (shell/aliases) ported to fish, and the same tools (starship,
-#      mise, zoxide, fzf).
-#   3. records fish in ~/.config/cachy-dots/login-shell, which install.sh and
+#      mise, zoxide, fzf). CachyOS's stub config.fish is deleted, not backed up.
+#   4. records fish in ~/.config/cachy-dots/login-shell, which install.sh and
 #      sync.sh follow, and makes /usr/bin/fish the login shell (the path
 #      /etc/shells lists; pam_shells refuses any other)
 #

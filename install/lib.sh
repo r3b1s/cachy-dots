@@ -8,7 +8,7 @@
 #   repos.sh     CachyOS repo check, chaotic-aur
 #   pacman.sh    the pacman transaction and the Qt 6 stack
 #   system.sh    nix, services, firewall, touchpad, keyring
-#   shells.sh    the login shell (bash, or fish or zsh from opt/)
+#   shells.sh    the login shell (bash, or fish or zsh from opt/), CachyOS's shell setups
 #   browsers.sh  Firefox and Chromium policies, default applications
 #   theme.sh     root helpers, GTK, dark mode, the first theme
 #   links.sh     symlinks into ~/.config and ~/.local/bin

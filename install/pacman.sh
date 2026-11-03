@@ -16,20 +16,10 @@ refresh_databases() {
     run $SUDO pacman -Syu --noconfirm || { warn "pacman -Syu failed"; FAILED=1; }
 }
 
-remove_unwanted_packages() {
-    command -v pacman >/dev/null || return 0
-    if [ "$(pacman -Qq cachyos-fish-config 2>/dev/null)" = "cachyos-fish-config" ]; then
-        say "Removing cachyos-fish-config"
-        run $SUDO pacman -R --noconfirm cachyos-fish-config \
-            || run $SUDO pacman -Rdd --noconfirm cachyos-fish-config \
-            || warn "could not remove cachyos-fish-config"
-    fi
-}
-
 install_packages() {
     command -v pacman >/dev/null || { warn "pacman not found; skipping package install"; return; }
 
-    remove_unwanted_packages
+    remove_cachyos_shell_configs
 
     say "Checking packages"
     local missing=() p c entry chosen installed need_refresh=0

@@ -184,6 +184,7 @@ install_links() {
     for d in kitty alacritty rofi shell dunst i3status-rust; do
         retire_dir_link "$cfg/$d" "$REPO/$d"
     done
+    retire_cachyos_shell_leftovers
 
     # Files the rendered theme provides: ~/.local/state/omarchy/current/theme/
     # is replaced on every switch, so these links stay valid.

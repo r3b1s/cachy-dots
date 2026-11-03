@@ -100,8 +100,8 @@ for a guest).
   `PROFILE_NO_SLEEP` (`setup_no_sleep()`: a logind drop-in, masked sleep targets, X without blanking). Each run
   records the profile in `~/.config/cachy-dots/profile`, and `sync.sh` follows it.
 - **Beyond packages** the installer: makes bash the login shell (CachyOS defaults to fish), or fish or zsh once
-  `opt/fish.sh` or `opt/zsh.sh` chose one (see "Shell"); enables `ly@tty1`, `bluetooth` and
-  `power-profiles-daemon`;
+  `opt/fish.sh` or `opt/zsh.sh` chose one (see "Shell"), and removes CachyOS's own fish and zsh setups; enables
+  `ly@tty1`, `bluetooth` and `power-profiles-daemon`;
   starts `spice-vdagentd.socket` in a VM (the guest agents are static, udev-started units, installed only in a
   VM); sets up nix (`nix-daemon.socket` and `.service`, the `nix-users` group, a managed block of `extra-*`
   settings in `nix.conf`, no channels); writes `TERMINAL=alacritty` into `/etc/environment`; sets firewalld to
@@ -463,6 +463,14 @@ exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor
     `system-login`, so ly and the ttys) compares the passwd entry with the lines of `/etc/shells` as strings, and
     `command -v fish` answers `/usr/sbin/fish` (the same file through the merged-sbin link, but not listed), which
     once locked a user out of every login. A shell of the right name under an unlisted path is replaced.
+  - **CachyOS's shell setups**, `cachyos-fish-config` and `cachyos-zsh-config`, go with `pacman -Rns`, which takes
+    what was installed only for them (fisher, pure, autopair, oh-my-zsh, powerlevel10k, zsh's plugins, tealdeer,
+    expac, two fonts). Where an earlier run removed one without `-s`, its dependencies that are orphans now (`-Qdtt`,
+    as the sync database lists them) go instead. The PKGS among them (bat, eza, fzf), every account's login shell
+    and the recorded one are marked explicit first, or `-s` would take them too; so fish stays on a fresh CachyOS
+    (its login shell until bash takes over) and goes where nothing uses it. `retire_cachyos_shell_leftovers()`
+    deletes the skel `config.fish` and `~/.zshrc` that only sourced them (and earlier runs' backups of
+    `config.fish`), and drops the `pure_*` and `__done_*` lines from `fish_variables`.
 - **Telemetry opt-outs** (`env/telemetry.conf`) use the strict `KEY=VALUE` subset that environment.d, `sh`, zsh
   and fish accept, because five readers share the file: systemd --user (linked into `environment.d`),
   `~/.xprofile`, `shell/init.sh`, `shell/init.zsh` and `fish/config.fish`.
@@ -541,5 +549,6 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` on a real session switch (a planted Wayland
   daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, the login wallpaper watcher
   (`x11-wallpaper watch`), Bluetooth staying blocked across a real controller's firmware reload on wake,
-  suspend-then-hibernate's 10-minute alarm, `opt/hibernate.sh` on a real CachyOS install, and `opt/fish.sh`
-  and `opt/zsh.sh` (dry runs only).
+  suspend-then-hibernate's 10-minute alarm, `opt/hibernate.sh` on a real CachyOS install, the removal of
+  CachyOS's shell setups (its `pacman -Rsp` list was read on CachyOS; the transaction has never run), and
+  `opt/fish.sh` and `opt/zsh.sh` (dry runs only).

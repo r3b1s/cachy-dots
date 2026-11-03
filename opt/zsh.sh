@@ -2,13 +2,17 @@
 # Opt in to zsh as the login shell. Not part of the default install: install.sh
 # makes bash the login shell unless this script, or opt/fish.sh, chose another.
 #
-#   1. installs zsh
-#   2. links shell/init.zsh and shell/integrations.zsh into ~/.config/shell/,
+#   1. removes CachyOS's own shell setups, cachyos-zsh-config (oh-my-zsh,
+#      powerlevel10k, zsh's plugins) and cachyos-fish-config, with what was
+#      installed only for them (install.sh does the same, so after it this finds
+#      nothing)
+#   2. installs zsh
+#   3. links shell/init.zsh and shell/integrations.zsh into ~/.config/shell/,
 #      beside bash's files, and adds a managed block to ~/.zshrc that loads
 #      init.zsh: bash's aliases and functions (shell/aliases, shared with bash),
 #      the same tools (starship, mise, zoxide, fzf), zsh's completion and a
-#      history file.
-#   3. records zsh in ~/.config/cachy-dots/login-shell, which install.sh and
+#      history file. CachyOS's stub ~/.zshrc is deleted first.
+#   4. records zsh in ~/.config/cachy-dots/login-shell, which install.sh and
 #      sync.sh follow, and makes /usr/bin/zsh the login shell
 #
 # The login shell applies at the next login. Run it as your own user: sudo is
