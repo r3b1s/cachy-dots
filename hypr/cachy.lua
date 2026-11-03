@@ -179,7 +179,6 @@ rebind("SUPER + CTRL + H", hl.dsp.window.resize({ x = 100, y = 0, relative = tru
 rebind("SUPER + CTRL + L", hl.dsp.window.resize({ x = -100, y = 0, relative = true }), { repeating = true, description = "Shrink width" })
 rebind("SUPER + CTRL + K", hl.dsp.window.resize({ x = 0, y = 100, relative = true }), { repeating = true, description = "Grow height" })
 rebind("SUPER + CTRL + J", hl.dsp.window.resize({ x = 0, y = -100, relative = true }), { repeating = true, description = "Shrink height" })
-rebind("SUPER + SHIFT + minus", hl.dsp.window.resize({ x = 0, y = -100, relative = true }), { repeating = true, description = "Shrink height" })
 
 -- Layout: what the master chords do needs that layout, and dux's default is dwindle.
 rebind("SUPER + R", hl.dsp.layout("togglesplit"), { description = "Toggle split" })
