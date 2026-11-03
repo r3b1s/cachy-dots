@@ -243,8 +243,9 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
   the `gaps` submap go too.
 - **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a three-letter
   prefix joined by `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key is its keysym
-  (`slash`, `equal`; `plus` predates the prefixes). In i3 they are named workspaces; in Hyprland, special
-  workspaces with the same names. `bin/ws-app` toggles one and launches its app only when it is empty. Under
+  (`slash`, `equal`; `ctl_equal` is `$mod+Ctrl+=`, the calendar under dux). In i3 they are named workspaces; in
+  Hyprland, special workspaces with the same names. `bin/ws-app` toggles one and launches its app only when it is
+  empty. Under
   Hyprland it launches with `hl.dsp.exec_cmd(cmd, { workspace = "special:<name>" })`. Its launch rule places only
   the first window, so apps that reopen windows also get a window rule (Hyprland) or an `assign` (i3) whose name
   must match the bind's: Vesktop (a loading window precedes the main one), Dux Calendar (its daemon makes the

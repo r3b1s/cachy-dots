@@ -21,7 +21,7 @@ msg("SUPER + V", "panel-toggle clipboard", { description = "Clipboard history" }
 msg("SUPER + CTRL + space", "panel-toggle wallpaper", { description = "Wallpaper picker" })
 msg("SUPER + CTRL + W", "wallpaper-next", { description = "Next wallpaper" })
 msg("SUPER + SHIFT + CTRL + space", "settings-toggle", { description = "Settings" })
-msg("SUPER + SHIFT + equal", "panel-toggle control-center calendar", { description = "Calendar" })
+msg("SUPER + CTRL + equal", "panel-toggle control-center calendar", { description = "Calendar" })
 
 -- Noctalia's own colour picker and keybind pages cannot be reached from outside.
 hl.bind("SUPER + SHIFT + CTRL + ALT + P", hl.dsp.exec_cmd("hyprpicker -a"), { description = "Colour picker" })

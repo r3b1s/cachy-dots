@@ -121,10 +121,10 @@ end)
 -- loading window before its main one, so its windows are sent there by class:
 -- the main window lands on special:slash once the loading one has gone.
 hl.window_rule({ match = { class = "^(vesktop)$" }, workspace = "special:slash" })
--- Dux Calendar ($mod+Shift+= under dux). Its daemon is already running (hyprland.start
+-- Dux Calendar ($mod+Ctrl+= under dux). Its daemon is already running (hyprland.start
 -- above), so `dcal show` makes the window in that process, not in the one ws-app
 -- started: the rule is what puts it on the workspace.
-hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "special:plus" })
+hl.window_rule({ match = { class = "^(dev.duxlabs.calendar)$" }, workspace = "special:ctl_equal" })
 -- RetroArch (opt/omarchy-retroarch.sh): fullscreen, and no idle lock while it is, as
 -- Omarchy's default/hypr/apps/retroarch.lua.
 hl.window_rule({ match = { class = "^(com.libretro.RetroArch)$" }, fullscreen = true, idle_inhibit = "fullscreen" })
