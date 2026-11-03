@@ -1,24 +1,7 @@
 #!/usr/bin/env bash
-# System setup: login shell, services, nix, firewall, touchpad, keyring.
+# System setup: services, nix, firewall, touchpad, keyring.
 # Sourced by install.sh, install_vm.sh and sync.sh through install/lib.sh; defines
 # functions and package lists only, and runs nothing.
-
-# Fish is the default login shell (config in fish/config.fish).
-# Run as root (sudo), chsh does not ask for the user's password.
-setup_login_shell() {
-    local current fish_path
-    fish_path=$(command -v fish || echo /usr/bin/fish)
-    current=$(getent passwd "$TARGET_USER" | cut -d: -f7)
-    case "$current" in
-        /bin/fish|/usr/bin/fish) return 0 ;;
-    esac
-    [ "$TARGET_USER" = root ] && { warn "running as root without sudo; not changing root's shell"; return 0; }
-
-    say "Changing the login shell of $TARGET_USER: $current -> $fish_path"
-    run $SUDO chsh -s "$fish_path" "$TARGET_USER" \
-        || { warn "could not change the login shell to fish"; return 0; }
-    echo "login shell: $fish_path (applies at next login)"
-}
 
 # nix is for project-specific environments only (`nix-shell`, `nix develop`):
 # no channels and no flake registry changes. What is set up:

@@ -50,8 +50,7 @@ for a guest).
 | `i3/`, `hypr/`, `dms/`, `noctalia/` | the sessions; `dms/settings.json` is a snapshot of dux's settings, `noctalia/` is Noctalia's config |
 | `theme/`, `hooks/theme-set.d/` | the theme engine (`bin/x11-theme`), and hooks it runs after a switch |
 | `alacritty/`, `kitty/`, `qutebrowser/`, `nvim/`, ... | one directory per app |
-| `fish/` | fish configuration (`~/.config/fish/config.fish`) |
-| `shell/`, `env/` | bash integration (`~/.config/shell`, `~/.xprofile`), telemetry opt-outs |
+| `shell/`, `fish/`, `env/` | bash and zsh integration (`~/.config/shell`, `~/.xprofile`), fish's (`opt/fish.sh`), telemetry opt-outs |
 | `firefox/`, `chromium/` | browser policies |
 | `xorg/`, `systemd/`, `ssh/` | root drop-ins: copied by the installer, or (`ssh/`) by hand |
 | `applications/` | launcher entries for repo scripts |
@@ -100,8 +99,8 @@ for a guest).
   list lives in `profile-vm.sh` alone; it also forces the guest agents (`PROFILE_FORCE_VM`) and sets
   `PROFILE_NO_SLEEP` (`setup_no_sleep()`: a logind drop-in, masked sleep targets, X without blanking). Each run
   records the profile in `~/.config/cachy-dots/profile`, and `sync.sh` follows it.
-- **Beyond packages** the installer: makes fish the login shell (uninstalls `cachyos-fish-config` if present;
-  `fish/config.fish` configures fish with starship, vi mode, and no fastfetch); enables `ly@tty1`, `bluetooth` and
+- **Beyond packages** the installer: makes bash the login shell (CachyOS defaults to fish), or fish or zsh once
+  `opt/fish.sh` or `opt/zsh.sh` chose one (see "Shell"); enables `ly@tty1`, `bluetooth` and
   `power-profiles-daemon`;
   starts `spice-vdagentd.socket` in a VM (the guest agents are static, udev-started units, installed only in a
   VM); sets up nix (`nix-daemon.socket` and `.service`, the `nix-users` group, a managed block of `extra-*`
@@ -454,11 +453,16 @@ exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor
   since its exit status is 0 even with no sink. Output is `mode = "clipboard"`;
   `post_output_command` (`dictate paste`) copies to PRIMARY and sends Shift+Insert. The built-in hotkey is off,
   so the `input` group is not needed. `bin/dictate` and the binds stay in every install.
-- **Shell.** Fish is the default login shell, configured by `fish/config.fish` (linked into
-  `~/.config/fish/config.fish`): PATH, telemetry opt-outs, vi key bindings (`fish_vi_key_bindings`), starship prompt
-  (`starship init fish`), tool integrations (mise, zoxide, fzf), and aliases. `cachyos-fish-config` is uninstalled
-  if present and fastfetch is omitted. Interactive bash is also supported via a managed `~/.bashrc` block that
-  sources `shell/init.sh`.
+- **Shell.** bash is the login shell; `opt/fish.sh` and `opt/zsh.sh` make fish or zsh it instead, and record it
+  in `~/.config/cachy-dots/login-shell`, which `install.sh` keeps and whose config `install.sh` and `sync.sh` link
+  (`install/shells.sh`). A managed `~/.bashrc` block sources `shell/init.sh`: PATH, telemetry, then `aliases` and
+  `integrations` (mise with `set +h`, so bash does not cache paths ahead of its shims; starship wraps an existing
+  `PROMPT_COMMAND`; zoxide, fzf). Definitions are guarded by `command -v`. ble.sh is opt-in (`opt/blesh.sh`) and
+  loaded first when installed; test it in a real terminal, since it does not load under `bash -c`.
+  - **The login shell path** is `/bin/bash`, `/usr/bin/fish` or `/usr/bin/zsh` exactly. `pam_shells` (in
+    `system-login`, so ly and the ttys) compares the passwd entry with the lines of `/etc/shells` as strings, and
+    `command -v fish` answers `/usr/sbin/fish` (the same file through the merged-sbin link, but not listed), which
+    once locked a user out of every login. A shell of the right name under an unlisted path is replaced.
 - **Telemetry opt-outs** (`env/telemetry.conf`) use the strict `KEY=VALUE` subset that environment.d, `sh`, zsh
   and fish accept, because five readers share the file: systemd --user (linked into `environment.d`),
   `~/.xprofile`, `shell/init.sh`, `shell/init.zsh` and `fish/config.fish`.
@@ -537,4 +541,5 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` on a real session switch (a planted Wayland
   daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, the login wallpaper watcher
   (`x11-wallpaper watch`), Bluetooth staying blocked across a real controller's firmware reload on wake,
-  suspend-then-hibernate's 10-minute alarm, and `opt/hibernate.sh` on a real CachyOS install.
+  suspend-then-hibernate's 10-minute alarm, `opt/hibernate.sh` on a real CachyOS install, and `opt/fish.sh`
+  and `opt/zsh.sh` (dry runs only).

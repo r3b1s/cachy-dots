@@ -30,32 +30,39 @@ link() {
     echo "linked $dst -> $src"
 }
 
-# Idempotent managed block in ~/.bashrc that loads shell/ (~/.config/shell).
-# Everything else in .bashrc is left alone. Remove the block to undo.
-install_bashrc_block() {
-    local bashrc="$HOME/.bashrc"
-    local open="# >>> cachy-dots >>>"
-    if [ -f "$bashrc" ] && grep -qF "$open" "$bashrc"; then
-        echo "bashrc: cachy-dots block already present"
+# Idempotent managed block in a shell's rc file (~/.bashrc, or ~/.zshrc once
+# opt/zsh.sh chose zsh) that loads its init file from shell/ (~/.config/shell).
+# Everything else in the file is left alone. Remove the block to undo.
+install_rc_block() {
+    local rc=$1 init=$2 open="# >>> cachy-dots >>>" name
+    name=$(basename "$rc")
+    name=${name#.}
+    if [ -f "$rc" ] && grep -qF "$open" "$rc"; then
+        echo "$name: cachy-dots block already present"
     elif [ "$dry" = 1 ]; then
-        echo "+ append cachy-dots block to $bashrc"
+        echo "+ append cachy-dots block to $rc"
     else
-        touch "$bashrc"
+        touch "$rc"
         {
-            echo
+            if [ -s "$rc" ]; then echo; fi
             echo "$open"
-            # shellcheck disable=SC2016  # written literally: expands in .bashrc, not here
-            echo '[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/shell/init.sh" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/shell/init.sh"'
+            # shellcheck disable=SC2016  # written literally: expands in the rc file, not here
+            printf '[[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/shell/%s" ]] && source "${XDG_CONFIG_HOME:-$HOME/.config}/shell/%s"\n' "$init" "$init"
             echo "# <<< cachy-dots <<<"
-        } >> "$bashrc"
-        echo "bashrc: appended cachy-dots block"
+        } >> "$rc"
+        echo "$name: appended cachy-dots block"
     fi
+}
+
+install_bashrc_block() {
+    install_rc_block "$HOME/.bashrc" init.sh
     # The passwd entry, not $SHELL: setup_login_shell may have just changed it.
-    local login
+    local login want
+    want=$(wanted_login_shell)
     login=$(getent passwd "$TARGET_USER" | cut -d: -f7)
     case "$(basename "${login:-unknown}")" in
-        fish|bash) ;;
-        *) [ "$dry" = 1 ] || warn "login shell is ${login:-unknown}; expected fish or bash" ;;
+        "$want") ;;
+        *) [ "$dry" = 1 ] || warn "login shell is ${login:-unknown}, not $want; ./install.sh changes it" ;;
     esac
 }
 
@@ -174,7 +181,7 @@ install_links() {
     # which were too: dunst now needs a real directory (its theme is a drop-in
     # beside dunstrc), and i3status-rust's config is rendered into the state
     # directory instead.
-    for d in kitty alacritty rofi shell dunst i3status-rust fish; do
+    for d in kitty alacritty rofi shell dunst i3status-rust; do
         retire_dir_link "$cfg/$d" "$REPO/$d"
     done
 
@@ -212,7 +219,6 @@ install_links() {
         "btop/btop.conf:btop/btop.conf" \
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
-        "fish/config.fish:fish/config.fish" \
         "starship/starship.toml:starship.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
@@ -230,6 +236,8 @@ install_links() {
 
     import_git_config
     install_bashrc_block
+    # fish's or zsh's config, when opt/fish.sh or opt/zsh.sh chose that shell.
+    link_shell_config "$(wanted_login_shell)"
     setup_ssh
 
     # ble.sh is opt-in here (opt/blesh.sh links ~/.blerc), so nothing for it.
@@ -261,7 +269,7 @@ install_links() {
 
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) ;;
-        *) echo "note: $HOME/.local/bin is added to PATH by fish and ~/.xprofile from the next login" ;;
+        *) echo "note: $HOME/.local/bin is added to PATH by shell/init.sh and ~/.xprofile from the next login" ;;
     esac
 
 }

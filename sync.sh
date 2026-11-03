@@ -11,7 +11,8 @@
 #      Firefox and Chromium policies, the touchpad config, the nix.conf block,
 #      TERMINAL in /etc/environment, BlueZ's AutoEnable block and the Bluetooth
 #      rfkill units (enabling them is install.sh's job; a warning says so),
-#      the GTK settings, the managed ~/.bashrc block
+#      the GTK settings, the managed ~/.bashrc block (and ~/.zshrc's when
+#      opt/zsh.sh chose zsh; fish's config link when opt/fish.sh chose fish)
 #   3. re-renders the current theme (templates, the files rendered from them)
 #   4. re-applies the default apps, keeping the browser chosen in the menu
 #   5. validates the active session's config (i3 or Hyprland), lists packages

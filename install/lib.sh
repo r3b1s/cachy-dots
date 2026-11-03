@@ -7,7 +7,8 @@
 #   packages.sh  package lists
 #   repos.sh     CachyOS repo check, chaotic-aur
 #   pacman.sh    the pacman transaction and the Qt 6 stack
-#   system.sh    login shell, nix, services, firewall, touchpad, keyring
+#   system.sh    nix, services, firewall, touchpad, keyring
+#   shells.sh    the login shell (bash, or fish or zsh from opt/)
 #   browsers.sh  Firefox and Chromium policies, default applications
 #   theme.sh     root helpers, GTK, dark mode, the first theme
 #   links.sh     symlinks into ~/.config and ~/.local/bin
@@ -24,7 +25,7 @@ PROFILE=${PROFILE:-workstation}
 . "$REPO/install/common.sh"
 # shellcheck disable=SC1090
 . "$REPO/install/profile-$PROFILE.sh"
-for _m in packages repos pacman system browsers theme links session flow; do
+for _m in packages repos pacman system shells browsers theme links session flow; do
     # shellcheck disable=SC1090
     . "$REPO/install/$_m.sh"
 done
