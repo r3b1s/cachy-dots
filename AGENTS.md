@@ -459,6 +459,12 @@ exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor
   `integrations` (mise with `set +h`, so bash does not cache paths ahead of its shims; starship wraps an existing
   `PROMPT_COMMAND`; zoxide, fzf). Definitions are guarded by `command -v`. ble.sh is opt-in (`opt/blesh.sh`) and
   loaded first when installed; test it in a real terminal, since it does not load under `bash -c`.
+  - **Parity.** The aliases and functions (eza's `ls` family, `ff`, `eff`, `sff`, `cd` falling back to a zoxide jump
+    through `zd`, `...`, `svim`, vi mode) are the same in all three shells. zsh sources `shell/aliases` itself, from a
+    managed `~/.zshrc` block and `shell/init.zsh` (with `integrations.zsh`, zsh's completion, and a history file,
+    which zsh keeps only when told where). `fish/config.fish` ports them, leaving out what fish does itself:
+    completion, autosuggestions, `..` (its implicit cd). A change to `shell/aliases` goes into `fish/config.fish`
+    too. fzf runs a preview with `$SHELL`, so the kitty preview, which is sh, passes `--with-shell 'sh -c'`.
   - **The login shell path** is `/bin/bash`, `/usr/bin/fish` or `/usr/bin/zsh` exactly. `pam_shells` (in
     `system-login`, so ly and the ttys) compares the passwd entry with the lines of `/etc/shells` as strings, and
     `command -v fish` answers `/usr/sbin/fish` (the same file through the merged-sbin link, but not listed), which
