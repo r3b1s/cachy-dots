@@ -521,9 +521,17 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   its nested `labbr0` needs another subnet, in that copy only. Run scripts with `su - <user>`: `sudo -u` sets
   `SUDO_USER=root`, which they take to be the target user. A namespace on a veth stands in for a lab guest, and a
   veth named `tun0` with a listener behind it for the VPN: a `tun` device with no process attached drops everything.
+- **A CachyOS-like root in an Incus VM** (for `opt/hibernate.sh`): `images:archlinux` boots ext4 with GRUB, so the
+  layout is built on a second block volume: an ESP on `/boot`, LUKS2 unlocked by a keyfile in the initramfs
+  (`FILES=` plus `/etc/crypttab.initramfs`), btrfs with `@` subvolumes, and Limine with `limine-entry-tool` and
+  `limine-mkinitcpio-hook` from the host's pacman cache, installed in the chroot so they never touch the guest's own
+  ESP. Give the volume `boot.priority` and set `security.secureboot=false`. Hibernation works there; the
+  firmware offers no S3, so suspend-then-hibernate does not, and there is no Bluetooth adapter (bluez ships no
+  `btvirt` to fake one).
 - **Not verified on a live system:** which zone NetBird puts `wt0` in, the `tun0` zone when NetworkManager owns the
   VPN, rakazo's `cachy-stack` zone (`host-setup.sh`), setup_firewall on real CachyOS (tested on Arch with ufw
   installed as CachyOS ships it), kanata's unit
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` on a real session switch (a planted Wayland
-  daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, and the login wallpaper watcher
-  (`x11-wallpaper watch`).
+  daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, the login wallpaper watcher
+  (`x11-wallpaper watch`), Bluetooth staying blocked across a real controller's firmware reload on wake,
+  suspend-then-hibernate's 10-minute alarm, and `opt/hibernate.sh` on a real CachyOS install.
