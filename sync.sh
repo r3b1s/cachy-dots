@@ -9,7 +9,8 @@
 #   2. copies the configs that cannot be links, each only when it differs from the
 #      repo: the theme helper and their sudoers rule, the
 #      Firefox and Chromium policies, the touchpad config, the nix.conf block,
-#      TERMINAL in /etc/environment,
+#      TERMINAL in /etc/environment, BlueZ's AutoEnable block and the Bluetooth
+#      rfkill units (enabling them is install.sh's job; a warning says so),
 #      the GTK settings, the managed ~/.bashrc block
 #   3. re-renders the current theme (templates, the files rendered from them)
 #   4. re-applies the default apps, keeping the browser chosen in the menu
@@ -38,7 +39,7 @@ for arg in "$@"; do
         -n|--dry-run) dry=1 ;;
         --no-root)    root=0 ;;
         --themes)     themes=1 ;;
-        -h|--help)    sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)    sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -96,6 +97,16 @@ report_voxtype() {
     fi
 }
 
+# The rfkill units are copied above, but enabling them is install.sh's job.
+report_bluetooth_units() {
+    pacman -Qq bluez >/dev/null 2>&1 || return 0
+    local unit
+    for unit in "${BLUETOOTH_UNITS[@]}"; do
+        systemctl is-enabled --quiet "$unit" 2>/dev/null && continue
+        warn "$unit is not enabled, so Bluetooth is not blocked at boot and wake: run ./install.sh"
+    done
+}
+
 sync_theme() {
     if [ ! -f "$HOME/.local/state/omarchy/current/theme.name" ]; then
         setup_theme   # nothing applied yet: first-time apply
@@ -120,6 +131,7 @@ if [ "$root" = 1 ]; then
     setup_firefox
     setup_chromium
     setup_terminal_env
+    setup_bluetooth_off
     want touchpad && setup_touchpad
     [ "${PROFILE_NO_SLEEP:-0}" = 1 ] && setup_no_sleep
     if pacman -Qq nix >/dev/null 2>&1 && [ "$TARGET_USER" != root ]; then
@@ -137,6 +149,7 @@ setup_default_apps
 validate_session
 report_missing_packages
 report_voxtype
+report_bluetooth_units
 
 echo
 if [ "$FAILED" = 1 ]; then

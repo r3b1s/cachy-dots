@@ -1,0 +1,16 @@
+# Installed by install.sh (setup_bluetooth_off in install/system.sh) into
+# /etc/systemd/system/. Blocks Bluetooth again after every wake, whatever its state
+# before sleep: some controllers (Intel's, on a ThinkPad) reboot and reload their
+# firmware on resume and come back as a new adapter. A unit of its own, because
+# cachy-bluetooth-off.service runs before sleep.target, and one unit ordered both
+# before sleep.target and after suspend.target would be an ordering cycle.
+[Unit]
+Description=Block Bluetooth after waking up (cachy-dots)
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rfkill block bluetooth
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

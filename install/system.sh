@@ -129,9 +129,10 @@ enable_services() {
     fi
     # bluetoothd. Its unit is conditioned on /sys/class/bluetooth, so on a host
     # without an adapter (any VM) it is enabled but simply never starts.
+    # The rfkill units (setup_bluetooth_off) keep its radio blocked until turned on by hand.
     if pacman -Qq bluez >/dev/null 2>&1; then
-        run $SUDO systemctl enable bluetooth.service \
-            || warn "could not enable bluetooth.service"
+        run $SUDO systemctl enable bluetooth.service "${BLUETOOTH_UNITS[@]}" \
+            || warn "could not enable bluetooth.service and the rfkill units"
     fi
 
     if pacman -Qq power-profiles-daemon >/dev/null 2>&1; then
@@ -149,6 +150,54 @@ enable_services() {
             || warn "could not start spice-vdagentd.socket"
     else
         warn "no SPICE virtio port; spice-vdagent (clipboard, resize) will be idle"
+    fi
+}
+
+# Bluetooth is off until turned on by hand: at boot, at login and after every wake,
+# even when it was on before sleep. Two layers:
+#   - BlueZ's AutoEnable=false: bluetoothd powers on no controller it finds, at boot,
+#     after a resume or when a dongle is plugged in. With the default (true), an
+#     adapter turned off in blueman came back after a wake, because Intel controllers
+#     reload their firmware on resume and bluetoothd sees a new one. BlueZ has no
+#     drop-in directory, so main.conf gets a managed block holding a second [Policy]
+#     section, which GLib's keyfile parser merges into the first (the later key wins).
+#     bluetoothd reads it at its next start, which is left to the next boot so a
+#     connected headset is not dropped.
+#   - an rfkill soft block at boot, before every sleep and after every wake
+#     (systemd/cachy-bluetooth-off*.service, enabled by enable_services), so the
+#     radio itself stays off whatever asks to power it.
+# Turning it on needs no root: blueman unblocks through its polkit helper, and
+# bluetoothd unblocks rfkill itself when asked to power on (the shells' toggles).
+BLUETOOTH_CONF=/etc/bluetooth/main.conf
+BLUETOOTH_UNITS=(cachy-bluetooth-off.service cachy-bluetooth-off-wake.service)
+
+setup_bluetooth_off() {
+    pacman -Qq bluez >/dev/null 2>&1 || return 0
+    local open="# >>> cachy-dots >>>" close="# <<< cachy-dots <<<"
+    local block tmp unit changed=0
+    block=$(printf '%s\n[Policy]\nAutoEnable=false\n%s\n' "$open" "$close")
+
+    if [ "$dry" = 1 ]; then
+        echo "+ write to $BLUETOOTH_CONF:"; printf '%s\n' "$block" | sed 's/^/+   /'
+    else
+        tmp=$(mktemp)
+        # The file without any earlier managed block, then the block.
+        { [ ! -f "$BLUETOOTH_CONF" ] || awk -v o="$open" -v c="$close" '$0 == o { skip = 1; next } $0 == c { skip = 0; next } !skip' "$BLUETOOTH_CONF"
+          printf '%s\n' "$block"; } > "$tmp"
+        if ! { [ -f "$BLUETOOTH_CONF" ] && cmp -s "$tmp" "$BLUETOOTH_CONF"; }; then
+            $SUDO install -Dm644 "$tmp" "$BLUETOOTH_CONF"
+            echo "bluetooth: AutoEnable=false in $BLUETOOTH_CONF (applies at the next boot)"
+        fi
+        rm -f "$tmp"
+    fi
+
+    for unit in "${BLUETOOTH_UNITS[@]}"; do
+        cmp -s "$REPO/systemd/$unit" "/etc/systemd/system/$unit" 2>/dev/null && continue
+        run $SUDO install -D -o root -g root -m 644 "$REPO/systemd/$unit" "/etc/systemd/system/$unit"
+        changed=1
+    done
+    if [ "$changed" = 1 ]; then
+        run $SUDO systemctl daemon-reload || warn "could not reload systemd's units"
     fi
 }
 

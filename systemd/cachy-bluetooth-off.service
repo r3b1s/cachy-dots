@@ -1,0 +1,17 @@
+# Installed by install.sh (setup_bluetooth_off in install/system.sh) into
+# /etc/systemd/system/. Bluetooth starts blocked and is turned on by hand only:
+# the radio is soft-blocked at boot and on the way into every sleep, so it is
+# silent while asleep, and systemd-rfkill saves "blocked" for every adapter, which
+# is what it restores when a controller re-probes on wake. Unblocking (blueman,
+# the shells' toggles, `rfkill unblock bluetooth`) needs no root.
+[Unit]
+Description=Block Bluetooth at boot and before sleep (cachy-dots)
+Before=sleep.target
+After=systemd-rfkill.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rfkill block bluetooth
+
+[Install]
+WantedBy=multi-user.target sleep.target

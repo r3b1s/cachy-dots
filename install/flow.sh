@@ -24,6 +24,7 @@ install_main() {
         sync_qt_stack
         setup_login_shell
         setup_theme_helper
+        setup_bluetooth_off
         enable_services
         enable_nix
         setup_dark_theme

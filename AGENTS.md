@@ -107,6 +107,17 @@ for a guest).
   deny incoming (see "Firewall"); copies the touchpad and policy files; installs the
   theme helper; writes the GTK settings and dark mode; applies a theme; sets the default apps; and validates
   the active session's config.
+- **Bluetooth is off until turned on by hand**, at boot, at login and after every wake, whatever it was before
+  sleep (`setup_bluetooth_off()`). The Intel controller on a ThinkPad reboots and reloads its firmware on resume,
+  and bluetoothd's default `AutoEnable=true` powered the "new" controller on, so blueman's off did not survive a
+  lid close. `/etc/bluetooth/main.conf` gets a managed block with a second `[Policy]` section holding
+  `AutoEnable=false` (BlueZ has no drop-ins; GLib's keyfile parser merges a repeated section, the later key
+  winning). On top, `systemd/cachy-bluetooth-off.service` soft-blocks the radio with rfkill at boot and before
+  every sleep, which also makes systemd-rfkill save "blocked", the state it restores on a controller that
+  re-probes, and `cachy-bluetooth-off-wake.service` blocks it again after every wake (one unit would be an
+  ordering cycle). Turning it on needs no root: blueman unblocks through its polkit helper, and bluetoothd
+  unblocks rfkill itself when asked to power on, so the shells' toggles work. `sync.sh` copies the units and
+  warns when they are not enabled.
 - **sshd is not touched.** `setup_ssh()` scaffolds `~/.ssh`, an empty `authorized_keys` and a managed
   `~/.ssh/config` block for github.com and gitlab.com, appended only when neither host has an entry yet. The
   hardened drop-in `ssh/sshd_config.d/10-cachy-safe.conf` is copied by hand; it turns password logins off, so a
