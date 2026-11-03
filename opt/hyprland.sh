@@ -3,13 +3,15 @@
 # own apps where dux has one. Not part of the default install; i3 stays, and
 # bin/graphical-session switches between them. opt/noctalia.sh is the other shell.
 #
-#   1. installs Hyprland and what dux-shell needs, by plain name (a Cachy build
-#      wins where one exists), after a full pacman -Syu
-#   2. installs dux from its GitHub releases, every file pinned in DUX below and
-#      checked against its sha256: dux-shell (`dms`), Dux Files (`dfiles`), Dux
-#      Calendar (`dcal`) and Dux Search (`dsearch`), laid out as their own
-#      `make install` does (/usr/local, the polkit action under /usr/share).
-#      Root-owned, so `dms update` cannot replace them; bump the pins instead.
+#   1. installs Hyprland, dux-shell (`dms`, from extra or Cachy's build of it) and
+#      what it needs, by plain name (a Cachy build wins where one exists), after
+#      a full pacman -Syu. The dms an earlier run took from GitHub into /usr/local
+#      is removed, since PATH would prefer it to the package's.
+#   2. installs dux's apps, which no repo packages yet, from their GitHub
+#      releases, every file pinned in DUX below and checked against its sha256:
+#      Dux Files (`dfiles`), Dux Calendar (`dcal`) and Dux Search (`dsearch`),
+#      laid out as their own `make install` does (/usr/local, the polkit action
+#      under /usr/share). Root-owned; bump the pins to upgrade them.
 #   3. has dux write its Hyprland config, once (while ~/.config/hypr/dms/binds.lua
 #      does not exist): `dms setup headless`, without systemd and without a
 #      terminal config
@@ -18,20 +20,19 @@
 # It does not switch sessions: `graphical-session hyprland dux` does, then log out
 # and pick Hyprland at the login screen.
 #
-# --remove deletes the files in DUX; the packages, ~/.config/dms and
-# ~/.config/hypr stay. Run `graphical-session i3` first.
+# --remove uninstalls dux-shell and deletes the files in DUX; the other packages,
+# ~/.config/dms and ~/.config/hypr stay. Run `graphical-session i3` first.
 #
 # Usage: opt/hyprland.sh [--remove] [-n|--dry-run]
 set -euo pipefail
 
-# Every file taken from dux's GitHub repos: "<repo> <tag> <source> <sha256> <destination>".
+# Every file taken from the GitHub repos of dux's apps, which no repo packages yet
+# (dux-shell itself is in PKGS): "<repo> <tag> <source> <sha256> <destination>".
 # A source under assets/ is that file in the repo at the tag; anything else is a
 # release asset. A .gz is unpacked, and what lands in /usr/local/bin is
 # executable. In the text files, /usr/bin/<tool> becomes /usr/local/bin/<tool>,
 # as their `make install` does.
 DUX=(
-    "dux-shell    v2.0.0 dms-cli-amd64.gz                                         364292c726d3033081a8329bc2be1b2ac3f5ef9f906473aee53aa0361f764b81 /usr/local/bin/dms"
-    "dux-shell    v2.0.0 completion.bash                                          61e116dd2fe4cd87ab203f6a3d193404dd5f3c0c0f6dc262439a64411bcb30c4 /usr/local/share/bash-completion/completions/dms"
     "dux-files    v2.0.0 dfiles-linux-amd64.gz                                    6d6b421cf62ae4ecd96eedc89e6f357d938d6d0632d096618ce049c394805b19 /usr/local/bin/dfiles"
     "dux-files    v2.0.0 dev.duxlabs.files.svg                                    a01be1c1c3780f8ea3ff3df530374c23088fd78265e070fdf93e5d41ee53fd69 /usr/local/share/icons/hicolor/scalable/apps/dev.duxlabs.files.svg"
     "dux-files    v2.0.0 assets/dev.duxlabs.files.desktop                         0f230c913a248cbac737341ef5ee0a9e6ccfdda08b459ca14b5af99dd49f773d /usr/local/share/applications/dev.duxlabs.files.desktop"
@@ -46,10 +47,13 @@ DUX=(
 )
 # The sha256 each destination was installed from, so a re-run skips what is current.
 RECORD=/usr/local/share/cachy-dots/dux.sha256
+# What earlier runs installed from dux-shell's GitHub release, before the package.
+DUX_SHELL_GITHUB=(/usr/local/bin/dms /usr/local/share/bash-completion/completions/dms)
 
 PKGS=(
     hyprland xdg-desktop-portal-hyprland
     hyprland-guiutils                # Hyprland's own dialogs (ANR, update notes)
+    dux-shell                        # dux itself (dms); it replaces the dms-shell package of old
     xorg-xwayland                    # X11 apps (ZAP, anything without Wayland support)
     quickshell                       # dux's QML runtime, for the shell and its apps
     dux-gop                          # dgop: dux's system monitor backend
@@ -82,6 +86,16 @@ SUDO=
 [ -n "$SUDO" ] || { warn "run opt/hyprland.sh as your own user (it uses sudo), not root"; exit 1; }
 
 if [ "$remove" = 1 ]; then
+    if [ "$(pacman -Qq dux-shell 2>/dev/null)" = dux-shell ]; then
+        say "Removing dux-shell"
+        run $SUDO pacman -Rns --noconfirm dux-shell
+    fi
+    for dst in "${DUX_SHELL_GITHUB[@]}"; do
+        if [ -e "$dst" ] && grep -q " $dst\$" "$RECORD" 2>/dev/null; then
+            run $SUDO rm "$dst"
+            echo "removed $dst"
+        fi
+    done
     for row in "${DUX[@]}"; do
         read -r _ _ _ _ dst <<<"$row"
         if [ -e "$dst" ]; then
@@ -104,7 +118,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
     run $SUDO pacman -Syu --needed --noconfirm "${missing[@]}"
 fi
 
-# ── dux, from GitHub ─────────────────────────────────────────────────────
+# ── dux's apps, from GitHub ──────────────────────────────────────────────
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 changed=0
@@ -129,7 +143,7 @@ for row in "${DUX[@]}"; do
         /usr/local/bin/*) mode=755 ;;
         *.desktop|*.service|*.policy|*.portal)
             mode=644
-            sed -i -E 's#/usr/bin/(dms|dfiles|dcal|dsearch)\b#/usr/local/bin/\1#g' "$f" ;;
+            sed -i -E 's#/usr/bin/(dfiles|dcal|dsearch)\b#/usr/local/bin/\1#g' "$f" ;;
         *) mode=644 ;;
     esac
     # Staged beside the target and renamed into place, so a running app never
@@ -146,13 +160,26 @@ if [ "$changed" = 1 ]; then
     # The session bus reads D-Bus activation files at start; this picks up dfiles' now.
     busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null 2>&1 || true
 fi
-bin=/usr/local/bin/dms
+
+# ── dux-shell's old GitHub copy ──────────────────────────────────────────
+# /usr/local/bin comes before /usr/bin in PATH, so the dms an earlier run put
+# there would shadow the package's. Only what the record says this script
+# installed goes.
+for dst in "${DUX_SHELL_GITHUB[@]}"; do
+    grep -q " $dst\$" "$RECORD" 2>/dev/null || continue
+    if [ "$dry" = 1 ]; then echo "+ remove $dst (dux-shell comes from the repos now)"; continue; fi
+    [ -e "$dst" ] && $SUDO rm "$dst"
+    awk -v d="$dst" '$2 != d' "$RECORD" > "$tmp/record"
+    $SUDO install -Dm644 "$tmp/record" "$RECORD"
+    echo "removed $dst (dux-shell comes from the repos now)"
+done
+bin=/usr/bin/dms
 
 # ── dux's Hyprland config ───────────────────────────────────────────────
 # dux writes hyprland.lua and hypr/dms/ itself, with its installer-facing setup.
-# Without systemd: dms.service runs /usr/bin/dms and the release ships no unit,
-# so hyprland.lua runs `dms run` itself. Without --terminal: a terminal config
-# would be written through the links into this repo's alacritty or kitty file.
+# Without systemd: the package's dms.service stays off, and hypr/cachy.lua runs
+# `dms run` itself, only when dux is the shell. Without --terminal: a terminal
+# config would be written through the links into this repo's alacritty or kitty file.
 # Its binds name $TERMINAL. (The interactive `dms setup` also adds the user to
 # the input group, which can read every keyboard; headless does not.)
 # The check is dux's modules, not hyprland.lua: a host set up for Noctalia first has

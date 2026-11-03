@@ -202,9 +202,12 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
 - **dux owns `hypr/dms/`.** `opt/hyprland.sh` runs `dms setup headless --compositor hyprland --no-systemd` once,
   while `hypr/dms/binds.lua` is missing, with `--force` when a Noctalia-first host already has a `hyprland.lua`.
   Without `--terminal`, because a terminal config would be written through the links into this repo.
-- **dux itself** comes from its GitHub releases, every file pinned by sha256 in the `DUX` table of
-  `opt/hyprland.sh` and installed root-owned under `/usr/local`, so `dms update` cannot replace it; bump the pins
-  to upgrade. Not the AUR, and not chaotic-aur's `dms-shell-git`.
+- **dux itself** is the `dux-shell` package (`extra`, or Cachy's build of it), by plain name; it replaces the
+  `dms-shell` of old, and its QML is built into `dms`. Not the AUR, and not chaotic-aur's `dms-shell-git`. Dux
+  Files, Dux Calendar and Dux Search are in no repo yet: they come from their GitHub releases, every file pinned
+  by sha256 in the `DUX` table of `opt/hyprland.sh` and installed root-owned under `/usr/local`; bump the pins to
+  upgrade. The `dms` earlier runs took from GitHub into `/usr/local/bin` is removed (by the sha256 record), since
+  PATH would prefer it to `/usr/bin/dms`.
 - **Three bind files, one effective table.** What names no shell is in `hypr/cachy.lua`: windows, focus, moving,
   resizing, workspaces, `bin/ws-app`, `bin/maximize`, `bin/dictate`, the app launchers. It runs after dux's files
   and uses `rebind` (`hl.unbind` + `hl.bind`), so a stock dux chord is replaced, and those chords cannot be changed
@@ -556,5 +559,5 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   daemon is replaced at an i3 login), where the idle-inhibit pill lands on screen, the login wallpaper watcher
   (`x11-wallpaper watch`), Bluetooth staying blocked across a real controller's firmware reload on wake,
   suspend-then-hibernate's 10-minute alarm, `opt/hibernate.sh` on a real CachyOS install, the removal of
-  CachyOS's shell setups (its `pacman -Rsp` list was read on CachyOS; the transaction has never run), and
-  `opt/fish.sh` and `opt/zsh.sh` (dry runs only).
+  CachyOS's shell setups (its `pacman -Rsp` list was read on CachyOS; the transaction has never run), `opt/fish.sh`
+  and `opt/zsh.sh` (dry runs only), and `opt/hyprland.sh` with the `dux-shell` package (dry run only).
