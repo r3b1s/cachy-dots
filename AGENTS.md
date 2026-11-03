@@ -241,6 +241,14 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
   starts with it off. `cachy.lua` applies the overrides last, whenever it loads, so the mode outlasts the reloads
   that theme changes and dux's Settings set off. Both directions are a reload: there is no snapshot, and gaps set in
   the `gaps` submap go too.
+- **Display scale** (`$mod+Shift+=` up, `$mod+Shift+-` down, in both sessions) steps through the scales that divide
+  a mode into whole logical pixels (Hyprland rounds any other to the nearest one that does), for the session.
+  Under Hyprland it is the focused monitor's own scale: `cachy.lua` records each monitor's rule as the shell's
+  modules declare it and re-issues it with only the scale replaced, keeps the choice in the instance directory
+  (`display-scale`) and re-applies it on every reload. Under i3, `bin/x11-scale` uses `xrandr --scale` on every
+  output, positions scaled to match, since X11 has no compositor scale: windows already open change size too, but
+  a scale above 1 is a stretch and looks soft. The calendar these chords had under both shells is on `$mod+Ctrl+=`,
+  and the duplicate shrink-height bind on `$mod+Shift+-` is gone (`$mod+Ctrl+j` is that).
 - **Named workspaces.** A name is the chord that reaches it: Super is implied, another modifier is a three-letter
   prefix joined by `_` (`sft_p` is `$mod+Shift+p`, `ctl_m` is `$mod+Ctrl+m`), and a symbol key is its keysym
   (`slash`, `equal`; `ctl_equal` is `$mod+Ctrl+=`, the calendar under dux). In i3 they are named workspaces; in
@@ -346,6 +354,8 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
     power menu's poweroff; shown as a dzen2 pill on the bar.
   - Nightlight: one-shot `gammastep -O`, no daemon.
   - `x11-focus` warps the pointer only when the focus moved.
+  - Display scale (`x11-scale`, `$mod+Shift+=` and `$mod+Shift+-`): `xrandr --scale` on every output (see
+    "Display scale" under Hyprland).
   - The power menu leaves out lock and suspend where they cannot work, and offers hibernate only where logind
     says it can (`opt/hibernate.sh`).
   - `blueman-applet` starts only with an adapter.
@@ -561,4 +571,5 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   (`x11-wallpaper watch`), Bluetooth staying blocked across a real controller's firmware reload on wake,
   suspend-then-hibernate's 10-minute alarm, `opt/hibernate.sh` on a real CachyOS install, the removal of
   CachyOS's shell setups (its `pacman -Rsp` list was read on CachyOS; the transaction has never run), `opt/fish.sh`
-  and `opt/zsh.sh` (dry runs only), and `opt/hyprland.sh` with the `dux-shell` package (dry run only).
+  and `opt/zsh.sh` (dry runs only), `opt/hyprland.sh` with the `dux-shell` package (dry run only), and `bin/x11-scale` on a real X server (tested
+  against a fake `xrandr`; the pointer reaching every edge after `--scale` is the thing to check).

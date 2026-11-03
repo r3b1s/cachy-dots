@@ -48,7 +48,7 @@ active_hypr_shell() {
 # Scripts in bin/ that only the i3 session uses: i3 IPC, X11-only tools, or what
 # the shell does itself under Hyprland. install_links leaves these to the session.
 I3_ONLY_BIN=(x11-clipboard x11-display x11-focus x11-gaps-cycle x11-idle x11-keybinds-menu
-             x11-lock x11-monitor x11-nightlight x11-power-menu x11-theme x11-wallpaper)
+             x11-lock x11-monitor x11-nightlight x11-power-menu x11-scale x11-theme x11-wallpaper)
 
 # Started by D-Bus activation unless masked: dunst would take the notification
 # name if a notification came before the shell is up, and blueman's applet would add

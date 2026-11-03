@@ -70,6 +70,15 @@ local hypr_shell = get_hypr_shell()
 -- graphical-session has recorded since, and the scripts can pick their backend.
 hl.env("HYPR_SHELL", hypr_shell)
 
+-- Each monitor's rule as the shell's modules declare it, kept so the display scale
+-- (below) can re-issue it with only the scale replaced.
+local monitor_rules = {}
+local hl_monitor = hl.monitor
+hl.monitor = function(rule)
+	monitor_rules[rule.output or ""] = rule
+	return hl_monitor(rule)
+end
+
 if hypr_shell == "dux" then
 	require("dms.colors")
 	require("dms.outputs")
@@ -83,6 +92,7 @@ else
 	require("noctalia.compositor")
 	require("noctalia.binds-user")
 end
+hl.monitor = hl_monitor
 
 -- ── startup ──────────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
@@ -321,6 +331,88 @@ hl.define_submap("dictate_suppress", function()
 		hl.bind(key, hl.dsp.exec_cmd("true"), { transparent = true, ignore_mods = true })
 	end
 end)
+
+-- ── display scale ────────────────────────────────────────────────────────
+-- $mod+Shift+= and $mod+Shift+- step the focused monitor's scale up and down, through
+-- the scales below that divide its mode into whole logical pixels: Hyprland rounds
+-- any other to the nearest one that does, so a step could land where it began. A
+-- change re-issues the monitor's own rule, as the shell's modules declared it, with
+-- only the scale replaced. It is recorded in Hyprland's instance directory, so it
+-- outlasts the reloads a theme change or dux's Settings set off, and the next login
+-- starts from the configured scale. bin/x11-scale is i3's counterpart.
+local SCALES = { 0.5, 0.75, 1, 1.25, 4 / 3, 1.5, 1.6, 5 / 3, 2, 2.5, 3 }
+local scale_file = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr/"
+	.. (os.getenv("HYPRLAND_INSTANCE_SIGNATURE") or "") .. "/display-scale"
+
+-- One "<output> <scale>" line per monitor whose scale was changed.
+local function read_scales()
+	local scales, f = {}, io.open(scale_file, "r")
+	if f then
+		for line in f:lines() do
+			local output, scale = line:match("^(%S+)%s+(%S+)$")
+			if output and tonumber(scale) then
+				scales[output] = tonumber(scale)
+			end
+		end
+		f:close()
+	end
+	return scales
+end
+
+local function set_scale(output, scale)
+	local rule = {}
+	for k, v in pairs(monitor_rules[output] or monitor_rules[""] or { mode = "preferred", position = "auto" }) do
+		rule[k] = v
+	end
+	rule.output = output
+	rule.scale = scale
+	hl.monitor(rule)
+end
+
+for output, scale in pairs(read_scales()) do
+	set_scale(output, scale)
+end
+
+local function whole(x)
+	return math.abs(x - math.floor(x + 0.5)) < 0.01
+end
+
+local function step_scale(dir)
+	local m = hl.get_active_monitor()
+	if not m then
+		return
+	end
+	local pick
+	for i = dir > 0 and 1 or #SCALES, dir > 0 and #SCALES or 1, dir do
+		local s = SCALES[i]
+		if (s - m.scale) * dir > 0.01 and whole(m.width / s) and whole(m.height / s) then
+			pick = s
+			break
+		end
+	end
+	if not pick then
+		notify("Display scale", string.format("%s stays at %.2f", m.name, m.scale))
+		return
+	end
+	set_scale(m.name, pick)
+	local scales = read_scales()
+	scales[m.name] = pick
+	local f = io.open(scale_file, "w")
+	if f then
+		for output, scale in pairs(scales) do
+			f:write(output .. " " .. scale .. "\n")
+		end
+		f:close()
+	end
+	notify("Display scale", string.format("%s: %.2f", m.name, pick))
+end
+
+rebind("SUPER + SHIFT + equal", function()
+	step_scale(1)
+end, { description = "Scale the display up" })
+rebind("SUPER + SHIFT + minus", function()
+	step_scale(-1)
+end, { description = "Scale the display down" })
 
 -- ── eco mode ─────────────────────────────────────────────────────────────
 -- Hyprland's own effects off, to save battery. Only what the compositor draws: what

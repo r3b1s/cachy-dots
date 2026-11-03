@@ -1,0 +1,68 @@
+#!/bin/sh
+# Step the display scale up or down under i3, for the session: $mod+Shift+= and
+# $mod+Shift+-. hypr/cachy.lua is Hyprland's counterpart.
+#
+# X11 has no compositor scale, so this is xrandr's: each output renders a
+# framebuffer 1/scale the size of its mode, which the server stretches to the
+# panel, so everything changes size at once, windows already open included.
+# Above 1 the stretch softens the picture; below 1 it stays sharp. Every output
+# takes the same scale and their positions scale with it, so the layout keeps its
+# shape. The steps are Hyprland's: those of its scales that divide the primary
+# output's mode into whole pixels. The next login starts at 1 again, or at what
+# the host's conf.d/04-monitors.conf sets.
+#
+# Usage: x11-scale up|down
+set -eu
+
+case "${1:-}" in
+    up)   dir=1 ;;
+    down) dir=-1 ;;
+    *)    echo "usage: x11-scale up|down" >&2; exit 2 ;;
+esac
+command -v xrandr >/dev/null || exit 0
+
+notify() { dunstify -a cachy-dots -r 9995 "Display scale" "$1" 2>/dev/null || true; }
+
+# One line per active output: name, x, y, mode width and height, the transform's
+# first entry (xrandr's scale, 1/the display scale), and whether it is primary.
+outputs=$(xrandr --verbose | awk '
+    / connected/ {
+        name = $1; primary = ($3 == "primary"); active = 0; t = 1
+        for (i = 3; i <= NF; i++)
+            if ($i ~ /^[0-9]+x[0-9]+\+[0-9]+\+[0-9]+$/) { split($i, g, /[x+]/); x = g[3]; y = g[4]; active = 1; break }
+        next
+    }
+    / disconnected/ { active = 0; next }
+    active && $1 == "Transform:" { t = $2; next }
+    active && /\*current/ { split($1, m, "x"); print name, x, y, m[1] + 0, m[2] + 0, t, primary; active = 0 }
+')
+[ -n "$outputs" ] || exit 0
+
+# The new scale, then xrandr's arguments; or "stay <scale>" at either end.
+plan=$(printf '%s\n' "$outputs" | awk -v dir="$dir" '
+    function whole(v) { return (v - int(v + 0.5)) ^ 2 < 0.0001 }
+    { n++; name[n] = $1; x[n] = $2; y[n] = $3; if (n == 1 || $7 == 1) ref = n; w[n] = $4; h[n] = $5; t[n] = $6 }
+    END {
+        cur = 1 / t[ref]
+        k = split("0.5 0.75 1 1.25 1.333333 1.5 1.6 1.666667 2 2.5 3", s, " ")
+        for (i = (dir > 0 ? 1 : k); i >= 1 && i <= k; i += dir)
+            if ((s[i] - cur) * dir > 0.01 && whole(w[ref] / s[i]) && whole(h[ref] / s[i])) { pick = s[i]; break }
+        if (pick == "") { printf "stay %.2f\n", cur; exit }
+        printf "%.2f", pick
+        for (j = 1; j <= n; j++)
+            printf " --output %s --scale %.6fx%.6f --pos %dx%d", name[j], 1 / pick, 1 / pick, x[j] * cur / pick + 0.5, y[j] * cur / pick + 0.5
+        print ""
+    }
+')
+
+set -f
+# shellcheck disable=SC2086  # the xrandr arguments are meant to split
+set -- $plan
+if [ "$1" = stay ]; then
+    notify "stays at $2"
+    exit 0
+fi
+scale=$1
+shift
+xrandr "$@"
+notify "$scale"
