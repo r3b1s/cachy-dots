@@ -341,7 +341,8 @@ Pick "Hyprland", not "Hyprland (uwsm-managed)": uwsm is not installed.
     power menu's poweroff; shown as a dzen2 pill on the bar.
   - Nightlight: one-shot `gammastep -O`, no daemon.
   - `x11-focus` warps the pointer only when the focus moved.
-  - The power menu leaves out lock and suspend where they cannot work.
+  - The power menu leaves out lock and suspend where they cannot work, and offers hibernate only where logind
+    says it can (`opt/hibernate.sh`).
   - `blueman-applet` starts only with an adapter.
   - No compositor, by choice.
 
@@ -465,6 +466,15 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
 
 - `opt/hyprland.sh` and `opt/dux-settings.sh`: the Hyprland session with dux (above). `opt/noctalia.sh`: with
   Noctalia.
+- `opt/hibernate.sh` adds hibernation to a btrfs root without repartitioning: a swap file the size of RAM in its
+  own `@swap` subvolume (snapper snapshots `@`, and btrfs refuses to snapshot a subvolume with an active swap
+  file), inside LUKS, so the image is encrypted. zram stays at priority 100 and the file sits at 0: everyday
+  swapping still goes to RAM. `resume=UUID=` and `resume_offset=` go into a managed block in
+  `/etc/default/limine` (`KERNEL_CMDLINE[default]+=`), then `limine-update`; the systemd initramfs resumes once
+  `sd-encrypt` has unlocked the disk, so mkinitcpio is not touched. The lid suspends, then hibernates after
+  10 minutes (`systemd/20-cachy-dots-hibernate-{logind,sleep}.conf`). Changing the size is a re-run with
+  `--size`, which also rewrites the offset of the new file. It refuses a non-btrfs root, a busybox initramfs, a kernel under
+  lockdown and the vm profile's masked sleep targets.
 - `opt/omarchy-repo.sh` adds Omarchy's repo, and `opt/omarchy-retroarch.sh` sets RetroArch up as Omarchy does.
   RetroArch's settings are applied once (`--reconfigure` re-applies them), and it needs a Vulkan driver
   (`vulkan-swrast` in a VM).

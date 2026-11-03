@@ -34,6 +34,7 @@ based on the hardware, session, or workflow requirements of a specific host.
 | **`arch-cloud-vm-lib.sh`** | Common library of helper functions (cloud image verification, cloud-init seed generation, overlay disk creation, virsh lifecycle) shared by the VM scripts. |
 | **`blesh.sh`** | Installs `blesh-git` (Bash Line Editor) from chaotic-aur and links `shell/blerc` to `~/.blerc`. Supports `--remove`. |
 | **`dux-settings.sh`** | Merges or restores the baseline dux-shell settings snapshot (`dms/settings.json`) into `~/.config/dms/settings.json`. Supports `--reset`. |
+| **`hibernate.sh`** | Adds hibernation to a btrfs root: a RAM-sized swap file in an `@swap` subvolume (zram stays for everyday swapping), `resume=` in Limine's command line, and a lid that suspends, then hibernates after 10 minutes. Supports `--size` and `--remove`. |
 | **`hyprland.sh`** | Installs and configures the opt-in Hyprland + dux-shell session (system dependencies, pinned dux GitHub release binaries, initial config, and assets). Supports `--remove`. |
 | **`noctalia.sh`** | Installs the opt-in Hyprland + Noctalia session: Hyprland, `noctalia`, and what stands in for dux's apps (`nautilus`, `hyprpicker`, `btop`). Leaves `ly` and any dux install alone, and installs no `noctalia-greeter`. Supports `--remove`. |
 | **`firewalld-lib.sh`** | Helpers for the `cachy-*` firewalld zones and policies the opt-in scripts own. Sourced, never run. |

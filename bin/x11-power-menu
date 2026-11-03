@@ -1,8 +1,8 @@
 #!/bin/sh
-# System menu via rofi: lock / suspend / logout / reboot / poweroff, the default
-# browser (bin/default-browser), adding a wallpaper to the current theme
-# (bin/x11-theme add-wallpaper), and the power profile (power-profiles-daemon)
-# when the machine offers one.
+# System menu via rofi: lock / suspend / hibernate / logout / reboot / poweroff,
+# the default browser (bin/default-browser), adding a wallpaper to the current
+# theme (bin/x11-theme add-wallpaper), and the power profile
+# (power-profiles-daemon) when the machine offers one.
 set -eu
 
 profile=""
@@ -11,11 +11,14 @@ if command -v powerprofilesctl >/dev/null && current=$(powerprofilesctl get 2>/d
 fi
 
 # lock and suspend are offered only where they work: the vm profile has no locker
-# and masks the sleep targets.
+# and masks the sleep targets. hibernate only where logind can (opt/hibernate.sh).
 entries=""
 command -v i3lock >/dev/null && entries="lock
 "
 [ "$(systemctl is-enabled suspend.target 2>/dev/null)" = masked ] || entries="${entries}suspend
+"
+[ "$(busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager \
+    CanHibernate 2>/dev/null)" = 's "yes"' ] && entries="${entries}hibernate
 "
 
 choice=$({ printf '%slogout\nreboot\npoweroff\nDefault Browser\nAdd wallpaper to current theme\n' "$entries"; [ -z "$profile" ] || printf '%s\n' "$profile"; } \
@@ -25,6 +28,7 @@ case "$choice" in
     # Not exec'd: x11-lock lives next to this script in ~/.local/bin.
     lock)     exec "$(dirname "$0")/x11-lock" ;;
     suspend)  exec systemctl suspend ;;
+    hibernate) exec systemctl hibernate ;;
     logout)   exec i3-msg exit ;;
     reboot)   exec systemctl reboot ;;
     poweroff) exec systemctl poweroff ;;
