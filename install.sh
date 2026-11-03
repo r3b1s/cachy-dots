@@ -6,7 +6,7 @@
 #      and the fallback for the other pinned packages)
 #   2. installs any missing packages (pacman; sudo is used when not root)
 #   3. enables ly, bluetooth (its radio blocked until turned on by hand) and nix,
-#      makes bash the login shell, and sets up the firewall, the browser policies
+#      makes fish the login shell, and sets up the firewall, the browser policies
 #      and dark mode
 #   4. symlinks the dots into ~/.config and ~/.local/bin, applies the active
 #      session (i3 or Hyprland) and the theme

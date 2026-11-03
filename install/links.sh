@@ -54,8 +54,8 @@ install_bashrc_block() {
     local login
     login=$(getent passwd "$TARGET_USER" | cut -d: -f7)
     case "$(basename "${login:-unknown}")" in
-        bash) ;;
-        *) [ "$dry" = 1 ] || warn "login shell is ${login:-unknown}, not bash; shell/ is only loaded by bash" ;;
+        fish|bash) ;;
+        *) [ "$dry" = 1 ] || warn "login shell is ${login:-unknown}; expected fish or bash" ;;
     esac
 }
 
@@ -174,7 +174,7 @@ install_links() {
     # which were too: dunst now needs a real directory (its theme is a drop-in
     # beside dunstrc), and i3status-rust's config is rendered into the state
     # directory instead.
-    for d in kitty alacritty rofi shell dunst i3status-rust; do
+    for d in kitty alacritty rofi shell dunst i3status-rust fish; do
         retire_dir_link "$cfg/$d" "$REPO/$d"
     done
 
@@ -212,6 +212,7 @@ install_links() {
         "btop/btop.conf:btop/btop.conf" \
         "tmux/tmux.conf:tmux/tmux.conf" \
         "env/telemetry.conf:environment.d/telemetry.conf" \
+        "fish/config.fish:fish/config.fish" \
         "starship/starship.toml:starship.toml"
     do
         link "$REPO/${pair%%:*}" "$cfg/${pair#*:}"
@@ -260,7 +261,7 @@ install_links() {
 
     case ":$PATH:" in
         *":$HOME/.local/bin:"*) ;;
-        *) echo "note: $HOME/.local/bin is added to PATH by shell/init.sh and ~/.xprofile from the next login" ;;
+        *) echo "note: $HOME/.local/bin is added to PATH by fish and ~/.xprofile from the next login" ;;
     esac
 
 }

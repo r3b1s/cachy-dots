@@ -34,7 +34,8 @@ PKGS=(
 PKGS+=(
     jq                               # ws-app
     git                              # x11-theme clones theme repos; a vanilla Arch cloud image has none
-    eza zoxide fzf bat               # shell integrations (shell/); bat previews fzf's ff
+    fish                             # default shell (config in fish/)
+    eza zoxide fzf bat               # shell integrations (fish/ and shell/); bat previews fzf's ff
     bash-completion
     maim xclip xcolor                # screenshots, clipboard, colour picker
     feh                              # wallpaper, set by bin/x11-wallpaper
