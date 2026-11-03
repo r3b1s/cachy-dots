@@ -459,9 +459,9 @@ exports a rasterised `IconPixmap` over `StatusNotifierItem`, and neither dux nor
   (`starship init fish`), tool integrations (mise, zoxide, fzf), and aliases. `cachyos-fish-config` is uninstalled
   if present and fastfetch is omitted. Interactive bash is also supported via a managed `~/.bashrc` block that
   sources `shell/init.sh`.
-- **Telemetry opt-outs** (`env/telemetry.conf`) use the strict `KEY=VALUE` subset that environment.d, `sh`, and
-  fish accept, because four readers share the file: systemd --user (linked into `environment.d`), `~/.xprofile`,
-  `fish/config.fish` and `shell/init.sh`.
+- **Telemetry opt-outs** (`env/telemetry.conf`) use the strict `KEY=VALUE` subset that environment.d, `sh`, zsh
+  and fish accept, because five readers share the file: systemd --user (linked into `environment.d`),
+  `~/.xprofile`, `shell/init.sh`, `shell/init.zsh` and `fish/config.fish`.
 
 ## Optional: `opt/`
 

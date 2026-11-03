@@ -1,4 +1,6 @@
 # Aliases for eza, zoxide and fzf, matching the Omarchy host's defaults.
+# Shared by bash (init.sh) and zsh (init.zsh); fish/config.fish has the same in
+# fish. A change here goes there too.
 
 # ── eza ───────────────────────────────────────────────────────────────────
 if command -v eza &> /dev/null; then
@@ -50,8 +52,8 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 # ── vi mode ─────────────────────────────────────────────────────────────────
-# vi-style line editing.
-if [ -n "${BASH_VERSION:-}" ]; then
+# vi-style line editing. In zsh, `set -o vi` is `bindkey -v`.
+if [ -n "${BASH_VERSION:-}${ZSH_VERSION:-}" ]; then
   set -o vi
 fi
 
