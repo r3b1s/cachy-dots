@@ -17,7 +17,8 @@
 #   4. re-applies the default apps, keeping the browser chosen in the menu
 #   5. validates the active session's config (i3 or Hyprland), lists packages
 #      the repo wants that are missing, and warns when voxtype is installed
-#      without the hooks and config link opt/services/voxtype/install.sh makes
+#      without the hooks, config link, ONNX binary and Parakeet model that
+#      opt/services/voxtype/install.sh sets up
 #
 # The links and colours of the active session (bin/graphical-session) are re-applied
 # too; x11-theme's re-render is skipped while Hyprland is active (its shell themes it).
@@ -95,6 +96,17 @@ report_voxtype() {
     done
     if [ "$(readlink "$cfg/voxtype/config.toml" 2>/dev/null)" != "$REPO/opt/services/voxtype/config.toml" ]; then
         warn "voxtype is installed, but $cfg/voxtype/config.toml is not linked: run opt/services/voxtype/install.sh"
+        return 0
+    fi
+    # The linked config names Parakeet, which needs the ONNX binary and its model.
+    local model
+    model=$(sed -n '/^\[parakeet\]/,/^\[/s/^model *= *"\(.*\)".*/\1/p' "$REPO/opt/services/voxtype/config.toml")
+    if ! { [ -L /usr/bin/voxtype ] && [[ $(readlink -f /usr/bin/voxtype) == */voxtype-onnx-* ]]; } \
+        && ! grep -qs '^exec [^ ]*/voxtype-onnx' /usr/bin/voxtype; then
+        warn "voxtype's config uses Parakeet, but /usr/bin/voxtype is the Whisper binary: run opt/services/voxtype/install.sh"
+    fi
+    if [ -n "$model" ] && [ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/voxtype/models/$model" ]; then
+        warn "voxtype's Parakeet model ($model) is not downloaded: run opt/services/voxtype/install.sh"
     fi
 }
 

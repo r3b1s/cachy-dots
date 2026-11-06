@@ -8,9 +8,13 @@
 #      ./install.sh first: it installs yay. Later updates come with `yay -Syu`.
 #   2. links config.toml (in this folder) to ~/.config/voxtype/config.toml;
 #      a link to an older place is repointed.
-#   3. downloads the speech model the config names (base.en) with `voxtype setup
-#      --download`, when there is none. Needs network.
-#   4. starts the daemon at login with `~/.local/bin/dictate daemon`, a line in
+#   3. switches /usr/bin/voxtype to the ONNX binary (`sudo voxtype setup onnx
+#      --enable`, which picks AVX2 or AVX-512 for this CPU), since the config's
+#      engine is Parakeet and the default binary runs Whisper only. The AUR
+#      package keeps the choice across upgrades.
+#   4. downloads the Parakeet model the config names ([parakeet] model) with
+#      `voxtype setup --download --model`, when it is missing. Needs network.
+#   5. starts the daemon at login with `~/.local/bin/dictate daemon`, a line in
 #      each session's per-host hook: ~/.config/i3/conf.d/06-services.conf and
 #      ~/.config/hypr/cachy-services.lua. A voxtype line already in either is
 #      replaced by it, and a file that already matches is left alone.
@@ -160,11 +164,36 @@ if [ "$(readlink "$config_dst" 2>/dev/null)" != "$config_src" ]; then
     echo "linked $config_dst -> $config_src"
 fi
 
+# ── the ONNX binary ───────────────────────────────────────────────────────────
+
+# /usr/bin/voxtype is the package's dispatcher: a link to a CPU binary, or a
+# wrapper script that execs a GPU one by its full path.
+onnx_active() {
+    if [ -L /usr/bin/voxtype ]; then
+        case "$(readlink -f /usr/bin/voxtype)" in */voxtype-onnx-*) return 0 ;; esac
+        return 1
+    fi
+    grep -qs '^exec [^ ]*/voxtype-onnx' /usr/bin/voxtype
+}
+
+if onnx_active; then
+    echo "voxtype runs its ONNX binary already"
+else
+    say "Switching voxtype to its ONNX binary (Parakeet)"
+    run sudo voxtype setup onnx --enable || die "could not enable the ONNX binary: sudo voxtype setup onnx --enable"
+    if pgrep -x -u "$(id -u)" voxtype >/dev/null; then
+        warn "the running daemon is still the Whisper binary: Parakeet starts with the next login"
+    fi
+fi
+
 # ── the speech model ──────────────────────────────────────────────────────────
 
-if ! ls "${XDG_DATA_HOME:-$HOME/.local/share}"/voxtype/models/*.bin >/dev/null 2>&1; then
-    say "Downloading the speech model (base.en)"
-    run voxtype setup --download || warn "the model download failed; run: voxtype setup --download"
+model=$(sed -n '/^\[parakeet\]/,/^\[/s/^model *= *"\(.*\)".*/\1/p' "$config_src")
+[ -n "$model" ] || die "no [parakeet] model in $config_src"
+if [ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}/voxtype/models/$model" ]; then
+    say "Downloading the speech model ($model)"
+    run voxtype setup --download --model "$model" \
+        || warn "the model download failed; run: voxtype setup --download --model $model"
 fi
 
 # ── the session hooks ─────────────────────────────────────────────────────────

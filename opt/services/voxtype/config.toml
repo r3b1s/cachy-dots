@@ -19,6 +19,14 @@
 # Required for `voxtype record toggle` and `voxtype status` commands.
 state_file = "auto"
 
+# Transcription engine: Parakeet (NVIDIA's FastConformer TDT, through ONNX
+# Runtime), see [parakeet] below. It needs voxtype's ONNX binary, which
+# install.sh in this folder switches to with `sudo voxtype setup onnx --enable`
+# (the AUR package keeps that choice across upgrades); the default binary runs
+# Whisper only. "whisper" switches back to [whisper], after
+# `sudo voxtype setup onnx --disable`.
+engine = "parakeet"
+
 [hotkey]
 # Hotkey is configured in i3 ($mod+d). The built-in one needs the `input` group.
 enabled = false
@@ -47,7 +55,29 @@ theme = "subtle"
 # Volume level (0.0 to 1.0)
 volume = 0.33
 
+[parakeet]
+# Model, downloaded by install.sh in this folder (it reads the name from this
+# line) into ~/.local/share/voxtype/models/<model>/. Options
+# (`voxtype info models`): parakeet-tdt-0.6b-v3 (2.6 GB, the most accurate),
+# parakeet-tdt-0.6b-v3-int8 (670 MB, quantized for less memory), and
+# the English-only v2 models. v3 covers 25 European languages and detects the
+# language itself, with punctuation and capitals. It runs on the CPU (AVX2 or
+# AVX-512); the CUDA and MIGraphX binaries need an AVX-512 CPU.
+model = "parakeet-tdt-0.6b-v3-int8"
+
+# Load the model when a recording starts and unload it after the transcription,
+# instead of keeping it in memory: frees the RAM while idle, at the cost of a
+# load before each dictation.
+on_demand_loading = true
+
+# Number of CPU threads for inference (omit for auto-detection)
+# threads = 4
+
 [whisper]
+# Used only when engine = "whisper" (above). Parakeet takes no initial_prompt,
+# so with it the vocabulary hints below do nothing; [text.replacements] still
+# applies to both engines.
+#
 # Model to use for transcription
 # Options: tiny, tiny.en, base, base.en, small, small.en, medium, medium.en, large-v3, large-v3-turbo
 # .en models are English-only but faster and more accurate for English

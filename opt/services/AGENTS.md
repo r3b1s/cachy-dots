@@ -142,13 +142,19 @@ The scripts' headers and the Nix modules have the details; this is what they can
 Push-to-talk dictation, `$mod+d` in both sessions (`opt/services/voxtype/install.sh`, `--remove`).
 * Package: `voxtype-bin`, built from the AUR with `yay` (no pacman repo has it); a repo build wins if one appears.
 * Config: `config.toml` in this folder, linked to `~/.config/voxtype/config.toml`.
+* Engine: Parakeet (`parakeet-tdt-0.6b-v3-int8`, `on_demand_loading`). It needs the ONNX binary: the AUR
+  package's `/usr/bin/voxtype` is a link to a CPU binary, or a wrapper that execs a GPU one, and `sudo voxtype
+  setup onnx --enable` repoints it (not `/usr/local/bin`, as voxtype's docs say for other packages); the package's
+  `pre_upgrade`/`post_upgrade` keep the choice. The installer reads the model name from `[parakeet]` and downloads it
+  with `voxtype setup --download --model`, never `--activate`, which would write through the link. Parakeet has no
+  `initial_prompt`; `[whisper]` stays for switching back.
 * Lifecycle: no unit. The hooks run `~/.local/bin/dictate daemon` (`bin/dictate`, linked by every install),
   which replaces a daemon left by the other session once it has exited (voxtype's lock), waits up to 5 s for
   WirePlumber's default sink, judged by `wpctl get-volume`'s output, as its exit status is 0 even with no sink
   (a sound output opened before it may be negotiated at 1 Hz, and the start and stop sounds go silent), then
   execs `voxtype -q daemon`.
 * A host's `~/.config/hypr/cachy.lua` copied before voxtype was opt-in starts the daemon itself; the installer
-  warns about it, since the copy is never overwritten. `sync.sh` warns when voxtype is installed without its hooks or config link.
+  warns about it, since the copy is never overwritten. `sync.sh` warns when voxtype is installed without its hooks, config link, ONNX binary or model.
 
 ### 6. `incus/`
 The Incus daemon on the host and nothing above it (`opt/services/incus/install.sh`, `--ui`, `--remove`). No networks,
