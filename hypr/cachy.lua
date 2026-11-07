@@ -225,13 +225,13 @@ end
 
 -- Named workspaces (bin/ws-app; AGENTS.md has the naming). Plain ones toggle, the
 -- others launch their app into an empty one, and each can be sent a window.
+rebind("SUPER + A", hl.dsp.workspace.toggle_special("a"), { description = "Workspace a" })
 rebind("SUPER + Q", hl.dsp.workspace.toggle_special("q"), { description = "Workspace q" })
 rebind("SUPER + Y", hl.dsp.workspace.toggle_special("y"), { description = "Workspace y" })
 rebind("SUPER + comma", hl.dsp.workspace.toggle_special("comma"), { description = "Workspace comma" })
 rebind("SUPER + minus", hl.dsp.workspace.toggle_special("minus"), { description = "Workspace minus" })
 rebind("SUPER + period", hl.dsp.workspace.toggle_special("period"), { description = "Workspace period" })
 rebind("SUPER + SHIFT + P", hl.dsp.workspace.toggle_special("sft_p"), { description = "Plain workspace sft_p" })
-rebind("SUPER + A", hl.dsp.exec_cmd("~/.local/bin/ws-app a claude-desktop"), { description = "Claude workspace" })
 rebind("SUPER + G", hl.dsp.exec_cmd("~/.local/bin/ws-app g $TERMINAL"), { description = "Second terminal workspace" })
 rebind("SUPER + I", hl.dsp.exec_cmd("~/.local/bin/ws-app i ~/.local/bin/default-browser launch https://www.onelook.com/thesaurus"), { description = "Thesaurus workspace" })
 rebind("SUPER + M", hl.dsp.exec_cmd("~/.local/bin/ws-app m grayjay"), { description = "Grayjay workspace" })
