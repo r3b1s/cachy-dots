@@ -157,7 +157,8 @@ helpers for zones of our own. What neither shows:
   active and it enforces its stock config (`public`, ssh open), so that degrades rather than opens or locks out. A
   policy's `target` attribute is mandatory: `CONTINUE` lets its rich rules decide.
 - **`wt0`:** NetBird's client has firewalld support of its own (it calls `addInterface` over D-Bus), so nothing here
-  names the interface. Which zone it picks is unverified, below.
+  names the interface. It picks `trusted`, as Tailscale's client does for `tailscale0` (seen on a live host,
+  2026-11): every peer reaches every port on the host, with no rule of ours.
 - **Moving from ufw:** its rules are listed, not carried over, and the blocks older scripts left in
   `/etc/ufw/before*.rules` go inert with it. Re-run `opt/virt.sh`, `opt/services/incus/install.sh` and
   `opt/services/rakazo/host-setup.sh` where they were in use, or their guests lose DHCP and forwarding.
@@ -563,7 +564,7 @@ Nothing here runs from `install.sh`. [opt/AGENTS.md](opt/AGENTS.md) lists every 
   ESP. Give the volume `boot.priority` and set `security.secureboot=false`. Hibernation works there; the
   firmware offers no S3, so suspend-then-hibernate does not, and there is no Bluetooth adapter (bluez ships no
   `btvirt` to fake one).
-- **Not verified on a live system:** which zone NetBird puts `wt0` in, the `tun0` zone when NetworkManager owns the
+- **Not verified on a live system:** the `tun0` zone when NetworkManager owns the
   VPN, rakazo's `cachy-stack` zone (`host-setup.sh`), setup_firewall on real CachyOS (tested on Arch with ufw
   installed as CachyOS ships it), kanata's unit
   hardening, `opt/dux-settings.sh` on a fresh host, `dictate daemon` on a real session switch (a planted Wayland
