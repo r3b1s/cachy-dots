@@ -42,7 +42,7 @@ these differences for a vendor binary:
 
 | Directory | Installs |
 | :--- | :--- |
-| **`antigravity/`** | Google Antigravity desktop app (the "Antigravity App" download; the standalone Antigravity IDE is a separate archive, not installed). Scrapes the archive URL from `antigravity.google/download`, which publishes no checksum. |
+| **`antigravity-app/`** | Google Antigravity desktop app (the "Antigravity App" download; the standalone Antigravity IDE is a separate archive, not installed). Scrapes the archive URL from `antigravity.google/download`, which publishes no checksum. |
 
 ## Testing Rules
 
