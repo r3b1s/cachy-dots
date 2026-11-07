@@ -19,21 +19,26 @@
 #   5. removes the Paseo AppImages it replaces from ~/Applications, and every entry
 #      that runs one of them (such as paseo-x86-64.desktop from a manual install).
 #
+# --check only compares: it exits 0 when the release is installed, 10 when it is not but
+# an older Paseo AppImage is, and 11 when none is, and changes nothing. upgrade.sh uses it.
+#
 # The AppImage runtime needs libfuse.so.2 (the fuse2 package) to start. The daemon and
 # its web UI are setup.sh's; this is only the desktop app.
 #
-# Usage: opt/services/paseo/appimage.sh [--tag vX.Y.Z] [--remove] [-n|--dry-run] [-h|--help]
+# Usage: opt/services/paseo/appimage.sh [--tag vX.Y.Z] [--check] [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 INSTALL_APPIMAGE="$HERE/../../../bin/install-appimage"
 
 dry=0
+check=0
 remove=0
 tag=
 while [ $# -gt 0 ]; do
     case "$1" in
         --tag)        tag=${2:?--tag needs a value}; shift ;;
+        --check)      check=1 ;;
         --remove)     remove=1 ;;
         -n|--dry-run) dry=1 ;;
         -h|--help)
@@ -113,7 +118,7 @@ for tool in curl jq sha256sum; do
 done
 [ -x "$INSTALL_APPIMAGE" ] || die "install-appimage not found at $INSTALL_APPIMAGE"
 [ "$(uname -m)" = x86_64 ] || die "Paseo publishes its AppImage for x86_64 only"
-if command -v pacman >/dev/null 2>&1 && ! pacman -Qq fuse2 >/dev/null 2>&1; then
+if [ "$check" = 0 ] && command -v pacman >/dev/null 2>&1 && ! pacman -Qq fuse2 >/dev/null 2>&1; then
     warn "fuse2 is not installed: the AppImage installs, but needs it to start (sudo pacman -S fuse2)"
 fi
 
@@ -138,6 +143,21 @@ sha=${sha#sha256:}
 
 dest="$APPS_DIR/Paseo-$version-x86_64.AppImage"
 say "Paseo $version"
+
+if [ "$check" = 1 ]; then
+    if [ -f "$dest" ] && [ "$(sha256sum "$dest" | awk '{ print $1 }')" = "$sha" ]; then
+        say "$dest is installed and current"
+        exit 0
+    fi
+    installed=$(find "$APPS_DIR" -maxdepth 1 \( -name 'Paseo-*.AppImage' -o -name Paseo.AppImage \) \
+        -printf '%f\n' 2>/dev/null | sort -V | tail -n 1) || true
+    if [ -z "$installed" ]; then
+        say "No Paseo AppImage in $APPS_DIR"
+        exit 11
+    fi
+    say "Paseo $version is out (installed: $installed)"
+    exit 10
+fi
 
 # ── 2–3. Download, verify, install ────────────────────────────────────────────
 

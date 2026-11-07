@@ -5,21 +5,41 @@
 #   1. installs @getpaseo/cli globally via mise using the npm backend
 #   2. installs the systemd user service into ~/.config/systemd/user/paseo.service
 #   3. reloads the systemd user daemon (systemctl --user daemon-reload)
+#   4. sets the address the daemon and its web UI listen on, port 6767, as
+#      daemon.listen in ~/.paseo/config.json:
+#        (no flag)    127.0.0.1, this host only;
+#        --netbird    the IPv4 address wt0 has now, for NetBird peers;
+#        --tailscale  the IPv4 address tailscale0 has now, for Tailscale peers.
+#      Each run sets it, so a run without a flag goes back to 127.0.0.1. The address
+#      is read once, here: re-run after the VPN gives this host a new one.
+#      Both clients put their interface in firewalld's trusted zone, so no port is
+#      opened; that zone lets every peer reach every port on the host.
 #
-# Note: This script intentionally does NOT enable or start the service.
-# Detailed instructions for configuring Paseo and enabling the service
-# are printed upon completion.
+# Note: This script intentionally does NOT enable, start or restart the service:
+# a running daemon keeps its address until `systemctl --user restart paseo`,
+# which ends the agents it runs. Detailed instructions for configuring Paseo and
+# enabling the service are printed upon completion.
 #
-# Usage: opt/services/paseo/setup.sh [--remove] [-n|--dry-run] [-h|--help]
+# Usage: opt/services/paseo/setup.sh [--netbird|--tailscale] [--remove] [-n|--dry-run] [-h|--help]
 set -euo pipefail
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 dry=0
 remove=0
+iface=
 
 for arg in "$@"; do
     case "$arg" in
+        --netbird|--tailscale)
+            want=wt0
+            [ "$arg" = --netbird ] || want=tailscale0
+            if [ -n "$iface" ] && [ "$iface" != "$want" ]; then
+                echo "--netbird and --tailscale exclude each other" >&2
+                exit 2
+            fi
+            iface=$want
+            ;;
         --remove)     remove=1 ;;
         -n|--dry-run) dry=1 ;;
         -h|--help)
@@ -40,6 +60,8 @@ run()  { if [ "$dry" = 1 ]; then echo "+ $*"; else "$@"; fi; }
 
 service_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 service_file="$service_dir/paseo.service"
+paseo_home="$HOME/.paseo"   # the unit's PASEO_HOME
+port=6767
 
 # ── Removal ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +100,7 @@ fi
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 
 command -v mise >/dev/null 2>&1 || die "mise is required to install Paseo via the npm backend. Install mise first."
+command -v jq >/dev/null 2>&1 || die "jq is required"
 
 # ── 1. Install CLI via mise (npm backend) ────────────────────────────────────
 
@@ -105,6 +128,37 @@ run cp "$HERE/paseo.service" "$service_file"
 say "Reloading systemd user daemon..."
 run systemctl --user daemon-reload
 
+# ── 4. Listen address ─────────────────────────────────────────────────────────
+
+if [ -n "$iface" ]; then
+    command -v ip >/dev/null 2>&1 || die "ip (iproute2) is required for --netbird and --tailscale"
+    addr=$(ip -4 -o addr show dev "$iface" scope global 2>/dev/null | awk '{ sub(/\/.*/, "", $4); print $4; exit }')
+    [ -n "$addr" ] || die "$iface has no IPv4 address: is $([ "$iface" = wt0 ] && echo NetBird || echo Tailscale) up?"
+else
+    addr=127.0.0.1
+fi
+listen="$addr:$port"
+
+current=
+if mise exec -- paseo --version >/dev/null 2>&1; then
+    current=$(mise exec -- paseo daemon config get --home "$paseo_home" daemon.listen 2>/dev/null \
+        | jq -r '.value // empty' 2>/dev/null) || current=
+fi
+if [ "$current" = "$listen" ]; then
+    say "daemon.listen is $listen already"
+else
+    say "Setting Paseo's listen address to $listen${current:+ (was $current)}"
+    if [ "$dry" = 1 ]; then
+        echo "+ mise exec -- paseo daemon config set --home $paseo_home --string daemon.listen $listen"
+    else
+        mise exec -- paseo daemon config set --home "$paseo_home" --string daemon.listen "$listen" >/dev/null \
+            || die "could not set daemon.listen in $paseo_home/config.json"
+    fi
+    if systemctl --user is-active --quiet paseo 2>/dev/null; then
+        warn "paseo.service still listens on ${current:-its old address}: systemctl --user restart paseo (ends its agents)"
+    fi
+fi
+
 # ── Guidance ──────────────────────────────────────────────────────────────────
 
 printf '\n'
@@ -120,7 +174,7 @@ printf '     \033[1m~/.paseo/config.json\033[0m\n'
 printf '  4. Daemon log location:\n'
 printf '     \033[1m~/.paseo/daemon.log\033[0m\n'
 printf '  5. Self-hosted Web UI (enabled in service):\n'
-printf '     \033[1;36mhttp://localhost:6767\033[0m\n\n'
+printf '     \033[1;36mhttp://%s\033[0m\n\n' "$listen"
 
 printf '\033[1mService Management (systemd):\033[0m\n'
 printf '  • Enable on boot/login and start now:\n'

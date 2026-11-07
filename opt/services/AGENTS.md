@@ -51,12 +51,23 @@ Hardware-level keyboard remapping daemon (`opt/services/kanata/install.sh`).
 Supervisor daemon and web UI for AI coding agent environments (`opt/services/paseo/setup.sh`).
 * CLI: `@getpaseo/cli` installed via `mise` (`npm` backend)
 * Unit: Systemd user service (`~/.config/systemd/user/paseo.service`)
-* Features: Foreground runner mode, local web UI on port 6767, remote relay disabled by default
+* Features: Foreground runner mode, web UI on port 6767, remote relay disabled by default
+* Listen address: `daemon.listen` in `~/.paseo/config.json`, set on every run of `setup.sh` (through
+  `paseo daemon config set`): `127.0.0.1:6767` by default, the IPv4 address `wt0` has with `--netbird`, or
+  `tailscale0`'s with `--tailscale`, read once at setup. The config file, not the unit's environment: a
+  `PASEO_LISTEN` there would win over it, and Paseo strips its setting variables from managed launches. Both VPN
+  interfaces sit in firewalld's `trusted` zone, so no port is opened. A running daemon keeps its address until
+  `systemctl --user restart paseo`, which `setup.sh` leaves to you, since it ends the daemon's agents.
 * Desktop app: `appimage.sh` installs the latest release's `Paseo-x86_64.AppImage` (checked against the sha256
   GitHub publishes) through `bin/install-appimage`, renamed `Paseo-<version>-x86_64.AppImage`: upstream's name has
   no version, from which `install-appimage` would make "Paseo x86 64". It then rewrites `paseo.desktop` from the
   entry inside the AppImage (hicolor icons, `--class`, `StartupWMClass`, the `paseo://` handler) and removes the
   Paseo AppImages it replaces, with their entries. Starting it needs `fuse2` (`libfuse.so.2`).
+* Upgrades: `upgrade.sh` checks the CLI (`mise outdated --global`) and the app (`appimage.sh --check`), and only
+  when one is out of date stops `paseo.service`, upgrades, and starts it again (after a failed upgrade too).
+  Nothing is pinned: the CLI's request stays `latest` (no `--bump`/`--pin`), the app follows the latest release.
+  `KillMode=control-group` would kill a script started from a terminal Paseo spawned, so the script re-runs itself
+  as the transient unit `paseo-upgrade` first.
 
 ### 3. `sunshine/`
 Self-hosted GameStream server for Moonlight (`opt/services/sunshine/install.sh`).
